@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fontdue::{Font, Metrics};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
 
-use crate::grid::{Cell, Grid, GridConfig, GridFilter, SUBGRID_LABELS};
+use crate::grid::{Cell, Grid, GridConfig, GridFilter, QUAD_LABELS, SUBGRID_LABELS};
 
 // ── Text cache ─────────────────────────────────────────────────────
 
@@ -73,32 +73,34 @@ pub fn render_labels(
     }
 }
 
-// ── Level-3 sub-grid (4×2, drawn inside a parent cell) ───────────
+// ── Region focus (generic — used by sub-grid and bisect levels) ─────
 
-/// Draw the 4×2 sub-grid **inside** the previously selected cell's
-/// rectangle.  The caller should restore the base layer first so the
-/// 26×26 grid acts as background context.
-pub fn render_subgrid(
+/// Highlight a region, draw grid lines inside, and labels outside.
+/// `labels` is row-major: labels[r][c].
+fn render_region(
     pixmap: &mut Pixmap,
-    parent: &Cell,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    rows: u32,
+    cols: u32,
+    labels: &[&[char]],
     cfg: &GridConfig,
     cache: &TextCache,
     font_size: f32,
 ) {
-    let x = parent.rect.x() as f32;
-    let y = parent.rect.y() as f32;
-    let w = parent.rect.width() as f32;
-    let h = parent.rect.height() as f32;
-
-    let rows: u32 = 2;
-    let cols: u32 = 4;
-    let cell_w = w / cols as f32;
-
-    // Slightly lighten the parent cell to distinguish it
+    // Light fill
     let hl = rgba_color(cfg.label_color);
-    let hl_paint = Paint { shader: Shader::SolidColor(Color::from_rgba8(
-        (hl.red() * 64.0) as u8, (hl.green() * 64.0) as u8, (hl.blue() * 64.0) as u8, 32,
-    )), ..Default::default() };
+    let hl_paint = Paint {
+        shader: Shader::SolidColor(Color::from_rgba8(
+            (hl.red() * 64.0) as u8,
+            (hl.green() * 64.0) as u8,
+            (hl.blue() * 64.0) as u8,
+            32,
+        )),
+        ..Default::default()
+    };
     pixmap.fill_path(
         &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
         &hl_paint,
@@ -107,7 +109,7 @@ pub fn render_subgrid(
         None,
     );
 
-    // Sub-grid lines within the parent cell
+    // Grid lines
     let line_c = rgba_color(cfg.line_color);
     let paint = Paint { shader: Shader::SolidColor(line_c), anti_alias: true, ..Default::default() };
     let stroke = Stroke { width: cfg.line_width, ..Default::default() };
@@ -120,25 +122,65 @@ pub fn render_subgrid(
         stroke_line(pixmap, lx, y, lx, y + h, &paint, &stroke);
     }
 
-    // Labels — drawn outside the cell for readability
+    // Labels outside
     let label_c = rgba_color(cfg.label_color);
-    let gap = font_size * 1.0; // space between cell border and label
-
-    // Top row (a, s, d, f) — above the cell
+    let gap = font_size * 1.0;
+    let cell_w = w / cols as f32;
     let top_y = y - gap - font_size * 0.5;
-    for col in 0..cols {
-        let cx = x + (col as f32 + 0.5) * cell_w;
-        let ch = SUBGRID_LABELS[0][col as usize];
-        draw_text(pixmap, &ch.to_string(), cx, top_y, cache, font_size, &label_c);
-    }
-
-    // Bottom row (j, k, l, ;) — below the cell
     let bot_y = y + h + gap + font_size * 0.5;
+
     for col in 0..cols {
         let cx = x + (col as f32 + 0.5) * cell_w;
-        let ch = SUBGRID_LABELS[1][col as usize];
-        draw_text(pixmap, &ch.to_string(), cx, bot_y, cache, font_size, &label_c);
+        if let Some(ch) = labels.get(0).and_then(|r| r.get(col as usize)) {
+            draw_text(pixmap, &ch.to_string(), cx, top_y, cache, font_size, &label_c);
+        }
+        if let Some(ch) = labels.get(1).and_then(|r| r.get(col as usize)) {
+            draw_text(pixmap, &ch.to_string(), cx, bot_y, cache, font_size, &label_c);
+        }
     }
+}
+
+// ── Level-3 sub-grid (4×2 within parent cell) ──────────────────────
+
+pub fn render_subgrid(
+    pixmap: &mut Pixmap,
+    parent: &Cell,
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
+) {
+    let top: &[char] = &SUBGRID_LABELS[0];
+    let bot: &[char] = &SUBGRID_LABELS[1];
+    render_region(
+        pixmap,
+        parent.rect.x() as f32,
+        parent.rect.y() as f32,
+        parent.rect.width() as f32,
+        parent.rect.height() as f32,
+        2,
+        4,
+        &[top, bot],
+        cfg,
+        cache,
+        font_size,
+    );
+}
+
+// ── Levels 4-7  quadrant bisection (2×2) ───────────────────────────
+
+pub fn render_bisect(
+    pixmap: &mut Pixmap,
+    rect: (f32, f32, f32, f32), // x, y, w, h
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
+) {
+    let top: &[char] = &QUAD_LABELS[0];
+    let bot: &[char] = &QUAD_LABELS[1];
+    render_region(
+        pixmap, rect.0, rect.1, rect.2, rect.3,
+        2, 2, &[top, bot], cfg, cache, font_size,
+    );
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

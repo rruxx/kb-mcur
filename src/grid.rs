@@ -152,6 +152,7 @@ pub const SUBGRID_LABELS: [[char; 4]; 2] = [
 
 /// A sub-cell inside the final 4×2 grid.  Coordinates are pixel-space
 /// (relative to the monitor), computed from the parent cell rect.
+#[allow(dead_code)]
 pub struct SubCell {
     pub center: (f32, f32),
     #[allow(dead_code)]
@@ -160,6 +161,7 @@ pub struct SubCell {
 
 /// Build the eight sub-cells that partition `parent` (the Cell selected
 /// in the 26×26 grid).  Labels come from [`SUBGRID_LABELS`].
+#[allow(dead_code)]
 pub fn subgrid_cells(parent: &Cell) -> [SubCell; 8] {
     let r = &parent.rect;
     let w = r.width() as f32 / 4.0;
@@ -178,5 +180,47 @@ pub fn subgrid_cells(parent: &Cell) -> [SubCell; 8] {
         i += 1;
         cell
     })
+}
+
+// ── Levels 4-7  quadrant bisection (2×2) ────────────────────────────
+
+/// Labels for the 2×2 quadrant grid (row-major).
+pub const QUAD_LABELS: [[char; 2]; 2] = [
+    ['e', 'r'],
+    ['d', 'f'],
+];
+
+/// Key → quadrant index: 0=top-left(e), 1=top-right(r), 2=bot-left(d), 3=bot-right(f).
+pub fn quad_key_index(ch: char) -> Option<usize> {
+    match ch {
+        'e' => Some(0),
+        'r' => Some(1),
+        'd' => Some(2),
+        'f' => Some(3),
+        _ => None,
+    }
+}
+
+/// Level-3 sub-grid key → index: 0=a, 1=s, …, 7=;
+pub fn sub_key_index(ch: char) -> Option<usize> {
+    match ch {
+        'a' => Some(0), 's' => Some(1), 'd' => Some(2), 'f' => Some(3),
+        'j' => Some(4), 'k' => Some(5), 'l' => Some(6), ';' => Some(7),
+        _ => None,
+    }
+}
+
+/// Shrink a (x, y, w, h) rectangle to the selected quadrant.
+/// `idx`: 0=TL, 1=TR, 2=BL, 3=BR.
+pub fn quad_shrink((x, y, w, h): (f32, f32, f32, f32), idx: usize) -> (f32, f32, f32, f32) {
+    let hw = w * 0.5;
+    let hh = h * 0.5;
+    match idx {
+        0 => (x,         y,          hw, hh), // TL
+        1 => (x + hw,    y,          hw, hh), // TR
+        2 => (x,         y + hh,     hw, hh), // BL
+        3 => (x + hw,    y + hh,     hw, hh), // BR
+        _ => (x, y, w, h),
+    }
 }
 
