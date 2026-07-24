@@ -15,7 +15,7 @@ pub fn render_grid(pixmap: &mut Pixmap, grid: &Grid, config: &GridConfig, font: 
 
     let label_color = rgba_to_color(&config.label_color);
     for cell in &grid.cells {
-        draw_label(pixmap, cell.label, cell.center.0, cell.center.1, font, font_size, &label_color);
+        draw_label(pixmap, &cell.label, cell.center.0, cell.center.1, font, font_size, &label_color);
     }
 }
 
@@ -47,7 +47,6 @@ fn draw_grid_lines(pixmap: &mut Pixmap, w: f32, h: f32, grid: &Grid, color: &Col
         ..Default::default()
     };
 
-    // horizontal lines
     for row in 1..grid.rows {
         let y = (row as f32 / grid.rows as f32) * h;
         let mut pb = PathBuilder::new();
@@ -56,7 +55,6 @@ fn draw_grid_lines(pixmap: &mut Pixmap, w: f32, h: f32, grid: &Grid, color: &Col
         pixmap.stroke_path(&pb.finish().unwrap(), &paint, &stroke, Transform::identity(), None);
     }
 
-    // vertical lines
     for col in 1..grid.cols {
         let x = (col as f32 / grid.cols as f32) * w;
         let mut pb = PathBuilder::new();
@@ -66,60 +64,111 @@ fn draw_grid_lines(pixmap: &mut Pixmap, w: f32, h: f32, grid: &Grid, color: &Col
     }
 }
 
-/// Draw a single character label centred at (cx, cy).
-fn draw_label(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, font: &Font, size: f32, color: &Color) {
-    let (metrics, bitmap) = font.rasterize(ch, size);
-    if bitmap.is_empty() {
+/// Draw a multi-character label precisely centred at (cx, cy).
+fn draw_label(pixmap: &mut Pixmap, text: &str, cx: f32, cy: f32, font: &Font, size: f32, color: &Color) {
+    let chars: Vec<char> = text.chars().collect();
+    if chars.is_empty() {
         return;
     }
 
-    let glyph_w = metrics.width as f32;
-    let glyph_h = metrics.height as f32;
-    let px = cx - glyph_w / 2.0;
-    let py = cy - glyph_h / 2.0;
+    let char_spacing = size * 0.12;
+
+    // Pre-rasterise every character.
+    struct Glyph {
+        metrics: fontdue::Metrics,
+        bitmap: Vec<u8>,
+    }
+    let mut glyphs: Vec<Glyph> = Vec::with_capacity(chars.len());
+    for &ch in &chars {
+        let (metrics, bitmap) = font.rasterize(ch, size);
+        glyphs.push(Glyph { metrics, bitmap });
+    }
+
+    // Visual bounding box of the whole label (relative to the first glyph's
+    // origin, NOT the pen position).
+    let first = &glyphs.first().unwrap().metrics;
+    let mut vis_left = first.xmin as f32;
+    let mut vis_right = first.xmin as f32 + first.width as f32;
+    let mut vis_top = first.ymin as f32;
+    let mut vis_bottom = first.ymin as f32 + first.height as f32;
+
+    let mut pen = 0.0_f32;
+    for g in &glyphs {
+        let left = pen + g.metrics.xmin as f32;
+        let right = left + g.metrics.width as f32;
+        let top = g.metrics.ymin as f32;
+        let bottom = top + g.metrics.height as f32;
+        vis_left = vis_left.min(left);
+        vis_right = vis_right.max(right);
+        vis_top = vis_top.min(top);
+        vis_bottom = vis_bottom.max(bottom);
+        pen += g.metrics.advance_width + char_spacing;
+    }
+
+    let label_mid_x = (vis_left + vis_right) * 0.5;
+    let label_mid_y = (vis_top + vis_bottom) * 0.5;
+    let base_x = cx - label_mid_x;
+    let base_y = cy - label_mid_y;
 
     let fg_a = color.alpha();
     let pw = pixmap.width() as usize;
     let pixels = pixmap.pixels_mut();
 
-    for row in 0..metrics.height {
-        for col in 0..metrics.width {
-            let coverage = bitmap[row * metrics.width + col] as f32 / 255.0;
-            if coverage < 1.0 / 255.0 {
-                continue;
-            }
-
-            let x = (px + col as f32 + metrics.xmin as f32) as i32;
-            let y = (py + row as f32 + metrics.ymin as f32) as i32;
-            if x < 0 || y < 0 || x as usize >= pw || (y as usize) * pw + (x as usize) >= pixels.len() {
-                continue;
-            }
-
-            let dst = &mut pixels[y as usize * pw + x as usize];
-
-            let src_a = coverage * fg_a;
-            let src_r = color.red() * src_a;
-            let src_g = color.green() * src_a;
-            let src_b = color.blue() * src_a;
-
-            let dst_r = dst.red() as f32 / 255.0;
-            let dst_g = dst.green() as f32 / 255.0;
-            let dst_b = dst.blue() as f32 / 255.0;
-            let dst_a = dst.alpha() as f32 / 255.0;
-
-            let inv_alpha = 1.0 - src_a;
-            let r = src_r + dst_r * inv_alpha;
-            let g = src_g + dst_g * inv_alpha;
-            let b = src_b + dst_b * inv_alpha;
-            let a = src_a + dst_a * inv_alpha;
-
-            *dst = PremultipliedColorU8::from_rgba(
-                (r * 255.0).round() as u8,
-                (g * 255.0).round() as u8,
-                (b * 255.0).round() as u8,
-                (a * 255.0).round() as u8,
-            )
-            .unwrap();
+    let mut pen_x = 0.0_f32;
+    for g in &glyphs {
+        let m = &g.metrics;
+        let bmp = &g.bitmap;
+        if bmp.is_empty() {
+            pen_x += m.advance_width + char_spacing;
+            continue;
         }
+
+        let gx = base_x + pen_x + m.xmin as f32;
+        let gy = base_y + m.ymin as f32;
+
+        for row in 0..m.height {
+            for col in 0..m.width {
+                let coverage = bmp[row * m.width + col] as f32 / 255.0;
+                if coverage < 1.0 / 255.0 {
+                    continue;
+                }
+
+                let ix = (gx + col as f32) as i32;
+                let iy = (gy + row as f32) as i32;
+                if ix < 0 || iy < 0 || ix as usize >= pw {
+                    continue;
+                }
+                let idx = iy as usize * pw + ix as usize;
+                if idx >= pixels.len() {
+                    continue;
+                }
+                let dst = &mut pixels[idx];
+
+                let src_a = coverage * fg_a;
+                let src_r = color.red() * src_a;
+                let src_g = color.green() * src_a;
+                let src_b = color.blue() * src_a;
+
+                let dst_r = dst.red() as f32 / 255.0;
+                let dst_g = dst.green() as f32 / 255.0;
+                let dst_b = dst.blue() as f32 / 255.0;
+                let dst_a = dst.alpha() as f32 / 255.0;
+
+                let inv_alpha = 1.0 - src_a;
+                let r = src_r + dst_r * inv_alpha;
+                let g = src_g + dst_g * inv_alpha;
+                let b = src_b + dst_b * inv_alpha;
+                let a = src_a + dst_a * inv_alpha;
+
+                *dst = PremultipliedColorU8::from_rgba(
+                    (r * 255.0).round() as u8,
+                    (g * 255.0).round() as u8,
+                    (b * 255.0).round() as u8,
+                    (a * 255.0).round() as u8,
+                )
+                .unwrap();
+            }
+        }
+        pen_x += m.advance_width + char_spacing;
     }
 }
