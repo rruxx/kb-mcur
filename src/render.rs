@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fontdue::{Font, Metrics};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
 
-use crate::grid::{Cell, Grid, GridConfig, GridFilter, QUAD_LABELS, SUBGRID_LABELS};
+use crate::grid::{Cell, Grid, GridConfig, GridFilter, SUBGRID_LABELS};
 
 // ── Text cache ─────────────────────────────────────────────────────
 
@@ -166,7 +166,7 @@ pub fn render_subgrid(
     );
 }
 
-// ── Levels 4-7  quadrant bisection (2×2) ───────────────────────────
+// ── Levels 4-7  quadrant bisection (2×2, labels at corners) ─────────
 
 pub fn render_bisect(
     pixmap: &mut Pixmap,
@@ -175,12 +175,47 @@ pub fn render_bisect(
     cache: &TextCache,
     font_size: f32,
 ) {
-    let top: &[char] = &QUAD_LABELS[0];
-    let bot: &[char] = &QUAD_LABELS[1];
-    render_region(
-        pixmap, rect.0, rect.1, rect.2, rect.3,
-        2, 2, &[top, bot], cfg, cache, font_size,
+    let (x, y, w, h) = rect;
+    let hw = w * 0.5;
+    let hh = h * 0.5;
+    let gap = font_size * 1.0;
+
+    // highlight
+    let hl = rgba_color(cfg.label_color);
+    let hl_paint = Paint {
+        shader: Shader::SolidColor(Color::from_rgba8(
+            (hl.red() * 64.0) as u8,
+            (hl.green() * 64.0) as u8,
+            (hl.blue() * 64.0) as u8,
+            32,
+        )),
+        ..Default::default()
+    };
+    pixmap.fill_path(
+        &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
+        &hl_paint,
+        tiny_skia::FillRule::Winding,
+        Transform::identity(),
+        None,
     );
+
+    // grid lines
+    let line_c = rgba_color(cfg.line_color);
+    let paint = Paint { shader: Shader::SolidColor(line_c), anti_alias: true, ..Default::default() };
+    let stroke = Stroke { width: cfg.line_width, ..Default::default() };
+    stroke_line(pixmap, x, y + hh, x + w, y + hh, &paint, &stroke);
+    stroke_line(pixmap, x + hw, y, x + hw, y + h, &paint, &stroke);
+
+    // labels at corners
+    let label_c = rgba_color(cfg.label_color);
+    let top_y = y - gap - font_size * 0.5;
+    let bot_y = y + h + gap + font_size * 0.5;
+    let pad = 12.0;
+
+    draw_text(pixmap, "e", x - pad, top_y, cache, font_size, &label_c);
+    draw_text(pixmap, "r", x + w + pad, top_y, cache, font_size, &label_c);
+    draw_text(pixmap, "d", x - pad, bot_y, cache, font_size, &label_c);
+    draw_text(pixmap, "f", x + w + pad, bot_y, cache, font_size, &label_c);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────

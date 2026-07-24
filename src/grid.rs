@@ -185,6 +185,7 @@ pub fn subgrid_cells(parent: &Cell) -> [SubCell; 8] {
 // ── Levels 4-7  quadrant bisection (2×2) ────────────────────────────
 
 /// Labels for the 2×2 quadrant grid (row-major).
+#[allow(dead_code)]
 pub const QUAD_LABELS: [[char; 2]; 2] = [
     ['e', 'r'],
     ['d', 'f'],
