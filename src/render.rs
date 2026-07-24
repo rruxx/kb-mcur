@@ -1,20 +1,37 @@
+use std::collections::HashMap;
+
 use fontdue::{Font, Metrics};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
 
 use crate::grid::{Grid, GridConfig, GridFilter};
 
-pub fn render_grid(
-    pixmap: &mut Pixmap,
-    grid: &Grid,
-    cfg: &GridConfig,
-    font: &Font,
-    font_size: f32,
-    filter: Option<&GridFilter>,
-) {
+// ── Text cache ─────────────────────────────────────────────────────
+
+/// Pre-rasterised lowercase letters so labels never hit `fontdue` at runtime.
+pub struct TextCache {
+    glyphs: HashMap<char, (Metrics, Vec<u8>)>,
+}
+
+impl TextCache {
+    pub fn new(font: &Font, size: f32) -> Self {
+        let mut glyphs = HashMap::new();
+        for ch in 'a'..='z' {
+            glyphs.insert(ch, font.rasterize(ch, size));
+        }
+        Self { glyphs }
+    }
+
+    fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
+        self.glyphs.get(&ch)
+    }
+}
+
+// ── Base layer (background + grid lines, no labels) ─────────────────
+
+pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
 
-    // background
     let bg = rgba_color(cfg.bg_color);
     pixmap.fill_path(
         &PathBuilder::from_rect(Rect::from_xywh(0.0, 0.0, w, h).unwrap()),
@@ -24,7 +41,6 @@ pub fn render_grid(
         None,
     );
 
-    // grid lines
     let line_c = rgba_color(cfg.line_color);
     let paint = Paint { shader: Shader::SolidColor(line_c), anti_alias: true, ..Default::default() };
     let stroke = Stroke { width: cfg.line_width, ..Default::default() };
@@ -36,16 +52,28 @@ pub fn render_grid(
         let x = (col as f32 / grid.cols as f32) * w;
         stroke_line(pixmap, x, 0.0, x, h, &paint, &stroke);
     }
+}
 
-    // labels — only for cells matching the current filter
+// ── Labels (cached glyphs) ─────────────────────────────────────────
+
+pub fn render_labels(
+    pixmap: &mut Pixmap,
+    grid: &Grid,
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
+    filter: Option<&GridFilter>,
+) {
     let label_c = rgba_color(cfg.label_color);
     for cell in &grid.cells {
         if filter.is_some_and(|f| !f.matches(&cell.label)) {
             continue;
         }
-        draw_label(pixmap, &cell.label, cell.center.0, cell.center.1, font, font_size, &label_c);
+        draw_label_cached(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, &label_c);
     }
 }
+
+// ── Helpers ────────────────────────────────────────────────────────
 
 fn rgba_color(rgba: [u8; 4]) -> Color {
     Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3])
@@ -58,12 +86,12 @@ fn stroke_line(pixmap: &mut Pixmap, x1: f32, y1: f32, x2: f32, y2: f32, paint: &
     pixmap.stroke_path(&pb.finish().unwrap(), paint, stroke, Transform::identity(), None);
 }
 
-fn draw_label(
+fn draw_label_cached(
     pixmap: &mut Pixmap,
     text: &str,
     cx: f32,
     cy: f32,
-    font: &Font,
+    cache: &TextCache,
     size: f32,
     color: &Color,
 ) {
@@ -74,13 +102,15 @@ fn draw_label(
 
     let space = size * 0.12;
 
-    // Rasterise every glyph, compute total advance width for horizontal centring.
-    let mut entries: Vec<(Metrics, Vec<u8>)> = Vec::with_capacity(chars.len());
+    // Collect cached glyphs, compute total advance width for horizontal centring.
+    let mut entries: Vec<&(Metrics, Vec<u8>)> = Vec::with_capacity(chars.len());
     let mut total_w = 0.0_f32;
     for &ch in &chars {
-        let (m, bmp) = font.rasterize(ch, size);
-        total_w += m.advance_width;
-        entries.push((m, bmp));
+        let Some(g) = cache.get(ch) else {
+            return;
+        };
+        total_w += g.0.advance_width;
+        entries.push(g);
     }
     total_w += space * (chars.len().saturating_sub(1)) as f32;
 
@@ -88,19 +118,19 @@ fn draw_label(
     let pixels = pixmap.pixels_mut();
     let mut pen = cx - total_w * 0.5;
 
-    for (m, bmp) in entries {
+    for &(m, bmp) in entries.iter() {
         if bmp.is_empty() {
             pen += m.advance_width + space;
             continue;
         }
 
-        // Place glyph so its visual centre lands at (·, cy).
         let gx = pen + m.xmin as f32;
         let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
 
         for row in 0..m.height {
+            let row_off = row * m.width;
             for col in 0..m.width {
-                let cov = bmp[row * m.width + col] as f32 / 255.0;
+                let cov = bmp[row_off + col] as f32 / 255.0;
                 if cov <= 0.0 {
                     continue;
                 }
@@ -120,7 +150,6 @@ fn draw_label(
     }
 }
 
-/// Premultiplied alpha blend of a single-colour source onto a pixel.
 fn blend(dst: &mut PremultipliedColorU8, coverage: f32, color: &Color) {
     let src_a = coverage * color.alpha();
     let src_r = color.red() * src_a;

@@ -11,8 +11,18 @@ use tiny_skia::Pixmap;
 
 use crate::grid::{Grid, GridConfig, GridFilter};
 use crate::overlay::X11Overlay;
+use crate::render::TextCache;
 
 const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
+
+/// Per-monitor reusable draw state — avoids allocation & base re-render on every key.
+struct DrawState {
+    grid: Grid,
+    /// Background + grid lines, RGBA8888.
+    base: Vec<u8>,
+    /// Persistent pixmap (same dimensions as `base`).
+    pixmap: Pixmap,
+}
 
 fn main() -> Result<()> {
     let font = Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
@@ -25,34 +35,45 @@ fn main() -> Result<()> {
         anyhow::bail!("no active monitors detected");
     }
 
-    let grid_cfg = GridConfig::default();
+    let cfg = GridConfig::default();
 
     let min_h = monitors.iter().map(|m| m.3).min().unwrap_or(1080) as f32;
     let min_w = monitors.iter().map(|m| m.2).min().unwrap_or(1920) as f32;
-    let cell_w = min_w / grid_cfg.cols as f32;
-    let cell_h = min_h / grid_cfg.rows as f32;
+    let cell_w = min_w / cfg.cols as f32;
+    let cell_h = min_h / cfg.rows as f32;
     let font_size = (cell_w / 4.2).min(cell_h / 1.8).min(14.0).max(6.0).round();
 
-    let mut grids: Vec<Grid> = Vec::new();
-    for (idx, &(x, y, w, h)) in monitors.iter().enumerate() {
-        let grid = Grid::new(x, y, w as u32, h as u32, &grid_cfg);
+    let cache = TextCache::new(&font, font_size);
+
+    let mut draw_states: Vec<DrawState> = Vec::new();
+
+    for &(x, y, w, h) in monitors.iter() {
+        let grid = Grid::new(x, y, w as u32, h as u32, &cfg);
+
+        // Base layer — background + grid lines
         let mut pixmap = Pixmap::new(w as u32, h as u32)
             .context("failed to create skia pixmap")?;
-        render::render_grid(&mut pixmap, &grid, &grid_cfg, &font, font_size, None);
+        render::render_base(&mut pixmap, &grid, &cfg);
+        let base = pixmap.data().to_vec();
+
+        // Initial render with all labels
+        render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
+
         overlay.add_window(x, y, w, h)?;
-        overlay.upload(idx, &pixmap)?;
-        grids.push(grid);
+        overlay.upload(monitors.iter().position(|&m| m == (x, y, w, h)).unwrap(), &pixmap)?;
+
+        draw_states.push(DrawState { grid, base, pixmap });
     }
 
     overlay.show_all()?;
-    overlay.redraw_all()?; // copy pixmap → window, needed for initial display
+    overlay.redraw_all()?;
 
-    // Raw-terminal input loop
+    // ── Interactive loop ────────────────────────────────────────────
+
     let stdin_fd = std::io::stdin().as_raw_fd();
     let orig_term = raw_mode_on(stdin_fd);
     let is_tty = orig_term.is_ok();
 
-    // If stdin is not a TTY, show overlay briefly and exit.
     if !is_tty {
         eprintln!("no tty — showing grid for 5 s then exiting");
         overlay.wait_or_timeout(5)?;
@@ -60,7 +81,6 @@ fn main() -> Result<()> {
     }
 
     let orig_term = orig_term.unwrap();
-
     let mut filter = GridFilter::new();
     print_prompt(&filter);
 
@@ -72,33 +92,28 @@ fn main() -> Result<()> {
         }
 
         match byte {
-            // Enter — accept input, exit
             b'\r' | b'\n' => {
                 let sel = filter.input().to_string();
                 eprintln!("\n=> {sel}");
                 break;
             }
-            // Escape — clear filter
             0x1b => {
                 filter.clear();
-                redraw_grids(&overlay, &grids, &grid_cfg, &font, font_size, Some(&filter))?;
+                redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
                 print_prompt(&filter);
             }
-            // Backspace — remove last char
             0x7f | b'\x08' => {
                 filter.pop();
-                redraw_grids(&overlay, &grids, &grid_cfg, &font, font_size, Some(&filter))?;
+                redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
                 print_prompt(&filter);
             }
-            // Ctrl+D/Ctrl+C — exit
             0x04 | 0x03 => {
                 eprintln!();
                 break;
             }
-            // Letters a-z (case-insensitive)
             b'a'..=b'z' => {
                 filter.push(byte as char);
-                redraw_grids(&overlay, &grids, &grid_cfg, &font, font_size, Some(&filter))?;
+                redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
                 print_prompt(&filter);
             }
             _ => {}
@@ -110,23 +125,34 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-/// Re-render all monitor grids with the current filter and push to the display.
+// ── Redraw ─────────────────────────────────────────────────────────
+
 fn redraw_grids(
     overlay: &X11Overlay,
-    grids: &[Grid],
+    states: &mut [DrawState],
     cfg: &GridConfig,
-    font: &Font,
+    cache: &TextCache,
     font_size: f32,
     filter: Option<&GridFilter>,
 ) -> Result<()> {
-    for (idx, grid) in grids.iter().enumerate() {
-        let mut pixmap = Pixmap::new(grid.width, grid.height)
-            .context("failed to create skia pixmap")?;
-        render::render_grid(&mut pixmap, grid, cfg, font, font_size, filter);
-        overlay.upload(idx, &pixmap)?;
+    for (idx, ds) in states.iter_mut().enumerate() {
+        // Reset pixmap to base layer
+        restore_base(&mut ds.pixmap, &ds.base);
+
+        // Draw matching labels only
+        render::render_labels(&mut ds.pixmap, &ds.grid, cfg, cache, font_size, filter);
+
+        overlay.upload(idx, &ds.pixmap)?;
     }
     overlay.redraw_all()?;
     Ok(())
+}
+
+fn restore_base(pixmap: &mut Pixmap, base_data: &[u8]) {
+    let dst = pixmap.pixels_mut();
+    let dst_bytes: &mut [u8] =
+        unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut u8, dst.len() * 4) };
+    dst_bytes.copy_from_slice(base_data);
 }
 
 fn print_prompt(filter: &GridFilter) {
@@ -136,7 +162,7 @@ fn print_prompt(filter: &GridFilter) {
     let _ = std::io::stderr().flush();
 }
 
-// ── raw terminal helpers ──────────────────────────────────────────
+// ── Raw terminal ───────────────────────────────────────────────────
 
 fn raw_mode_on(fd: i32) -> Result<libc::termios> {
     let mut orig: libc::termios = unsafe { std::mem::zeroed() };
