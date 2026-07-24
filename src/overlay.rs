@@ -10,10 +10,6 @@ struct WindowState {
     window: u32,
     pixmap: u32,
     gc: u32,
-    #[allow(dead_code)]
-    x: i32,
-    #[allow(dead_code)]
-    y: i32,
     width: u16,
     height: u16,
 }
@@ -99,7 +95,7 @@ impl X11Overlay {
         self.set_always_on_top(window)?;
         self.set_window_title(window, b"kb-mcur-grid")?;
 
-        self.windows.push(WindowState { window, pixmap, gc, x, y, width: w, height: h });
+        self.windows.push(WindowState { window, pixmap, gc, width: w, height: h });
         Ok(self.windows.len() - 1)
     }
 
