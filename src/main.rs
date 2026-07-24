@@ -9,13 +9,12 @@ use anyhow::{Context, Result};
 use fontdue::Font;
 use tiny_skia::Pixmap;
 
-use crate::grid::{Grid, GridConfig, GridFilter};
+use crate::grid::{Grid, GridConfig, GridFilter, subgrid_cells};
 use crate::overlay::X11Overlay;
 use crate::render::TextCache;
 
 const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
 
-/// Per-monitor reusable draw state — avoids allocation & base re-render on every key.
 struct DrawState {
     grid: Grid,
     /// Background + grid lines, RGBA8888.
@@ -50,13 +49,11 @@ fn main() -> Result<()> {
     for &(x, y, w, h) in monitors.iter() {
         let grid = Grid::new(x, y, w as u32, h as u32, &cfg);
 
-        // Base layer — background + grid lines
         let mut pixmap = Pixmap::new(w as u32, h as u32)
             .context("failed to create skia pixmap")?;
         render::render_base(&mut pixmap, &grid, &cfg);
         let base = pixmap.data().to_vec();
 
-        // Initial render with all labels
         render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
 
         overlay.add_window(x, y, w, h)?;
@@ -97,26 +94,52 @@ fn main() -> Result<()> {
                 eprintln!("\n=> {sel}");
                 break;
             }
+            // Escape — reset to full 26×26 grid
             0x1b => {
                 filter.clear();
                 redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
                 print_prompt(&filter);
             }
+            // Backspace — undo last char
             0x7f | b'\x08' => {
                 filter.pop();
-                redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
+                if filter.len() >= 2 {
+                    redraw_subgrid_overlay(&overlay, &mut draw_states, &cfg, &cache, &filter)?;
+                } else {
+                    redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
+                }
                 print_prompt(&filter);
             }
+            // Ctrl+D / Ctrl+C — quit
             0x04 | 0x03 => {
                 eprintln!();
                 break;
             }
-            b'a'..=b'z' => {
-                filter.push(byte as char);
-                redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
-                print_prompt(&filter);
+            // Printable chars
+            ch => {
+                let ch = ch as char;
+                if filter.len() < 2 && ch.is_ascii_lowercase() {
+                    // Level 1 & 2: 26×26 grid row/col filter
+                    filter.push(ch);
+                    if filter.len() >= 2 {
+                        // Entered 2 chars → zoom into sub-grid
+                        redraw_subgrid_overlay(&overlay, &mut draw_states, &cfg, &cache, &filter)?;
+                    } else {
+                        redraw_grids(&overlay, &mut draw_states, &cfg, &cache, font_size, Some(&filter))?;
+                    }
+                    print_prompt(&filter);
+                } else if filter.len() >= 2 && is_sub_key(ch) {
+                    // Level 3: sub-grid cell selection
+                    match find_target(&draw_states, &filter, ch) {
+                        Some((x, y)) => {
+                            eprintln!("\n=> target ({x:.0}, {y:.0})");
+                            break;
+                        }
+                        None => eprintln!("\n=> cell not found for '{}'", filter.input()),
+                    }
+                }
+                // Other bytes: silently ignored
             }
-            _ => {}
         }
     }
 
@@ -125,7 +148,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-// ── Redraw ─────────────────────────────────────────────────────────
+// ── 26×26 grid redraw ──────────────────────────────────────────────
 
 fn redraw_grids(
     overlay: &X11Overlay,
@@ -136,17 +159,92 @@ fn redraw_grids(
     filter: Option<&GridFilter>,
 ) -> Result<()> {
     for (idx, ds) in states.iter_mut().enumerate() {
-        // Reset pixmap to base layer
+        restore_base(&mut ds.pixmap, &ds.base);
+        render::render_labels(&mut ds.pixmap, &ds.grid, cfg, cache, font_size, filter);
+        overlay.upload(idx, &ds.pixmap)?;
+    }
+    overlay.redraw_all()?;
+    Ok(())
+}
+
+// ── Sub-grid (level 3) redraw ──────────────────────────────────────
+
+/// Restore base 26×26 grid, then overlay the 4×2 sub-grid inside the
+/// cell that matches the current 2-character filter.
+fn redraw_subgrid_overlay(
+    overlay: &X11Overlay,
+    states: &mut [DrawState],
+    cfg: &GridConfig,
+    cache: &TextCache,
+    filter: &GridFilter,
+) -> Result<()> {
+    let label = filter.input();
+    if label.len() < 2 {
+        return Ok(());
+    }
+    let prefix = &label[..2];
+
+    for (idx, ds) in states.iter_mut().enumerate() {
         restore_base(&mut ds.pixmap, &ds.base);
 
-        // Draw matching labels only
-        render::render_labels(&mut ds.pixmap, &ds.grid, cfg, cache, font_size, filter);
+        if let Some(parent) = ds.grid.cell_by_label(prefix) {
+            // Use a smaller font for the sub-grid labels
+            let cell_w = parent.rect.width() as f32 / 4.0;
+            let cell_h = parent.rect.height() as f32 / 2.0;
+            let sub_font = (cell_w / 3.0).min(cell_h / 1.8).max(6.0).round();
+
+            // Build a temporary cache with the sub-grid font size if needed.
+            // For now, reuse the main cache — labels are single chars, readable.
+            render::render_subgrid(&mut ds.pixmap, parent, cfg, cache, sub_font);
+        }
 
         overlay.upload(idx, &ds.pixmap)?;
     }
     overlay.redraw_all()?;
     Ok(())
 }
+
+// ── Target lookup ──────────────────────────────────────────────────
+
+/// Given the 2-letter cell filter and a sub-grid key (a/s/d/f/j/k/l/;),
+/// compute the final cursor position in pixel space.
+fn find_target(states: &[DrawState], filter: &GridFilter, sub_key: char) -> Option<(f32, f32)> {
+    let label = filter.input();
+    if label.len() < 2 {
+        return None;
+    }
+
+    let sub_idx = sub_key_index(sub_key)?;
+
+    // The selected cell might be on any monitor grid.
+    for ds in states {
+        if let Some(parent) = ds.grid.cell_by_label(&label[..2]) {
+            let subs = subgrid_cells(parent);
+            return Some(subs[sub_idx].center);
+        }
+    }
+    None
+}
+
+fn is_sub_key(ch: char) -> bool {
+    matches!(ch, 'a' | 's' | 'd' | 'f' | 'j' | 'k' | 'l' | ';')
+}
+
+fn sub_key_index(ch: char) -> Option<usize> {
+    match ch {
+        'a' => Some(0),
+        's' => Some(1),
+        'd' => Some(2),
+        'f' => Some(3),
+        'j' => Some(4),
+        'k' => Some(5),
+        'l' => Some(6),
+        ';' => Some(7),
+        _ => None,
+    }
+}
+
+// ── Helpers ────────────────────────────────────────────────────────
 
 fn restore_base(pixmap: &mut Pixmap, base_data: &[u8]) {
     let dst = pixmap.pixels_mut();

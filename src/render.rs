@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use fontdue::{Font, Metrics};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
 
-use crate::grid::{Grid, GridConfig, GridFilter};
+use crate::grid::{Cell, Grid, GridConfig, GridFilter, SUBGRID_LABELS};
 
 // ── Text cache ─────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ pub struct TextCache {
 impl TextCache {
     pub fn new(font: &Font, size: f32) -> Self {
         let mut glyphs = HashMap::new();
-        for ch in 'a'..='z' {
+        for ch in ('a'..='z').chain([';']) {
             glyphs.insert(ch, font.rasterize(ch, size));
         }
         Self { glyphs }
@@ -69,7 +69,75 @@ pub fn render_labels(
         if filter.is_some_and(|f| !f.matches(&cell.label)) {
             continue;
         }
-        draw_label_cached(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, &label_c);
+        draw_text(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, &label_c);
+    }
+}
+
+// ── Level-3 sub-grid (4×2, drawn inside a parent cell) ───────────
+
+/// Draw the 4×2 sub-grid **inside** the previously selected cell's
+/// rectangle.  The caller should restore the base layer first so the
+/// 26×26 grid acts as background context.
+pub fn render_subgrid(
+    pixmap: &mut Pixmap,
+    parent: &Cell,
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
+) {
+    let x = parent.rect.x() as f32;
+    let y = parent.rect.y() as f32;
+    let w = parent.rect.width() as f32;
+    let h = parent.rect.height() as f32;
+
+    let rows: u32 = 2;
+    let cols: u32 = 4;
+    let cell_w = w / cols as f32;
+
+    // Slightly lighten the parent cell to distinguish it
+    let hl = rgba_color(cfg.label_color);
+    let hl_paint = Paint { shader: Shader::SolidColor(Color::from_rgba8(
+        (hl.red() * 64.0) as u8, (hl.green() * 64.0) as u8, (hl.blue() * 64.0) as u8, 32,
+    )), ..Default::default() };
+    pixmap.fill_path(
+        &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
+        &hl_paint,
+        tiny_skia::FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
+
+    // Sub-grid lines within the parent cell
+    let line_c = rgba_color(cfg.line_color);
+    let paint = Paint { shader: Shader::SolidColor(line_c), anti_alias: true, ..Default::default() };
+    let stroke = Stroke { width: cfg.line_width, ..Default::default() };
+    for row in 1..rows {
+        let ly = y + (row as f32 / rows as f32) * h;
+        stroke_line(pixmap, x, ly, x + w, ly, &paint, &stroke);
+    }
+    for col in 1..cols {
+        let lx = x + (col as f32 / cols as f32) * w;
+        stroke_line(pixmap, lx, y, lx, y + h, &paint, &stroke);
+    }
+
+    // Labels — drawn outside the cell for readability
+    let label_c = rgba_color(cfg.label_color);
+    let gap = font_size * 1.0; // space between cell border and label
+
+    // Top row (a, s, d, f) — above the cell
+    let top_y = y - gap - font_size * 0.5;
+    for col in 0..cols {
+        let cx = x + (col as f32 + 0.5) * cell_w;
+        let ch = SUBGRID_LABELS[0][col as usize];
+        draw_text(pixmap, &ch.to_string(), cx, top_y, cache, font_size, &label_c);
+    }
+
+    // Bottom row (j, k, l, ;) — below the cell
+    let bot_y = y + h + gap + font_size * 0.5;
+    for col in 0..cols {
+        let cx = x + (col as f32 + 0.5) * cell_w;
+        let ch = SUBGRID_LABELS[1][col as usize];
+        draw_text(pixmap, &ch.to_string(), cx, bot_y, cache, font_size, &label_c);
     }
 }
 
@@ -86,7 +154,7 @@ fn stroke_line(pixmap: &mut Pixmap, x1: f32, y1: f32, x2: f32, y2: f32, paint: &
     pixmap.stroke_path(&pb.finish().unwrap(), paint, stroke, Transform::identity(), None);
 }
 
-fn draw_label_cached(
+fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,
     cx: f32,

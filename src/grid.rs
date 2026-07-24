@@ -27,6 +27,8 @@ impl Default for GridConfig {
     }
 }
 
+// ── Filter ──────────────────────────────────────────────────────────
+
 /// Tracks a prefix typed by the user to narrow down grid cells.
 #[derive(Default)]
 pub struct GridFilter {
@@ -40,6 +42,10 @@ impl GridFilter {
 
     pub fn input(&self) -> &str {
         &self.input
+    }
+
+    pub fn len(&self) -> usize {
+        self.input.len()
     }
 
     /// Append a character to the filter.
@@ -64,10 +70,11 @@ impl GridFilter {
 
     /// True when the cell label starts with the current input prefix.
     pub fn matches(&self, label: &str) -> bool {
-        // Case-insensitive for user convenience
         label.to_ascii_lowercase().starts_with(&self.input.to_ascii_lowercase())
     }
 }
+
+// ── Main 26×26 grid ─────────────────────────────────────────────────
 
 pub struct Cell {
     #[allow(dead_code)]
@@ -109,7 +116,7 @@ impl Grid {
                     Rect::from_xywh(rx as f32, ry as f32, rw as f32, rh as f32)
                         .unwrap()
                         .round_out()
-                        .expect("round_out failed for grid cell")
+                        .expect("round_out failed")
                 });
 
                 let row_ch = (b'a' + row as u8) as char;
@@ -126,14 +133,50 @@ impl Grid {
             }
         }
 
-        Self {
-            x,
-            y,
-            width,
-            height,
-            cols: config.cols,
-            rows: config.rows,
-            cells,
-        }
+        Self { x, y, width, height, cols: config.cols, rows: config.rows, cells }
+    }
+
+    /// Find cell by its 2-letter label.
+    pub fn cell_by_label(&self, label: &str) -> Option<&Cell> {
+        self.cells.iter().find(|c| c.label == label)
     }
 }
+
+// ── Level-3 sub-grid (4×2 within a selected cell) ────────────────────
+
+/// Labels for the 4×2 sub-grid (row-major).
+pub const SUBGRID_LABELS: [[char; 4]; 2] = [
+    ['a', 's', 'd', 'f'],
+    ['j', 'k', 'l', ';'],
+];
+
+/// A sub-cell inside the final 4×2 grid.  Coordinates are pixel-space
+/// (relative to the monitor), computed from the parent cell rect.
+pub struct SubCell {
+    pub center: (f32, f32),
+    #[allow(dead_code)]
+    pub label: char,
+}
+
+/// Build the eight sub-cells that partition `parent` (the Cell selected
+/// in the 26×26 grid).  Labels come from [`SUBGRID_LABELS`].
+pub fn subgrid_cells(parent: &Cell) -> [SubCell; 8] {
+    let r = &parent.rect;
+    let w = r.width() as f32 / 4.0;
+    let h = r.height() as f32 / 2.0;
+    let mut i = 0;
+    std::array::from_fn(|_| {
+        let row = i / 4;
+        let col = i % 4;
+        let cell = SubCell {
+            center: (
+                r.x() as f32 + (col as f32 + 0.5) * w,
+                r.y() as f32 + (row as f32 + 0.5) * h,
+            ),
+            label: SUBGRID_LABELS[row][col],
+        };
+        i += 1;
+        cell
+    })
+}
+
