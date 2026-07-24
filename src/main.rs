@@ -1,6 +1,7 @@
 mod grid;
 mod overlay;
 mod render;
+mod uinput;
 
 use std::io::Write;
 use std::os::fd::AsRawFd;
@@ -12,6 +13,7 @@ use tiny_skia::Pixmap;
 use crate::grid::{quad_key_index, quad_shrink, sub_key_index, Grid, GridConfig, GridFilter};
 use crate::overlay::X11Overlay;
 use crate::render::TextCache;
+use crate::uinput::Mouse;
 
 const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
 
@@ -28,6 +30,12 @@ fn main() -> Result<()> {
     let mut overlay = X11Overlay::connect()?;
     let monitors = overlay.monitors().context("failed to query monitors")?;
     if monitors.is_empty() { anyhow::bail!("no active monitors detected"); }
+
+    let max_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(1920) as u16;
+    let max_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(1080) as u16;
+    let mut mouse = Mouse::new(max_w, max_h)
+        .map_err(|e| { eprintln!("warn: uinput unavailable — {e}"); e })
+        .ok();
 
     let cfg = GridConfig::default();
     let min_h = monitors.iter().map(|m| m.3).min().unwrap_or(1080) as f32;
@@ -58,6 +66,7 @@ fn main() -> Result<()> {
     }
     let orig_term = orig_term.unwrap();
     let mut filter = GridFilter::new();
+    let mut repeat: u32 = 0;
     prompt(&filter);
 
     loop {
@@ -68,25 +77,47 @@ fn main() -> Result<()> {
         match byte {
             b'\r' | b'\n' | b' ' => {
                 if let Some((cx, cy)) = final_pos(&filter, &draw_states) {
-                    eprintln!("\n=> target ({cx:.0}, {cy:.0})");
-                } else {
-                    eprintln!("\n=> {}", filter.input());
+                    if let Some(ref mut m) = mouse { m.warp(cx as i16, cy as i16)?; }
+                    eprintln!("\n=> ({cx:.0}, {cy:.0})");
                 }
                 break;
             }
             0x1b => {
                 filter.clear();
+                repeat = 0;
                 redraw(&overlay, &mut draw_states, &cfg, &cache, font_size, &filter)?;
                 prompt(&filter);
             }
             0x7f | b'\x08' => {
                 filter.pop();
+                repeat = 0;
                 redraw(&overlay, &mut draw_states, &cfg, &cache, font_size, &filter)?;
                 prompt(&filter);
             }
             0x04 | 0x03 => { eprintln!(); break; }
             ch => {
                 let ch = ch as char;
+
+                // digits → accumulate repeat count
+                if filter.len() >= 2 && ch.is_ascii_digit() {
+                    repeat = repeat.saturating_mul(10).saturating_add((ch as u8 - b'0') as u32);
+                    continue;
+                }
+
+                // action keys (anytime after position defined)
+                if filter.len() >= 2 {
+                    match ch {
+                        'u' => { warp_act(&mut mouse, &filter, &draw_states, 1, false, repeat)?; break; }
+                        'i' => { warp_act(&mut mouse, &filter, &draw_states, 2, false, repeat)?; break; }
+                        'o' => { warp_act(&mut mouse, &filter, &draw_states, 3, false, repeat)?; break; }
+                        'j' => { warp_act(&mut mouse, &filter, &draw_states, 1, true, repeat)?; break; }
+                        'k' => { warp_act(&mut mouse, &filter, &draw_states, 2, true, repeat)?; break; }
+                        'l' => { warp_act(&mut mouse, &filter, &draw_states, 3, true, repeat)?; break; }
+                        _ => {}
+                    }
+                }
+
+                // grid-position keys
                 let ok = match filter.len() {
                     0 | 1 if ch.is_ascii_lowercase() => true,
                     2 if sub_key_index(ch).is_some() => true,
@@ -95,10 +126,28 @@ fn main() -> Result<()> {
                 };
                 if !ok { continue; }
                 filter.push(ch);
+                repeat = 0;
 
                 if filter.len() >= 7 {
                     if let Some((cx, cy)) = final_pos(&filter, &draw_states) {
-                        eprintln!("\n=> target ({cx:.0}, {cy:.0})");
+                        if let Some(ref mut m) = mouse { m.warp(cx as i16, cy as i16)?; }
+                        eprintln!("\n=> ({cx:.0}, {cy:.0})");
+                    }
+                    // Still allow one more key for action
+                    let mut ab = 0u8;
+                    if unsafe { libc::read(stdin_fd, &mut ab as *mut u8 as *mut libc::c_void, 1) } == 1 {
+                        let ac = ab as char;
+                        if filter.len() >= 2 {
+                            match ac {
+                                'u' => { warp_act(&mut mouse, &filter, &draw_states, 1, false, 0)?; }
+                                'i' => { warp_act(&mut mouse, &filter, &draw_states, 2, false, 0)?; }
+                                'o' => { warp_act(&mut mouse, &filter, &draw_states, 3, false, 0)?; }
+                                'j' => { warp_act(&mut mouse, &filter, &draw_states, 1, true, 0)?; }
+                                'k' => { warp_act(&mut mouse, &filter, &draw_states, 2, true, 0)?; }
+                                'l' => { warp_act(&mut mouse, &filter, &draw_states, 3, true, 0)?; }
+                                _ => {}
+                            }
+                        }
                     }
                     break;
                 }
@@ -110,6 +159,29 @@ fn main() -> Result<()> {
 
     raw_mode_off(stdin_fd, orig_term)?;
     eprintln!("bye");
+    Ok(())
+}
+
+fn warp_act(
+    mouse: &mut Option<Mouse>,
+    filter: &GridFilter,
+    states: &[DrawState],
+    button: u8,
+    click: bool,
+    repeat: u32,
+) -> Result<()> {
+    let Some(m) = mouse else { return Ok(()); };
+    if let Some((cx, cy)) = final_pos(filter, states) {
+        m.warp(cx as i16, cy as i16)?;
+    }
+    if click {
+        let n = if repeat == 0 { 1 } else { repeat };
+        m.click(button, n)?;
+        eprintln!("click btn{button} x{n}");
+    } else {
+        m.toggle(button)?;
+        eprintln!("toggle btn{button}");
+    }
     Ok(())
 }
 

@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use tiny_skia::Pixmap as SkiaPixmap;
 use x11rb::connection::Connection;
 use x11rb::protocol::randr;
+use x11rb::protocol::shape;
 use x11rb::protocol::xproto::*;
 use x11rb::rust_connection::RustConnection;
 
@@ -94,6 +95,7 @@ impl X11Overlay {
 
         self.set_always_on_top(window)?;
         self.set_window_title(window, b"kb-mcur-grid")?;
+        self.set_input_shape(window)?;
 
         self.windows.push(WindowState { window, pixmap, gc, width: w, height: h });
         Ok(self.windows.len() - 1)
@@ -207,6 +209,20 @@ impl X11Overlay {
             8,
             title.len() as u32,
             title,
+        )?;
+        Ok(())
+    }
+
+    fn set_input_shape(&self, window: u32) -> Result<()> {
+        shape::rectangles(
+            &self.conn,
+            shape::SO::SET,
+            shape::SK::INPUT,
+            ClipOrdering::UNSORTED,
+            window,
+            0,
+            0,
+            &[],
         )?;
         Ok(())
     }
