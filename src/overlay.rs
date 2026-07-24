@@ -133,6 +133,19 @@ impl X11Overlay {
         Ok(())
     }
 
+    /// Redraw all windows (copy pixmap → window, then flush).
+    pub fn redraw_all(&self) -> Result<()> {
+        for ws in &self.windows {
+            self.conn.copy_area(
+                ws.pixmap, ws.window, ws.gc,
+                0, 0, 0, 0, ws.width, ws.height,
+            )?;
+        }
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
     /// Simple blocking event loop — returns on any key press, or after
     /// a timeout (duration in seconds).  Zero means wait forever.
     pub fn wait_or_timeout(&self, timeout_secs: u64) -> Result<()> {

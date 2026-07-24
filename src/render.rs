@@ -1,7 +1,7 @@
 use fontdue::{Font, Metrics};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Stroke, Transform};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
 
-use crate::grid::{Grid, GridConfig};
+use crate::grid::{Grid, GridConfig, GridFilter};
 
 pub fn render_grid(
     pixmap: &mut Pixmap,
@@ -9,14 +9,15 @@ pub fn render_grid(
     cfg: &GridConfig,
     font: &Font,
     font_size: f32,
+    filter: Option<&GridFilter>,
 ) {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
 
     // background
-    let bg = Color::from_rgba8(cfg.bg_color[0], cfg.bg_color[1], cfg.bg_color[2], cfg.bg_color[3]);
+    let bg = rgba_color(cfg.bg_color);
     pixmap.fill_path(
-        &PathBuilder::from_rect(tiny_skia::Rect::from_xywh(0.0, 0.0, w, h).unwrap()),
+        &PathBuilder::from_rect(Rect::from_xywh(0.0, 0.0, w, h).unwrap()),
         &Paint { shader: Shader::SolidColor(bg), ..Default::default() },
         tiny_skia::FillRule::Winding,
         Transform::identity(),
@@ -24,7 +25,7 @@ pub fn render_grid(
     );
 
     // grid lines
-    let line_c = Color::from_rgba8(cfg.line_color[0], cfg.line_color[1], cfg.line_color[2], cfg.line_color[3]);
+    let line_c = rgba_color(cfg.line_color);
     let paint = Paint { shader: Shader::SolidColor(line_c), anti_alias: true, ..Default::default() };
     let stroke = Stroke { width: cfg.line_width, ..Default::default() };
     for row in 1..grid.rows {
@@ -36,11 +37,18 @@ pub fn render_grid(
         stroke_line(pixmap, x, 0.0, x, h, &paint, &stroke);
     }
 
-    // labels
-    let label_c = Color::from_rgba8(cfg.label_color[0], cfg.label_color[1], cfg.label_color[2], cfg.label_color[3]);
+    // labels — only for cells matching the current filter
+    let label_c = rgba_color(cfg.label_color);
     for cell in &grid.cells {
+        if filter.is_some_and(|f| !f.matches(&cell.label)) {
+            continue;
+        }
         draw_label(pixmap, &cell.label, cell.center.0, cell.center.1, font, font_size, &label_c);
     }
+}
+
+fn rgba_color(rgba: [u8; 4]) -> Color {
+    Color::from_rgba8(rgba[0], rgba[1], rgba[2], rgba[3])
 }
 
 fn stroke_line(pixmap: &mut Pixmap, x1: f32, y1: f32, x2: f32, y2: f32, paint: &Paint, stroke: &Stroke) {

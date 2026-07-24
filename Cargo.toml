@@ -8,3 +8,4 @@ x11rb = { version = "0.13", features = ["randr"] }
 tiny-skia = "0.11"
 fontdue = "0.9"
 anyhow = "1"
+libc = "0.2"

@@ -27,6 +27,48 @@ impl Default for GridConfig {
     }
 }
 
+/// Tracks a prefix typed by the user to narrow down grid cells.
+#[derive(Default)]
+pub struct GridFilter {
+    input: String,
+}
+
+impl GridFilter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn input(&self) -> &str {
+        &self.input
+    }
+
+    /// Append a character to the filter.
+    pub fn push(&mut self, ch: char) {
+        self.input.push(ch);
+    }
+
+    /// Remove the last character (Backspace).
+    pub fn pop(&mut self) {
+        self.input.pop();
+    }
+
+    pub fn clear(&mut self) {
+        self.input.clear();
+    }
+
+    #[allow(dead_code)]
+    pub fn set(&mut self, s: &str) {
+        self.input.clear();
+        self.input.push_str(s);
+    }
+
+    /// True when the cell label starts with the current input prefix.
+    pub fn matches(&self, label: &str) -> bool {
+        // Case-insensitive for user convenience
+        label.to_ascii_lowercase().starts_with(&self.input.to_ascii_lowercase())
+    }
+}
+
 pub struct Cell {
     #[allow(dead_code)]
     pub rect: IntRect,
