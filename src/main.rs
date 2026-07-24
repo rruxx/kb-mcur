@@ -66,7 +66,7 @@ fn main() -> Result<()> {
             break;
         }
         match byte {
-            b'\r' | b'\n' => {
+            b'\r' | b'\n' | b' ' => {
                 if let Some((cx, cy)) = final_pos(&filter, &draw_states) {
                     eprintln!("\n=> target ({cx:.0}, {cy:.0})");
                 } else {
