@@ -277,7 +277,7 @@ fn final_position(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32
 // ── Helpers ────────────────────────────────────────────────────────
 
 fn is_sub_key(ch: char) -> bool {
-    matches!(ch, 'a' | 's' | 'd' | 'f' | 'j' | 'k' | 'l' | ';')
+    matches!(ch, 'q' | 'w' | 'e' | 'r' | 'a' | 's' | 'd' | 'f')
 }
 
 fn restore_base(pixmap: &mut Pixmap, base_data: &[u8]) {

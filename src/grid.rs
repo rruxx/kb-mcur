@@ -146,8 +146,8 @@ impl Grid {
 
 /// Labels for the 4×2 sub-grid (row-major).
 pub const SUBGRID_LABELS: [[char; 4]; 2] = [
+    ['q', 'w', 'e', 'r'],
     ['a', 's', 'd', 'f'],
-    ['j', 'k', 'l', ';'],
 ];
 
 /// A sub-cell inside the final 4×2 grid.  Coordinates are pixel-space
@@ -201,11 +201,11 @@ pub fn quad_key_index(ch: char) -> Option<usize> {
     }
 }
 
-/// Level-3 sub-grid key → index: 0=a, 1=s, …, 7=;
+/// Level-3 sub-grid key → index: 0=q, 1=w, 2=e, 3=r, 4=a, 5=s, 6=d, 7=f
 pub fn sub_key_index(ch: char) -> Option<usize> {
     match ch {
-        'a' => Some(0), 's' => Some(1), 'd' => Some(2), 'f' => Some(3),
-        'j' => Some(4), 'k' => Some(5), 'l' => Some(6), ';' => Some(7),
+        'q' => Some(0), 'w' => Some(1), 'e' => Some(2), 'r' => Some(3),
+        'a' => Some(4), 's' => Some(5), 'd' => Some(6), 'f' => Some(7),
         _ => None,
     }
 }
