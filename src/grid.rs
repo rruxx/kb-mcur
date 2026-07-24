@@ -19,9 +19,9 @@ impl Default for GridConfig {
         Self {
             rows: 26,
             cols: 26,
-            line_color: [255, 255, 255, 120],
-            label_color: [255, 255, 255, 220],
-            bg_color: [0, 0, 0, 60],
+            line_color: [255, 255, 255, 40],
+            label_color: [192, 255, 192, 192],
+            bg_color: [0, 0, 0, 144],
             line_width: 1.0,
         }
     }
