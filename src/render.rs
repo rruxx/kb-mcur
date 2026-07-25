@@ -33,6 +33,8 @@ impl TextCache {
 // ── Base layer (background + grid lines) ────────────────────────────
 
 pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
+    // Clear so repeated calls don't accumulate
+    pixmap.pixels_mut().fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
     fill_rect(pixmap, 0.0, 0.0, w, h, rgba(cfg.bg_color));
@@ -255,12 +257,6 @@ pub fn render_digit(
     rgba: [u8; 4],
 ) {
     draw_text(pixmap, &digit.to_string(), cx, cy, cache, font_size, rgba);
-}
-
-pub fn pixmap_restore(pixmap: &mut Pixmap, data: &[u8]) {
-    let dst = pixmap.pixels_mut();
-    unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut u8, dst.len() * 4) }
-        .copy_from_slice(data);
 }
 
 fn draw_text(

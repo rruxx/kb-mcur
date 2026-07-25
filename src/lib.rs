@@ -33,7 +33,6 @@ static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 /// persistent pixmap that is re-uploaded on every redraw.
 struct DrawState {
     grid: Grid,
-    base: Vec<u8>,
     pixmap: Pixmap,
 }
 
@@ -220,11 +219,10 @@ fn init_overlay(
         let grid = Grid::new(w as u32, h as u32, &cfg);
         let mut pixmap = Pixmap::new(w as u32, h as u32).context("pixmap")?;
         render::render_base(&mut pixmap, &grid, &cfg);
-        let base = pixmap.data().to_vec();
         render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
         overlay.add_window(x, y, w, h)?;
         overlay.upload(idx, &pixmap)?;
-        draw_states.push(DrawState { grid, base, pixmap });
+        draw_states.push(DrawState { grid, pixmap });
     }
     overlay.show_all()?;
     overlay.redraw_all()?;
@@ -455,7 +453,7 @@ fn display_update(
     let (region, parent_rect) = resolve_render_target(filter, states);
 
     for (idx, ds) in states.iter_mut().enumerate() {
-        render::pixmap_restore(&mut ds.pixmap, &ds.base);
+        render::render_base(&mut ds.pixmap, &ds.grid, cfg);
 
         if let Some(r) = region {
             let f = (r.2.min(r.3) / 8.0).max(6.0).round();
