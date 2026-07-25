@@ -1,5 +1,7 @@
 pub mod config;
+pub mod evdev;
 pub mod grid;
+pub mod keymap;
 pub mod overlay;
 pub mod render;
 pub mod uinput;
@@ -12,7 +14,9 @@ use fontdue::Font;
 use tiny_skia::Pixmap;
 
 use config::{action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index};
+use evdev::KeyboardDev;
 use grid::{Grid, GridConfig, GridFilter};
+use keymap::{ModState, map as key_map};
 use overlay::X11Overlay;
 use render::TextCache;
 use uinput::Mouse;
@@ -48,8 +52,16 @@ pub fn run() -> Result<()> {
     let stdin_fd = std::io::stdin().as_raw_fd();
     let orig_term = terminal_raw_on(stdin_fd);
     if orig_term.is_err() {
-        eprintln!("no tty — showing grid for 5 s then exiting");
-        overlay.wait_or_timeout(5)?;
+        // No TTY — try evdev, fall back to display-only
+        match KeyboardDev::open_all() {
+            Ok(kbd) => {
+                run_input_loop_evdev(&mut overlay, &mut mouse, &cfg, &cache, font_size, &mut draw_states, kbd)?;
+            }
+            Err(e) => {
+                eprintln!("evdev unavailable: {e} — showing grid for 5 s then exiting");
+                overlay.wait_or_timeout(5)?;
+            }
+        }
         return Ok(());
     }
 
@@ -162,6 +174,73 @@ fn run_input_loop(
     Ok(())
 }
 
+fn run_input_loop_evdev(
+    overlay: &mut X11Overlay,
+    mouse: &mut Option<Mouse>,
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
+    draw_states: &mut [DrawState],
+    kbd: KeyboardDev,
+) -> Result<()> {
+    let mut filter = GridFilter::new();
+    let mut repeat: u32 = 0;
+    let mut mods = ModState::default();
+    prompt(&filter);
+
+    loop {
+        let (code, value) = kbd.next_keypress()?;
+        mods.update(code, value > 0);
+        if value == 0 { continue; } // key release
+
+        let Some(byte) = key_map(code, &mods) else { continue; };
+
+        match byte {
+            b'\r' | b'\n' | b' ' => {
+                cursor_warp(mouse, &filter, draw_states)?;
+                break;
+            }
+            0x1b => {
+                filter.clear(); repeat = 0;
+                display_update(overlay, draw_states, cfg, cache, font_size, &filter)?;
+                prompt(&filter);
+            }
+            0x7f => {
+                filter.pop(); repeat = 0;
+                display_update(overlay, draw_states, cfg, cache, font_size, &filter)?;
+                prompt(&filter);
+            }
+            ch => {
+                let ch = ch as char;
+
+                if filter.len() >= 2 && ch.is_ascii_digit() {
+                    repeat = repeat.saturating_mul(10).saturating_add((ch as u8 - b'0') as u32);
+                    continue;
+                }
+                if filter.len() >= 2 {
+                    if let Some((btn, is_click)) = action_key(ch) {
+                        cursor_action(mouse, &filter, draw_states, btn, is_click, repeat)?;
+                        break;
+                    }
+                }
+                let ok = match filter.len() {
+                    0 | 1 if ch.is_ascii_lowercase() => true,
+                    2 if is_sub_key(ch) => true,
+                    3..=6 if is_quad_key(ch) => true,
+                    _ => false,
+                };
+                if !ok { continue; }
+                filter.push(ch);
+                repeat = 0;
+                display_update(overlay, draw_states, cfg, cache, font_size, &filter)?;
+                prompt(&filter);
+            }
+        }
+    }
+    // grab releases automatically when kbd is dropped
+    Ok(())
+}
+
 // ── Cursor & button actions ────────────────────────────────────────
 
 /// Move the cursor to the centre of the currently-selected region.
@@ -240,6 +319,7 @@ fn display_update(
 /// rectangle in monitor-pixel coordinates as (x, y, w, h).
 fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f32, f32)> {
     let input = filter.input();
+    if input.len() < 2 { return None; }
     let parent = states.iter().find_map(|ds| ds.grid.cell_by_label(&input[..2]))?;
     let (px, py, pw, ph) = (parent.rect.x() as f32, parent.rect.y() as f32, parent.rect.width() as f32, parent.rect.height() as f32);
     let mut r = (px, py, pw, ph);

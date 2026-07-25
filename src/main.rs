@@ -13,7 +13,11 @@ use kb_mcur::uinput::Mouse;
                   kb-mcur click L                    Left click\n  \
                   kb-mcur click -r 3 M               Middle click 3 times\n  \
                   kb-mcur click R                    Right click\n\n  \
-                  Negative values require -- prefix."
+                  Negative values require -- prefix.\n\n  \
+                  kb-mcur needs /dev/input/event* and /dev/uinput access.\n  \
+                  Add your user to the input group:\n  \
+                  $ sudo usermod -aG input $USER\n  \
+                  Then log out and back in."
 )]
 struct Cli {
     #[command(subcommand)]
