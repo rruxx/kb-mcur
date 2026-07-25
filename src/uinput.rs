@@ -47,7 +47,6 @@ const UI_SET_RELBIT: u64 = 0x40045566;
 const UI_SET_ABSBIT: u64 = 0x40045567;
 const UI_ABS_SETUP: u64 = 0x401C5504;
 const UI_DEV_SETUP: u64 = 0x405C5503;
-const UI_SET_PROPBIT: u64 = 0x4004556e;
 const UI_DEV_CREATE: u64 = 0x5501;
 const UI_DEV_DESTROY: u64 = 0x5502;
 
@@ -70,6 +69,7 @@ const SYN_REPORT: u16 = 0;
 
 pub struct Mouse {
     fd: File,
+    fd_rel: Option<File>,
     screen_w: u16,
     screen_h: u16,
 }
@@ -115,16 +115,11 @@ impl Mouse {
             },
             ff_effects_max: 0,
         };
-        ioctl(&fd, UI_SET_PROPBIT, 0x01).context("INPUT_PROP_POINTER")?;
         ioctl_ref(&fd, UI_DEV_SETUP, &setup).context("UI_DEV_SETUP")?;
 
         ioctl(&fd, UI_SET_EVBIT, EV_KEY as u32).context("EV_KEY")?;
-        ioctl(&fd, UI_SET_EVBIT, EV_REL as u32).context("EV_REL")?;
         ioctl(&fd, UI_SET_EVBIT, EV_ABS as u32).context("EV_ABS")?;
         ioctl(&fd, UI_SET_EVBIT, EV_SYN as u32).context("EV_SYN")?;
-
-        ioctl(&fd, UI_SET_RELBIT, REL_X as u32).context("REL_X")?;
-        ioctl(&fd, UI_SET_RELBIT, REL_Y as u32).context("REL_Y")?;
 
         ioctl(&fd, UI_SET_KEYBIT, BTN_LEFT as u32).context("BTN_LEFT")?;
         ioctl(&fd, UI_SET_KEYBIT, BTN_MIDDLE as u32).context("BTN_MIDDLE")?;
@@ -150,13 +145,15 @@ impl Mouse {
         ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_Y)).context("abs_setup Y")?;
 
         ioctl(&fd, UI_DEV_CREATE, 0).context("UI_DEV_CREATE")?;
-        std::thread::sleep(std::time::Duration::from_millis(50)); // wait for compositor to recognise the new device
+        std::thread::sleep(std::time::Duration::from_millis(50));
 
-        Ok(Self {
-            fd,
-            screen_w,
-            screen_h,
-        })
+        // Separate REL device for CLI move command
+        let fd_rel = create_rel_device();
+        if let Err(ref e) = fd_rel {
+            eprintln!("warn: REL device unavailable — {e}");
+        }
+
+        Ok(Self { fd, fd_rel: fd_rel.ok(), screen_w, screen_h })
     }
 
     fn write_events(&mut self, events: &[InputEvent]) -> Result<()> {
@@ -194,11 +191,15 @@ impl Mouse {
     }
 
     pub fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
-        self.write_events(&[
-            Self::make_event(EV_REL, REL_X, dx),
-            Self::make_event(EV_REL, REL_Y, dy),
-            Self::make_event(EV_SYN, SYN_REPORT, 0),
-        ])?;
+        let Some(ref mut fd) = self.fd_rel else { anyhow::bail!("REL device not available"); };
+        let events = &[
+            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_REL, code: REL_X, value: dx },
+            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_REL, code: REL_Y, value: dy },
+            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_SYN, code: SYN_REPORT, value: 0 },
+        ];
+        let bytes = unsafe { std::slice::from_raw_parts(events.as_ptr() as *const u8, events.len() * std::mem::size_of::<InputEvent>()) };
+        use std::io::Write;
+        fd.write_all(bytes)?;
         Ok(())
     }
 
@@ -240,5 +241,30 @@ impl Mouse {
 }
 
 impl Drop for Mouse {
-    fn drop(&mut self) { let _ = ioctl(&self.fd, UI_DEV_DESTROY, 0); }
+    fn drop(&mut self) {
+        let _ = ioctl(&self.fd, UI_DEV_DESTROY, 0);
+        if let Some(ref fd) = self.fd_rel {
+            let _ = ioctl(fd, UI_DEV_DESTROY, 0);
+        }
+    }
+}
+
+fn create_rel_device() -> Result<File> {
+    let fd = std::fs::OpenOptions::new()
+        .write(true).custom_flags(libc::O_NONBLOCK).open("/dev/uinput")?;
+    let setup = UinputSetup {
+        id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
+        name: { let mut n = [0u8; 80]; n[..10].copy_from_slice(b"kb-rel-mov"); n },
+        ff_effects_max: 0,
+    };
+    ioctl_ref(&fd, UI_DEV_SETUP, &setup)?;
+    ioctl(&fd, UI_SET_EVBIT, EV_REL as u32)?;
+    ioctl(&fd, UI_SET_EVBIT, EV_KEY as u32)?;
+    ioctl(&fd, UI_SET_EVBIT, EV_SYN as u32)?;
+    ioctl(&fd, UI_SET_RELBIT, REL_X as u32)?;
+    ioctl(&fd, UI_SET_RELBIT, REL_Y as u32)?;
+    ioctl(&fd, UI_SET_KEYBIT, BTN_LEFT as u32)?;
+    ioctl(&fd, UI_DEV_CREATE, 0)?;
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    Ok(fd)
 }

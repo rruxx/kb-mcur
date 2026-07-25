@@ -180,7 +180,7 @@ fn set_always_on_top(conn: &RustConnection, window: u32) -> Result<()> {
     let atom_wm_state_above = conn.intern_atom(false, b"_NET_WM_STATE_ABOVE")?.reply()?.atom;
     conn.change_property(PropMode::REPLACE, window, atom_wm_state, AtomEnum::ATOM, 32, 1, &atom_wm_state_above.to_ne_bytes())?;
     let atom_wm_window_type = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE")?.reply()?.atom;
-    let atom_wm_type_notif = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_NOTIFICATION")?.reply()?.atom;
-    conn.change_property(PropMode::REPLACE, window, atom_wm_window_type, AtomEnum::ATOM, 32, 1, &atom_wm_type_notif.to_ne_bytes())?;
+    let atom_wm_type_desktop = conn.intern_atom(false, b"_NET_WM_WINDOW_TYPE_DESKTOP")?.reply()?.atom;
+    conn.change_property(PropMode::REPLACE, window, atom_wm_window_type, AtomEnum::ATOM, 32, 1, &atom_wm_type_desktop.to_ne_bytes())?;
     Ok(())
 }
