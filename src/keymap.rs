@@ -86,50 +86,51 @@ impl ModState {
 /// Returns None for unsupported / modifier-only keys.
 pub fn map(code: u16, mods: &ModState) -> Option<u8> {
     let upper = mods.shift ^ mods.caps;
+    const LUT: [(u16, u8); 26] = [
+        (KEY_Q, b'q'),
+        (KEY_W, b'w'),
+        (KEY_E, b'e'),
+        (KEY_R, b'r'),
+        (KEY_T, b't'),
+        (KEY_Y, b'y'),
+        (KEY_U, b'u'),
+        (KEY_I, b'i'),
+        (KEY_O, b'o'),
+        (KEY_P, b'p'),
+        (KEY_A, b'a'),
+        (KEY_S, b's'),
+        (KEY_D, b'd'),
+        (KEY_F, b'f'),
+        (KEY_G, b'g'),
+        (KEY_H, b'h'),
+        (KEY_J, b'j'),
+        (KEY_K, b'k'),
+        (KEY_L, b'l'),
+        (KEY_Z, b'z'),
+        (KEY_X, b'x'),
+        (KEY_C, b'c'),
+        (KEY_V, b'v'),
+        (KEY_B, b'b'),
+        (KEY_N, b'n'),
+        (KEY_M, b'm'),
+    ];
+    for &(k, v) in &LUT {
+        if code == k {
+            return Some(if upper { v - 32 } else { v });
+        }
+    }
+
     match code {
         KEY_ENTER => Some(b'\n'),
         KEY_SPACE => Some(b' '),
         KEY_BACKSPACE => Some(0x7f),
         KEY_ESC => Some(0x1b),
 
-        KEY_A => Some(if upper { b'A' } else { b'a' }),
-        KEY_B => Some(if upper { b'B' } else { b'b' }),
-        KEY_C => Some(if upper { b'C' } else { b'c' }),
-        KEY_D => Some(if upper { b'D' } else { b'd' }),
-        KEY_E => Some(if upper { b'E' } else { b'e' }),
-        KEY_F => Some(if upper { b'F' } else { b'f' }),
-        KEY_G => Some(if upper { b'G' } else { b'g' }),
-        KEY_H => Some(if upper { b'H' } else { b'h' }),
-        KEY_I => Some(if upper { b'I' } else { b'i' }),
-        KEY_J => Some(if upper { b'J' } else { b'j' }),
-        KEY_K => Some(if upper { b'K' } else { b'k' }),
-        KEY_L => Some(if upper { b'L' } else { b'l' }),
-        KEY_M => Some(if upper { b'M' } else { b'm' }),
-        KEY_N => Some(if upper { b'N' } else { b'n' }),
-        KEY_O => Some(if upper { b'O' } else { b'o' }),
-        KEY_P => Some(if upper { b'P' } else { b'p' }),
-        KEY_Q => Some(if upper { b'Q' } else { b'q' }),
-        KEY_R => Some(if upper { b'R' } else { b'r' }),
-        KEY_S => Some(if upper { b'S' } else { b's' }),
-        KEY_T => Some(if upper { b'T' } else { b't' }),
-        KEY_U => Some(if upper { b'U' } else { b'u' }),
-        KEY_V => Some(if upper { b'V' } else { b'v' }),
-        KEY_W => Some(if upper { b'W' } else { b'w' }),
-        KEY_X => Some(if upper { b'X' } else { b'x' }),
-        KEY_Y => Some(if upper { b'Y' } else { b'y' }),
-        KEY_Z => Some(if upper { b'Z' } else { b'z' }),
-
-        // Digits mapped for click-repeat count
-        KEY_1 => Some(if upper { b'!' } else { b'1' }),
-        KEY_2 => Some(if upper { b'@' } else { b'2' }),
-        KEY_3 => Some(if upper { b'#' } else { b'3' }),
-        KEY_4 => Some(if upper { b'$' } else { b'4' }),
-        KEY_5 => Some(if upper { b'%' } else { b'5' }),
-        KEY_6 => Some(if upper { b'^' } else { b'6' }),
-        KEY_7 => Some(if upper { b'&' } else { b'7' }),
-        KEY_8 => Some(if upper { b'*' } else { b'8' }),
-        KEY_9 => Some(if upper { b'(' } else { b'9' }),
-        KEY_0 => Some(if upper { b')' } else { b'0' }),
+        2..=11 => {
+            const SHIFT: &[u8] = b")!@#$%^&*(";
+            let idx = ((code - 1) % 10) as usize;
+            Some(if upper { SHIFT[idx] } else { b'0' + idx as u8 })
+        }
 
         _ => None,
     }

@@ -155,14 +155,11 @@ impl X11Overlay {
         Ok(())
     }
 
-    #[allow(dead_code)]
     /// Simple blocking event loop — returns on any key press, or after
     /// a timeout (duration in seconds).  Zero means wait forever.
     pub fn wait_or_timeout(&self, timeout_secs: u64) -> Result<()> {
-        use std::os::fd::AsRawFd;
         use std::time::Instant;
 
-        let _fd = self.conn.stream().as_raw_fd();
         let deadline = if timeout_secs > 0 {
             Some(Instant::now() + std::time::Duration::from_secs(timeout_secs))
         } else {
@@ -271,7 +268,49 @@ impl X11Overlay {
     }
 }
 
-/// Find the best visual: 32-bit TrueColor if available, else 24-bit.
+/// Open a temporary X11 connection and query screen dimensions.
+/// Falls back to (1920, 1080) if X11 is unavailable.
+pub fn query_screen_size() -> (u16, u16) {
+    let Ok((conn, screen_num)) = x11rb::connect(None) else {
+        return (1920, 1080);
+    };
+    let mut monitors = Vec::new();
+    let resources = randr::get_screen_resources(&conn, conn.setup().roots[screen_num].root);
+    let Ok(cookie) = resources else {
+        return (1920, 1080);
+    };
+    let reply = cookie.reply();
+    let Ok(reply) = reply else {
+        return (1920, 1080);
+    };
+    for &crtc in &reply.crtcs {
+        let r = randr::get_crtc_info(&conn, crtc, x11rb::CURRENT_TIME);
+        let Ok(cookie) = r else {
+            continue;
+        };
+        let info = cookie.reply();
+        let Ok(info) = info else {
+            continue;
+        };
+        if info.width > 0 && info.height > 0 {
+            monitors.push((info.x as i32, info.y as i32, info.width, info.height));
+        }
+    }
+    if monitors.is_empty() {
+        return (1920, 1080);
+    }
+    let max_w = monitors
+        .iter()
+        .map(|m| m.0 + m.2 as i32)
+        .max()
+        .unwrap_or(1920) as u16;
+    let max_h = monitors
+        .iter()
+        .map(|m| m.1 + m.3 as i32)
+        .max()
+        .unwrap_or(1080) as u16;
+    (max_w, max_h)
+}
 fn find_visual(screen: &Screen) -> (u8, u32) {
     for depth in &screen.allowed_depths {
         if depth.depth == 32 {

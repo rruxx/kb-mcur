@@ -6,15 +6,7 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::{Context, Result};
 
-#[repr(C)]
-struct InputEvent {
-    time: libc::timeval,
-    type_: u16,
-    code: u16,
-    value: i32,
-}
-
-const EV_KEY: u16 = 1;
+use crate::uinput::{EV_KEY, InputEvent};
 
 const EVIOCGRAB: u64 = 0x40044590;
 

@@ -248,6 +248,24 @@ fn draw_line(
     pixmap.stroke_path(&path, &paint, stroke, Transform::identity(), None);
 }
 
+pub fn render_digit(
+    pixmap: &mut Pixmap,
+    digit: char,
+    cx: f32,
+    cy: f32,
+    cache: &TextCache,
+    font_size: f32,
+    color: Color,
+) {
+    draw_text(pixmap, &digit.to_string(), cx, cy, cache, font_size, &color);
+}
+
+pub fn pixmap_restore(pixmap: &mut Pixmap, data: &[u8]) {
+    let dst = pixmap.pixels_mut();
+    unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut u8, dst.len() * 4) }
+        .copy_from_slice(data);
+}
+
 fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,

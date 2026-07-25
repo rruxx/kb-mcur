@@ -7,9 +7,9 @@ pub mod grid;
 pub mod keymap;
 pub mod overlay;
 pub mod render;
+pub mod tty;
 pub mod uinput;
 
-use std::io::Write;
 use std::os::fd::AsRawFd;
 
 use anyhow::{Context, Result};
@@ -46,6 +46,17 @@ pub fn run() -> Result<()> {
         anyhow::bail!("no active monitors detected");
     }
 
+    let monitor_idx = if monitors.len() == 1 {
+        0
+    } else {
+        show_display_ids(&mut overlay, &font, &monitors)?;
+        let idx = select_display(&monitors)?;
+        // Re-create overlay with only the selected monitor
+        overlay = X11Overlay::connect()?;
+        idx
+    };
+    let selected = &monitors[monitor_idx];
+
     let max_w = monitors
         .iter()
         .map(|m| m.0 + m.2 as i32)
@@ -63,10 +74,12 @@ pub fn run() -> Result<()> {
         })
         .ok();
 
-    let (cfg, font_size, cache, mut draw_states) = init_overlay(&mut overlay, &font, &monitors)?;
+    let single_monitors = vec![*selected];
+    let (cfg, font_size, cache, mut draw_states) =
+        init_overlay(&mut overlay, &font, &single_monitors)?;
 
     let stdin_fd = std::io::stdin().as_raw_fd();
-    let orig_term = terminal_raw_on(stdin_fd);
+    let orig_term = tty::raw_on(stdin_fd);
     if orig_term.is_err() {
         match KeyboardDev::open_all() {
             Ok(kbd) => {
@@ -98,12 +111,89 @@ pub fn run() -> Result<()> {
         stdin_fd,
     )?;
 
-    terminal_raw_off(stdin_fd, orig_term.unwrap())?;
+    tty::raw_off(stdin_fd, orig_term.unwrap())?;
     eprintln!("bye");
     Ok(())
 }
 
-// ── Overlay initialisation ──────────────────────────────────────────
+// ── Display selection (multi-monitor) ───────────────────────────────
+
+fn show_display_ids(
+    overlay: &mut X11Overlay,
+    font: &Font,
+    monitors: &[(i32, i32, u16, u16)],
+) -> Result<()> {
+    let cache = TextCache::new(font, 96.0);
+    let cfg = GridConfig::default();
+    for (i, &(x, y, w, h)) in monitors.iter().enumerate() {
+        let mut pixmap = Pixmap::new(w as u32, h as u32).context("pixmap")?;
+        render::render_base(
+            &mut pixmap,
+            &grid::Grid::new(w as u32, h as u32, &cfg),
+            &cfg,
+        );
+        let label_c = tiny_skia::Color::from_rgba8(192, 255, 192, 192);
+        let digit = (b'1' + i as u8) as char;
+        render::render_digit(
+            &mut pixmap,
+            digit,
+            w as f32 * 0.5,
+            h as f32 * 0.5,
+            &cache,
+            96.0,
+            label_c,
+        );
+        overlay.add_window(x, y, w, h)?;
+        overlay.upload(i, &pixmap)?;
+    }
+    overlay.show_all()?;
+    overlay.redraw_all()?;
+    Ok(())
+}
+
+fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
+    let stdin_fd = std::io::stdin().as_raw_fd();
+    let orig_term = tty::raw_on(stdin_fd);
+    if let Ok(orig) = orig_term {
+        let idx = loop {
+            let mut byte = 0u8;
+            if unsafe { libc::read(stdin_fd, &mut byte as *mut u8 as *mut libc::c_void, 1) } == 1
+                && (b'1'..=b'9').contains(&byte)
+            {
+                let i = (byte - b'1') as usize;
+                if i < monitors.len() {
+                    break i;
+                }
+            }
+        };
+        tty::raw_off(stdin_fd, orig)?;
+        return Ok(idx);
+    }
+
+    // No TTY — try evdev temporarily
+    let kbd = KeyboardDev::open_all().context("evdev for display select")?;
+    let mut mods = ModState::default();
+    let idx = loop {
+        let (code, value) = kbd.next_keypress()?;
+        mods.update(code, value > 0);
+        if value == 0 {
+            continue;
+        }
+        let Some(byte) = key_map(code, &mods) else {
+            continue;
+        };
+        if (b'1'..=b'9').contains(&byte) {
+            let i = (byte - b'1') as usize;
+            if i < monitors.len() {
+                std::thread::spawn(move || {
+                    drop(kbd);
+                });
+                break i;
+            }
+        }
+    };
+    Ok(idx)
+}
 
 fn init_overlay(
     overlay: &mut X11Overlay,
@@ -221,7 +311,7 @@ struct InputCtx {
 impl InputCtx {
     fn new() -> Self {
         let filter = GridFilter::new();
-        prompt(&filter);
+        tty::prompt(&filter);
         Self { filter, repeat: 0 }
     }
 }
@@ -247,14 +337,14 @@ fn process_byte(
             ctx.filter.clear();
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            prompt(&ctx.filter);
+            tty::prompt(&ctx.filter);
         }
 
         0x7f | b'\x08' => {
             ctx.filter.pop();
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            prompt(&ctx.filter);
+            tty::prompt(&ctx.filter);
         }
 
         0x04 | 0x03 => {
@@ -293,7 +383,7 @@ fn process_byte(
             ctx.filter.push(ch);
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            prompt(&ctx.filter);
+            tty::prompt(&ctx.filter);
         }
     }
     Ok(false)
@@ -352,7 +442,7 @@ fn display_update(
     let (region, parent_rect) = resolve_render_target(filter, states);
 
     for (idx, ds) in states.iter_mut().enumerate() {
-        pixmap_restore_base(&mut ds.pixmap, &ds.base);
+        render::pixmap_restore(&mut ds.pixmap, &ds.base);
 
         if let Some(r) = region {
             let f = (r.2.min(r.3) / 8.0).max(6.0).round();
@@ -438,42 +528,4 @@ fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f
 fn region_center(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32)> {
     let (x, y, w, h) = region_rect(filter, states)?;
     Some((x + w * 0.5, y + h * 0.5))
-}
-
-// ── Pixmap helpers ──────────────────────────────────────────────────
-
-fn pixmap_restore_base(pixmap: &mut Pixmap, data: &[u8]) {
-    let dst = pixmap.pixels_mut();
-    unsafe { std::slice::from_raw_parts_mut(dst.as_mut_ptr() as *mut u8, dst.len() * 4) }
-        .copy_from_slice(data);
-}
-
-// ── Terminal I/O ────────────────────────────────────────────────────
-
-fn prompt(f: &GridFilter) {
-    let s = f.input();
-    eprint!("\r[{s}]{}", " ".repeat(7usize.saturating_sub(s.len())));
-    let _ = std::io::stderr().flush();
-}
-
-fn terminal_raw_on(fd: i32) -> Result<libc::termios> {
-    let mut orig: libc::termios = unsafe { std::mem::zeroed() };
-    if unsafe { libc::tcgetattr(fd, &mut orig) } != 0 {
-        anyhow::bail!("tcgetattr");
-    }
-    let mut raw = orig;
-    raw.c_lflag &= !(libc::ICANON | libc::ECHO);
-    raw.c_cc[libc::VMIN] = 1;
-    raw.c_cc[libc::VTIME] = 0;
-    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } != 0 {
-        anyhow::bail!("tcsetattr");
-    }
-    Ok(orig)
-}
-
-fn terminal_raw_off(fd: i32, orig: libc::termios) -> Result<()> {
-    if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &orig) } != 0 {
-        anyhow::bail!("tcsetattr restore");
-    }
-    Ok(())
 }

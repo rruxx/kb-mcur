@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use kb_mcur::overlay::query_screen_size;
 use kb_mcur::uinput::Mouse;
 
 #[derive(Parser)]
@@ -57,18 +58,19 @@ fn btn_code(s: &str) -> u8 {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let (sw, sh) = query_screen_size();
 
     match cli.cmd {
         Some(Cmd::Move { x, y }) => {
-            let mut m = Mouse::new(1920, 1080)?;
+            let mut m = Mouse::new(sw, sh)?;
             m.move_rel(x, y)?;
         }
         Some(Cmd::MoveTo { x, y }) => {
-            let mut m = Mouse::new(1920, 1080)?;
+            let mut m = Mouse::new(sw, sh)?;
             m.warp(x, y)?;
         }
         Some(Cmd::Click { repeat, btn }) => {
-            let mut m = Mouse::new(1920, 1080)?;
+            let mut m = Mouse::new(sw, sh)?;
             m.click(btn_code(&btn), repeat)?;
         }
         Some(Cmd::Grid) | None => {

@@ -10,11 +10,11 @@ use std::os::unix::fs::OpenOptionsExt;
 use crate::config::CLICK_INTERVAL_MS;
 
 #[repr(C)]
-struct InputEvent {
-    time: libc::timeval,
-    type_: u16,
-    code: u16,
-    value: i32,
+pub struct InputEvent {
+    pub time: libc::timeval,
+    pub type_: u16,
+    pub code: u16,
+    pub value: i32,
 }
 
 #[repr(C)]
@@ -51,7 +51,7 @@ const UI_DEV_CREATE: u64 = 0x5501;
 const UI_DEV_DESTROY: u64 = 0x5502;
 
 const EV_SYN: u16 = 0;
-const EV_KEY: u16 = 1;
+pub const EV_KEY: u16 = 1;
 const EV_REL: u16 = 2;
 const EV_ABS: u16 = 3;
 
