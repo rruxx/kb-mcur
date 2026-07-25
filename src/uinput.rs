@@ -40,6 +40,7 @@ struct InputAbsinfo {
 
 const UI_SET_EVBIT: u64 = 0x40045564;
 const UI_SET_KEYBIT: u64 = 0x40045565;
+const UI_SET_RELBIT: u64 = 0x40045566;
 const UI_SET_ABSBIT: u64 = 0x40045567;
 const UI_ABS_SETUP: u64 = 0x401C5504;
 const UI_DEV_SETUP: u64 = 0x405C5503;
@@ -48,7 +49,11 @@ const UI_DEV_DESTROY: u64 = 0x5502;
 
 const EV_SYN: u16 = 0;
 const EV_KEY: u16 = 1;
+const EV_REL: u16 = 2;
 const EV_ABS: u16 = 3;
+
+const REL_X: u16 = 0;
+const REL_Y: u16 = 1;
 
 const BTN_LEFT: u16 = 0x110;
 const BTN_MIDDLE: u16 = 0x112;
@@ -105,7 +110,11 @@ impl Mouse {
         ioctl_ref(&fd, UI_DEV_SETUP, &setup).context("UI_DEV_SETUP")?;
 
         ioctl(&fd, UI_SET_EVBIT, EV_KEY as u32).context("EV_KEY")?;
+        ioctl(&fd, UI_SET_EVBIT, EV_REL as u32).context("EV_REL")?;
         ioctl(&fd, UI_SET_EVBIT, EV_ABS as u32).context("EV_ABS")?;
+
+        ioctl(&fd, UI_SET_RELBIT, REL_X as u32).context("REL_X")?;
+        ioctl(&fd, UI_SET_RELBIT, REL_Y as u32).context("REL_Y")?;
         ioctl(&fd, UI_SET_EVBIT, EV_SYN as u32).context("EV_SYN")?;
 
         ioctl(&fd, UI_SET_KEYBIT, BTN_LEFT as u32).context("BTN_LEFT")?;
@@ -126,7 +135,7 @@ impl Mouse {
         ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_Y)).context("abs_setup Y")?;
 
         ioctl(&fd, UI_DEV_CREATE, 0).context("UI_DEV_CREATE")?;
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(50)); // wait for compositor to recognise the new device
 
         Ok(Self { fd, screen_w, screen_h })
     }
@@ -157,6 +166,15 @@ impl Mouse {
         self.write_events(&[
             Self::event(EV_ABS, ABS_X, abs_x),
             Self::event(EV_ABS, ABS_Y, abs_y),
+            Self::event(EV_SYN, SYN_REPORT, 0),
+        ])?;
+        Ok(())
+    }
+
+    pub fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
+        self.write_events(&[
+            Self::event(EV_REL, REL_X, dx),
+            Self::event(EV_REL, REL_Y, dy),
             Self::event(EV_SYN, SYN_REPORT, 0),
         ])?;
         Ok(())
