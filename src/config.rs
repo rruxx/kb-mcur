@@ -65,4 +65,4 @@ pub fn action_key(ch: char) -> Option<(u8, bool)> {
     None
 }
 
-pub const CLICK_INTERVAL_MS: u64 = 200;
+pub const CLICK_INTERVAL_MS: u64 = 100;
