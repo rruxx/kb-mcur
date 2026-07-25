@@ -4,6 +4,8 @@ use std::io::{self, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
+use crate::config::CLICK_INTERVAL_MS;
+
 #[repr(C)]
 struct InputEvent {
     time: libc::timeval,
@@ -187,11 +189,12 @@ impl Mouse {
     }
 
     pub fn click(&mut self, button: u8, count: u32) -> Result<()> {
+        let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
         for _ in 0..count {
             self.button_press(button)?;
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(half);
             self.button_release(button)?;
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(half);
         }
         Ok(())
     }
