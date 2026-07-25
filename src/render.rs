@@ -59,7 +59,6 @@ pub fn render_labels(
     font_size: f32,
     filter: Option<&GridFilter>,
 ) {
-    let c = rgba(cfg.label_color);
     for cell in &grid.cells {
         if filter.is_some_and(|f| !f.matches(&cell.label)) {
             continue;
@@ -71,7 +70,7 @@ pub fn render_labels(
             cell.center.1,
             cache,
             font_size,
-            &c,
+            cfg.label_color,
         );
     }
 }
@@ -90,7 +89,6 @@ pub fn render_subgrid(
 
     draw_focus(pixmap, x, y, w, h, 2, 4, cfg);
 
-    let label_c = rgba(cfg.label_color);
     let cell_w = w / 4.0;
     let gap = font_size * 1.0;
     let top_y = y - gap - font_size * 0.5;
@@ -104,7 +102,7 @@ pub fn render_subgrid(
             top_y,
             cache,
             font_size,
-            &label_c,
+            cfg.label_color,
         );
         draw_text(
             pixmap,
@@ -113,7 +111,7 @@ pub fn render_subgrid(
             bot_y,
             cache,
             font_size,
-            &label_c,
+            cfg.label_color,
         );
     }
 }
@@ -129,7 +127,6 @@ pub fn render_bisect(
 
     draw_focus(pixmap, x, y, w, h, 2, 2, cfg);
 
-    let label_c = rgba(cfg.label_color);
     let gap = font_size * 1.0;
     let top_y = y - gap - font_size * 0.5;
     let bot_y = y + h + gap + font_size * 0.5;
@@ -142,7 +139,7 @@ pub fn render_bisect(
         top_y,
         cache,
         font_size,
-        &label_c,
+        cfg.label_color,
     );
     draw_text(
         pixmap,
@@ -151,7 +148,7 @@ pub fn render_bisect(
         top_y,
         cache,
         font_size,
-        &label_c,
+        cfg.label_color,
     );
     draw_text(
         pixmap,
@@ -160,7 +157,7 @@ pub fn render_bisect(
         bot_y,
         cache,
         font_size,
-        &label_c,
+        cfg.label_color,
     );
     draw_text(
         pixmap,
@@ -169,7 +166,7 @@ pub fn render_bisect(
         bot_y,
         cache,
         font_size,
-        &label_c,
+        cfg.label_color,
     );
 }
 
@@ -255,9 +252,9 @@ pub fn render_digit(
     cy: f32,
     cache: &TextCache,
     font_size: f32,
-    color: Color,
+    rgba: [u8; 4],
 ) {
-    draw_text(pixmap, &digit.to_string(), cx, cy, cache, font_size, &color);
+    draw_text(pixmap, &digit.to_string(), cx, cy, cache, font_size, rgba);
 }
 
 pub fn pixmap_restore(pixmap: &mut Pixmap, data: &[u8]) {
@@ -273,7 +270,7 @@ fn draw_text(
     cy: f32,
     cache: &TextCache,
     size: f32,
-    color: &Color,
+    rgba: [u8; 4],
 ) {
     let chars: Vec<char> = text.chars().collect();
     if chars.is_empty() {
@@ -306,8 +303,8 @@ fn draw_text(
         for row in 0..m.height {
             let off = row * m.width;
             for col in 0..m.width {
-                let cov = bmp[off + col] as f32 / 255.0;
-                if cov <= 0.0 {
+                let cov = bmp[off + col];
+                if cov == 0 {
                     continue;
                 }
                 let ix = (gx + col as f32) as i32;
@@ -319,21 +316,19 @@ fn draw_text(
                 if i >= pixels.len() {
                     continue;
                 }
-                blend(&mut pixels[i], cov, color);
+                blend(&mut pixels[i], cov, rgba);
             }
         }
         pen += m.advance_width + space;
     }
 }
 
-fn blend(dst: &mut PremultipliedColorU8, coverage: f32, color: &Color) {
-    let src_a = coverage * color.alpha();
-    let inv = 1.0 - src_a;
-    *dst = PremultipliedColorU8::from_rgba(
-        ((color.red() * src_a + dst.red() as f32 / 255.0 * inv) * 255.0).round() as u8,
-        ((color.green() * src_a + dst.green() as f32 / 255.0 * inv) * 255.0).round() as u8,
-        ((color.blue() * src_a + dst.blue() as f32 / 255.0 * inv) * 255.0).round() as u8,
-        ((src_a + dst.alpha() as f32 / 255.0 * inv) * 255.0).round() as u8,
-    )
-    .unwrap();
+fn blend(dst: &mut PremultipliedColorU8, coverage: u8, rgba: [u8; 4]) {
+    let a = (coverage as u16 * rgba[3] as u16) / 255;
+    let inv = 255 - a;
+    let r = (rgba[0] as u16 * a + dst.red() as u16 * inv) / 255;
+    let g = (rgba[1] as u16 * a + dst.green() as u16 * inv) / 255;
+    let b = (rgba[2] as u16 * a + dst.blue() as u16 * inv) / 255;
+    let alpha = (255 * a + dst.alpha() as u16 * inv) / 255;
+    *dst = PremultipliedColorU8::from_rgba(r as u8, g as u8, b as u8, alpha as u8).unwrap();
 }

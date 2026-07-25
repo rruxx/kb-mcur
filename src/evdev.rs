@@ -14,14 +14,10 @@ fn eviocgname(len: u16) -> u64 {
     (2u64 << 30) | ((len as u64) << 16) | (0x45u64 << 8) | 0x06
 }
 
-fn device_name(fd: RawFd) -> String {
-    let mut buf = [0u8; 80];
-    let ret = unsafe { libc::ioctl(fd, eviocgname(80), buf.as_mut_ptr()) };
-    if ret < 0 {
-        return String::new();
-    }
-    let len = buf.iter().position(|&b| b == 0).unwrap_or(80);
-    String::from_utf8_lossy(&buf[..len]).into_owned()
+fn is_own_device(fd: RawFd) -> bool {
+    let mut buf = [0u8; 8];
+    let ret = unsafe { libc::ioctl(fd, eviocgname(8), buf.as_mut_ptr()) };
+    ret >= 0 && buf.starts_with(b"kb-mcur")
 }
 
 struct DeviceFd {
@@ -39,7 +35,7 @@ impl KeyboardDev {
         for entry in glob_input_devices()? {
             match open_device(&entry) {
                 Ok(fd) => {
-                    if device_name(fd) == "kb-mcur" {
+                    if is_own_device(fd) {
                         unsafe { libc::close(fd) };
                         continue;
                     }
@@ -91,8 +87,9 @@ impl KeyboardDev {
                 }
                 let mut ev: InputEvent = unsafe { std::mem::zeroed() };
                 let sz = std::mem::size_of::<InputEvent>();
-                let n = unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
-                if (n as usize) < sz {
+                let bytes_read =
+                    unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
+                if (bytes_read as usize) < sz {
                     continue;
                 }
                 if ev.type_ == EV_KEY {

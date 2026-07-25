@@ -48,11 +48,12 @@ enum Cmd {
     Grid,
 }
 
-fn btn_code(s: &str) -> u8 {
+fn btn_code(s: &str) -> Result<u8> {
     match s {
-        "L" | "l" | "left" | "1" => 1,
-        "M" | "m" | "middle" | "2" => 2,
-        _ => 3,
+        "L" | "l" | "left" | "1" => Ok(1),
+        "M" | "m" | "middle" | "2" => Ok(2),
+        "R" | "r" | "right" | "3" => Ok(3),
+        other => anyhow::bail!("unknown button: {other} (use L|M|R)"),
     }
 }
 
@@ -71,7 +72,7 @@ fn main() -> Result<()> {
         }
         Some(Cmd::Click { repeat, btn }) => {
             let mut m = Mouse::new(sw, sh)?;
-            m.click(btn_code(&btn), repeat)?;
+            m.click(btn_code(&btn)?, repeat)?;
         }
         Some(Cmd::Grid) | None => {
             kb_mcur::run()?;

@@ -44,11 +44,12 @@ pub fn run() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
     let mut overlay = X11Overlay::connect()?;
-    let named = overlay.named_monitors().context("failed to query monitors")?;
+    let named = overlay
+        .named_monitors()
+        .context("failed to query monitors")?;
     if named.is_empty() {
         anyhow::bail!("no active monitors detected");
     }
-    let names: Vec<String> = named.iter().map(|n| n.0.clone()).collect();
     let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
 
     let monitor_idx = if monitors.len() == 1 {
@@ -60,7 +61,7 @@ pub fn run() -> Result<()> {
         idx
     };
     let selected = &monitors[monitor_idx];
-    let _ = MONITOR_NAME.set(names[monitor_idx].clone());
+    let _ = MONITOR_NAME.set(named[monitor_idx].0.clone());
 
     let max_w = monitors
         .iter()
@@ -137,7 +138,6 @@ fn show_display_ids(
             &grid::Grid::new(w as u32, h as u32, &cfg),
             &cfg,
         );
-        let label_c = tiny_skia::Color::from_rgba8(192, 255, 192, 192);
         let digit = (b'1' + i as u8) as char;
         render::render_digit(
             &mut pixmap,
@@ -146,7 +146,7 @@ fn show_display_ids(
             h as f32 * 0.5,
             &cache,
             96.0,
-            label_c,
+            [192, 255, 192, 192],
         );
         overlay.add_window(x, y, w, h)?;
         overlay.upload(i, &pixmap)?;
@@ -162,9 +162,11 @@ fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
     if let Ok(orig) = orig_term {
         let idx = loop {
             let mut byte = 0u8;
-            if unsafe { libc::read(stdin_fd, &mut byte as *mut u8 as *mut libc::c_void, 1) } == 1
-                && (b'1'..=b'9').contains(&byte)
-            {
+            let n = unsafe { libc::read(stdin_fd, &mut byte as *mut u8 as *mut libc::c_void, 1) };
+            if n <= 0 {
+                anyhow::bail!("stdin closed in display select");
+            }
+            if (b'1'..=b'9').contains(&byte) {
                 let i = (byte - b'1') as usize;
                 if i < monitors.len() {
                     break i;
@@ -375,15 +377,12 @@ fn process_byte(
                 }
             }
 
-            let ok = match ctx.filter.len() {
-                0 | 1 if ch.is_ascii_lowercase() => true,
-                2 if is_sub_key(ch) => true,
-                3..=6 if is_quad_key(ch) => true,
-                _ => false,
+            match ctx.filter.len() {
+                0 | 1 if ch.is_ascii_lowercase() => {}
+                2 if is_sub_key(ch) => {}
+                3..=6 if is_quad_key(ch) => {}
+                _ => return Ok(false),
             };
-            if !ok {
-                return Ok(false);
-            }
 
             ctx.filter.push(ch);
             ctx.repeat = 0;
@@ -403,7 +402,10 @@ fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawSta
     };
     if let Some((cx, cy)) = region_center(filter, states) {
         m.warp(cx as i16, cy as i16)?;
-        eprintln!("\n=> {} ({cx:.0}, {cy:.0})", MONITOR_NAME.get().map(|s| s.as_str()).unwrap_or("?"));
+        eprintln!(
+            "\n=> {} ({cx:.0}, {cy:.0})",
+            MONITOR_NAME.get().map_or("?", |s| s.as_str())
+        );
     }
     Ok(())
 }
@@ -420,19 +422,20 @@ fn cursor_action(
     let Some(m) = mouse else {
         return Ok(());
     };
-    if let Some((cx, cy)) = region_center(filter, states) {
+    let center = region_center(filter, states);
+    if let Some((cx, cy)) = center {
         m.warp(cx as i16, cy as i16)?;
     }
-    let name = MONITOR_NAME.get().map(|s| s.as_str()).unwrap_or("?");
+    let name = MONITOR_NAME.get().map_or("?", |s| s.as_str());
     if is_click {
         let n = if repeat == 0 { 1 } else { repeat };
         m.click(button, n)?;
-        if let Some((cx, cy)) = region_center(filter, states) {
+        if let Some((cx, cy)) = center {
             eprintln!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
         }
     } else {
         m.toggle(button)?;
-        if let Some((cx, cy)) = region_center(filter, states) {
+        if let Some((cx, cy)) = center {
             eprintln!("toggle btn{button}  {name} ({cx:.0}, {cy:.0})");
         }
     }
