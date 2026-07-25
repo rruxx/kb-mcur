@@ -43,10 +43,10 @@ struct InputAbsinfo {
 
 const UI_SET_EVBIT: u64 = 0x40045564;
 const UI_SET_KEYBIT: u64 = 0x40045565;
-const UI_SET_RELBIT: u64 = 0x40045566;
 const UI_SET_ABSBIT: u64 = 0x40045567;
 const UI_ABS_SETUP: u64 = 0x401C5504;
 const UI_DEV_SETUP: u64 = 0x405C5503;
+const UI_SET_PROPBIT: u64 = 0x4004556e;
 const UI_DEV_CREATE: u64 = 0x5501;
 const UI_DEV_DESTROY: u64 = 0x5502;
 
@@ -61,7 +61,6 @@ const REL_Y: u16 = 1;
 const BTN_LEFT: u16 = 0x110;
 const BTN_MIDDLE: u16 = 0x112;
 const BTN_RIGHT: u16 = 0x111;
-const BTN_TOUCH: u16 = 0x14a;
 
 const ABS_X: u16 = 0;
 const ABS_Y: u16 = 1;
@@ -115,20 +114,16 @@ impl Mouse {
             },
             ff_effects_max: 0,
         };
+        ioctl(&fd, UI_SET_PROPBIT, 0x01).context("INPUT_PROP_POINTER")?;
         ioctl_ref(&fd, UI_DEV_SETUP, &setup).context("UI_DEV_SETUP")?;
 
         ioctl(&fd, UI_SET_EVBIT, EV_KEY as u32).context("EV_KEY")?;
-        ioctl(&fd, UI_SET_EVBIT, EV_REL as u32).context("EV_REL")?;
         ioctl(&fd, UI_SET_EVBIT, EV_ABS as u32).context("EV_ABS")?;
-
-        ioctl(&fd, UI_SET_RELBIT, REL_X as u32).context("REL_X")?;
-        ioctl(&fd, UI_SET_RELBIT, REL_Y as u32).context("REL_Y")?;
         ioctl(&fd, UI_SET_EVBIT, EV_SYN as u32).context("EV_SYN")?;
 
         ioctl(&fd, UI_SET_KEYBIT, BTN_LEFT as u32).context("BTN_LEFT")?;
         ioctl(&fd, UI_SET_KEYBIT, BTN_MIDDLE as u32).context("BTN_MIDDLE")?;
         ioctl(&fd, UI_SET_KEYBIT, BTN_RIGHT as u32).context("BTN_RIGHT")?;
-        ioctl(&fd, UI_SET_KEYBIT, BTN_TOUCH as u32).context("BTN_TOUCH")?;
 
         ioctl(&fd, UI_SET_ABSBIT, ABS_X as u32).context("ABS_X")?;
         ioctl(&fd, UI_SET_ABSBIT, ABS_Y as u32).context("ABS_Y")?;
@@ -246,7 +241,5 @@ impl Mouse {
 }
 
 impl Drop for Mouse {
-    fn drop(&mut self) {
-        let _ = ioctl(&self.fd, UI_DEV_DESTROY, 0);
-    }
+    fn drop(&mut self) { let _ = ioctl(&self.fd, UI_DEV_DESTROY, 0); }
 }

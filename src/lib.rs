@@ -21,7 +21,7 @@ use config::{action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, s
 use evdev::KeyboardDev;
 use grid::{Grid, GridConfig, GridFilter};
 use keymap::{ModState, map as key_map};
-use overlay::X11Overlay;
+use overlay::Overlay;
 use render::TextCache;
 use uinput::Mouse;
 
@@ -42,13 +42,15 @@ pub fn run() -> Result<()> {
     let font = Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
-    let mut overlay = X11Overlay::connect()?;
+    let mut overlay = Overlay::connect()?;
     let named = overlay
         .named_monitors()
         .context("failed to query monitors")?;
     if named.is_empty() {
         anyhow::bail!("no active monitors detected");
     }
+    let backend = if matches!(overlay, Overlay::Wlr(_)) { "wlr" } else { "x11" };
+    eprintln!("[{backend}] {} monitor(s) detected", named.len());
     let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
 
     let monitor_idx = if monitors.len() == 1 {
@@ -56,7 +58,7 @@ pub fn run() -> Result<()> {
     } else {
         show_display_ids(&mut overlay, &font, &monitors)?;
         let idx = select_display(&monitors)?;
-        overlay = X11Overlay::connect()?;
+        overlay = Overlay::connect()?;
         idx
     };
     let selected = &monitors[monitor_idx];
@@ -124,7 +126,7 @@ pub fn run() -> Result<()> {
 // ── Display selection (multi-monitor) ───────────────────────────────
 
 fn show_display_ids(
-    overlay: &mut X11Overlay,
+    overlay: &mut Overlay,
     font: &Font,
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<()> {
@@ -201,7 +203,7 @@ fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
 }
 
 fn init_overlay(
-    overlay: &mut X11Overlay,
+    overlay: &mut Overlay,
     font: &Font,
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
@@ -232,7 +234,7 @@ fn init_overlay(
 // ── Input loops ─────────────────────────────────────────────────────
 
 fn run_input_tty(
-    overlay: &mut X11Overlay,
+    overlay: &mut Overlay,
     mouse: &mut Option<Mouse>,
     cfg: &GridConfig,
     cache: &TextCache,
@@ -263,7 +265,7 @@ fn run_input_tty(
 }
 
 fn run_input_evdev(
-    overlay: &mut X11Overlay,
+    overlay: &mut Overlay,
     mouse: &mut Option<Mouse>,
     cfg: &GridConfig,
     cache: &TextCache,
@@ -323,7 +325,7 @@ impl InputCtx {
 /// Single-byte input handler shared by TTY and evdev paths.
 fn process_byte(
     byte: u8,
-    overlay: &mut X11Overlay,
+    overlay: &mut Overlay,
     mouse: &mut Option<Mouse>,
     cfg: &GridConfig,
     cache: &TextCache,
@@ -334,6 +336,9 @@ fn process_byte(
     match byte {
         b'\r' | b'\n' | b' ' => {
             cursor_warp(mouse, &ctx.filter, draw_states)?;
+            if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
+                overlay.pointer_warp(cx as i16, cy as i16)?;
+            }
             return Ok(true);
         }
 
@@ -370,6 +375,9 @@ fn process_byte(
             if ctx.filter.len() >= 2 {
                 if let Some((btn, is_click)) = action_key(ch) {
                     cursor_action(mouse, &ctx.filter, draw_states, btn, is_click, ctx.repeat)?;
+                    if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
+                        overlay.pointer_warp(cx as i16, cy as i16)?;
+                    }
                     return Ok(true);
                 }
             }
@@ -442,7 +450,7 @@ fn cursor_action(
 // ── Display update ──────────────────────────────────────────────────
 
 fn display_update(
-    overlay: &X11Overlay,
+    overlay: &Overlay,
     states: &mut [DrawState],
     cfg: &GridConfig,
     cache: &TextCache,
