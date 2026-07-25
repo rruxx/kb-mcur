@@ -34,7 +34,9 @@ impl TextCache {
 
 pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
     // Clear so repeated calls don't accumulate
-    pixmap.pixels_mut().fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
+    pixmap
+        .pixels_mut()
+        .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
     fill_rect(pixmap, 0.0, 0.0, w, h, rgba(cfg.bg_color));
@@ -97,22 +99,20 @@ pub fn render_subgrid(
     let bot_y = y + h + gap + font_size * 0.5;
     for col in 0..4u32 {
         let cx = x + (col as f32 + 0.5) * cell_w;
-        draw_text(
+        draw_char(
             pixmap,
-            &SUBGRID_LABELS[0][col as usize].to_string(),
+            SUBGRID_LABELS[0][col as usize],
             cx,
             top_y,
             cache,
-            font_size,
             cfg.label_color,
         );
-        draw_text(
+        draw_char(
             pixmap,
-            &SUBGRID_LABELS[1][col as usize].to_string(),
+            SUBGRID_LABELS[1][col as usize],
             cx,
             bot_y,
             cache,
-            font_size,
             cfg.label_color,
         );
     }
@@ -134,40 +134,36 @@ pub fn render_bisect(
     let bot_y = y + h + gap + font_size * 0.5;
     let pad = 12.0;
 
-    draw_text(
+    draw_char(
         pixmap,
-        &BISECT_LABELS[0][0].to_string(),
+        BISECT_LABELS[0][0],
         x - pad,
         top_y,
         cache,
-        font_size,
         cfg.label_color,
     );
-    draw_text(
+    draw_char(
         pixmap,
-        &BISECT_LABELS[0][1].to_string(),
+        BISECT_LABELS[0][1],
         x + w + pad,
         top_y,
         cache,
-        font_size,
         cfg.label_color,
     );
-    draw_text(
+    draw_char(
         pixmap,
-        &BISECT_LABELS[1][0].to_string(),
+        BISECT_LABELS[1][0],
         x - pad,
         bot_y,
         cache,
-        font_size,
         cfg.label_color,
     );
-    draw_text(
+    draw_char(
         pixmap,
-        &BISECT_LABELS[1][1].to_string(),
+        BISECT_LABELS[1][1],
         x + w + pad,
         bot_y,
         cache,
-        font_size,
         cfg.label_color,
     );
 }
@@ -247,16 +243,47 @@ fn draw_line(
     pixmap.stroke_path(&path, &paint, stroke, Transform::identity(), None);
 }
 
+fn draw_char(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, cache: &TextCache, rgba: [u8; 4]) {
+    let Some((m, bmp)) = cache.get(ch) else {
+        return;
+    };
+    if bmp.is_empty() {
+        return;
+    }
+    let pw = pixmap.width() as usize;
+    let pixels = pixmap.pixels_mut();
+    let gx = cx + m.xmin as f32 - m.advance_width as f32 * 0.5;
+    let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
+    for row in 0..m.height {
+        let off = row * m.width;
+        for col in 0..m.width {
+            let cov = bmp[off + col];
+            if cov == 0 {
+                continue;
+            }
+            let ix = (gx + col as f32) as i32;
+            let iy = (gy + row as f32) as i32;
+            if ix < 0 || iy < 0 || ix as usize >= pw {
+                continue;
+            }
+            let i = iy as usize * pw + ix as usize;
+            if i >= pixels.len() {
+                continue;
+            }
+            blend(&mut pixels[i], cov, rgba);
+        }
+    }
+}
+
 pub fn render_digit(
     pixmap: &mut Pixmap,
     digit: char,
     cx: f32,
     cy: f32,
     cache: &TextCache,
-    font_size: f32,
     rgba: [u8; 4],
 ) {
-    draw_text(pixmap, &digit.to_string(), cx, cy, cache, font_size, rgba);
+    draw_char(pixmap, digit, cx, cy, cache, rgba);
 }
 
 fn draw_text(

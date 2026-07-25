@@ -144,7 +144,6 @@ fn show_display_ids(
             w as f32 * 0.5,
             h as f32 * 0.5,
             &cache,
-            96.0,
             [192, 255, 192, 192],
         );
         overlay.add_window(x, y, w, h)?;
