@@ -78,40 +78,40 @@ pub fn run() -> Result<()> {
     let (cfg, font_size, cache, mut draw_states) =
         init_overlay(&mut overlay, &font, &single_monitors)?;
 
-    let stdin_fd = std::io::stdin().as_raw_fd();
-    let orig_term = tty::raw_on(stdin_fd);
-    if orig_term.is_err() {
-        match KeyboardDev::open_all() {
-            Ok(kbd) => {
-                run_input_evdev(
+    // Prefer evdev global keyboard grab.  Fall back to TTY raw mode,
+    // then to display-only timeout.
+    if let Ok(kbd) = KeyboardDev::open_all() {
+        run_input_evdev(
+            &mut overlay,
+            &mut mouse,
+            &cfg,
+            &cache,
+            font_size,
+            &mut draw_states,
+            kbd,
+        )?;
+    } else {
+        let stdin_fd = std::io::stdin().as_raw_fd();
+        match tty::raw_on(stdin_fd) {
+            Ok(orig) => {
+                run_input_tty(
                     &mut overlay,
                     &mut mouse,
                     &cfg,
                     &cache,
                     font_size,
                     &mut draw_states,
-                    kbd,
+                    stdin_fd,
                 )?;
+                tty::raw_off(stdin_fd, orig)?;
             }
-            Err(e) => {
-                eprintln!("evdev unavailable: {e} — showing grid for 5 s then exiting");
+            Err(_) => {
+                eprintln!("no input source — showing grid for 5 s then exiting");
                 overlay.wait_or_timeout(5)?;
             }
         }
-        return Ok(());
     }
 
-    run_input_tty(
-        &mut overlay,
-        &mut mouse,
-        &cfg,
-        &cache,
-        font_size,
-        &mut draw_states,
-        stdin_fd,
-    )?;
-
-    tty::raw_off(stdin_fd, orig_term.unwrap())?;
     eprintln!("bye");
     Ok(())
 }
