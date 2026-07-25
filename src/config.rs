@@ -84,3 +84,12 @@ pub fn action_key(ch: char) -> Option<(u8, bool)> {
 }
 
 pub const CLICK_INTERVAL_MS: u64 = 100;
+
+/// USB HID button code for mouse buttons (1=left, 2=middle, 3=right).
+pub const fn btn_code(button: u8) -> u16 {
+    match button {
+        1 => 0x110, // BTN_LEFT
+        2 => 0x112, // BTN_MIDDLE
+        _ => 0x111, // BTN_RIGHT
+    }
+}

@@ -174,13 +174,13 @@ impl WlrBackend {
 
     pub fn pointer_click(&self, button: u8, count: u32) -> Result<()> {
         let Some(ref v) = self.vptr else { return Ok(()); };
-        let code = match button { 1 => 0x110, 2 => 0x112, _ => 0x111 };
+        let code = crate::config::btn_code(button);
         for _ in 0..count {
-            v.button(0, code, wl_pointer::ButtonState::Pressed);
+            v.button(0, code.into(), wl_pointer::ButtonState::Pressed);
             v.frame();
             self.conn.flush()?;
             std::thread::sleep(std::time::Duration::from_millis(50));
-            v.button(0, code, wl_pointer::ButtonState::Released);
+            v.button(0, code.into(), wl_pointer::ButtonState::Released);
             v.frame();
             self.conn.flush()?;
             std::thread::sleep(std::time::Duration::from_millis(50));
@@ -190,8 +190,8 @@ impl WlrBackend {
 
     pub fn pointer_toggle(&self, button: u8) -> Result<()> {
         let Some(ref v) = self.vptr else { return Ok(()); };
-        let code = match button { 1 => 0x110, 2 => 0x112, _ => 0x111 };
-        v.button(0, code, wl_pointer::ButtonState::Pressed);
+        let code = crate::config::btn_code(button);
+        v.button(0, code.into(), wl_pointer::ButtonState::Pressed);
         v.frame();
         self.conn.flush()?;
         Ok(())

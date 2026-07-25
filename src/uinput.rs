@@ -7,7 +7,7 @@ use std::io::{self, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
-use crate::config::CLICK_INTERVAL_MS;
+use crate::config::{btn_code as button_hid, CLICK_INTERVAL_MS};
 
 #[repr(C)]
 pub struct InputEvent {
@@ -43,6 +43,7 @@ struct InputAbsinfo {
 
 const UI_SET_EVBIT: u64 = 0x40045564;
 const UI_SET_KEYBIT: u64 = 0x40045565;
+const UI_SET_RELBIT: u64 = 0x40045566;
 const UI_SET_ABSBIT: u64 = 0x40045567;
 const UI_ABS_SETUP: u64 = 0x401C5504;
 const UI_DEV_SETUP: u64 = 0x405C5503;
@@ -118,8 +119,12 @@ impl Mouse {
         ioctl_ref(&fd, UI_DEV_SETUP, &setup).context("UI_DEV_SETUP")?;
 
         ioctl(&fd, UI_SET_EVBIT, EV_KEY as u32).context("EV_KEY")?;
+        ioctl(&fd, UI_SET_EVBIT, EV_REL as u32).context("EV_REL")?;
         ioctl(&fd, UI_SET_EVBIT, EV_ABS as u32).context("EV_ABS")?;
         ioctl(&fd, UI_SET_EVBIT, EV_SYN as u32).context("EV_SYN")?;
+
+        ioctl(&fd, UI_SET_RELBIT, REL_X as u32).context("REL_X")?;
+        ioctl(&fd, UI_SET_RELBIT, REL_Y as u32).context("REL_Y")?;
 
         ioctl(&fd, UI_SET_KEYBIT, BTN_LEFT as u32).context("BTN_LEFT")?;
         ioctl(&fd, UI_SET_KEYBIT, BTN_MIDDLE as u32).context("BTN_MIDDLE")?;
@@ -165,7 +170,7 @@ impl Mouse {
         Ok(())
     }
 
-    fn event(type_: u16, code: u16, value: i32) -> InputEvent {
+    fn make_event(type_: u16, code: u16, value: i32) -> InputEvent {
         InputEvent {
             time: libc::timeval {
                 tv_sec: 0,
@@ -181,35 +186,29 @@ impl Mouse {
         let abs_x = (x as f32 / self.screen_w as f32 * i16::MAX as f32) as i32;
         let abs_y = (y as f32 / self.screen_h as f32 * i16::MAX as f32) as i32;
         self.write_events(&[
-            Self::event(EV_ABS, ABS_X, abs_x),
-            Self::event(EV_ABS, ABS_Y, abs_y),
-            Self::event(EV_SYN, SYN_REPORT, 0),
+            Self::make_event(EV_ABS, ABS_X, abs_x),
+            Self::make_event(EV_ABS, ABS_Y, abs_y),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
         ])?;
         Ok(())
     }
 
     pub fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
         self.write_events(&[
-            Self::event(EV_REL, REL_X, dx),
-            Self::event(EV_REL, REL_Y, dy),
-            Self::event(EV_SYN, SYN_REPORT, 0),
+            Self::make_event(EV_REL, REL_X, dx),
+            Self::make_event(EV_REL, REL_Y, dy),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
         ])?;
         Ok(())
     }
 
-    fn button_code(button: u8) -> u16 {
-        match button {
-            1 => BTN_LEFT,
-            2 => BTN_MIDDLE,
-            _ => BTN_RIGHT,
-        }
-    }
+    fn button_code(button: u8) -> u16 { button_hid(button) }
 
     pub fn button_press(&mut self, button: u8) -> Result<()> {
         let code = Self::button_code(button);
         self.write_events(&[
-            Self::event(EV_KEY, code, 1),
-            Self::event(EV_SYN, SYN_REPORT, 0),
+            Self::make_event(EV_KEY, code, 1),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
         ])?;
         Ok(())
     }
@@ -217,8 +216,8 @@ impl Mouse {
     pub fn button_release(&mut self, button: u8) -> Result<()> {
         let code = Self::button_code(button);
         self.write_events(&[
-            Self::event(EV_KEY, code, 0),
-            Self::event(EV_SYN, SYN_REPORT, 0),
+            Self::make_event(EV_KEY, code, 0),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
         ])?;
         Ok(())
     }

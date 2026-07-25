@@ -147,17 +147,10 @@ pub fn query_screen_size() -> (u16, u16) {
 }
 
 fn find_visual(screen: &Screen) -> (u8, u32) {
-    for depth in &screen.allowed_depths {
-        if depth.depth == 32 {
+    for &d in &[32u8, 24] {
+        if let Some(depth) = screen.allowed_depths.iter().find(|dp| dp.depth == d) {
             if let Some(v) = depth.visuals.iter().find(|v| v.class == VisualClass::TRUE_COLOR) {
-                return (32, v.visual_id);
-            }
-        }
-    }
-    for depth in &screen.allowed_depths {
-        if depth.depth == 24 {
-            if let Some(v) = depth.visuals.iter().find(|v| v.class == VisualClass::TRUE_COLOR) {
-                return (24, v.visual_id);
+                return (d, v.visual_id);
             }
         }
     }

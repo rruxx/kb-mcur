@@ -126,52 +126,27 @@ pub fn render_bisect(
     font_size: f32,
 ) {
     let (x, y, w, h) = rect;
-
     draw_focus(pixmap, x, y, w, h, 2, 2, cfg);
 
     let gap = font_size * 1.0;
     let top_y = y - gap - font_size * 0.5;
     let bot_y = y + h + gap + font_size * 0.5;
     let pad = 12.0;
-
-    draw_char(
-        pixmap,
-        BISECT_LABELS[0][0],
-        x - pad,
-        top_y,
-        cache,
-        cfg.label_color,
-    );
-    draw_char(
-        pixmap,
-        BISECT_LABELS[0][1],
-        x + w + pad,
-        top_y,
-        cache,
-        cfg.label_color,
-    );
-    draw_char(
-        pixmap,
-        BISECT_LABELS[1][0],
-        x - pad,
-        bot_y,
-        cache,
-        cfg.label_color,
-    );
-    draw_char(
-        pixmap,
-        BISECT_LABELS[1][1],
-        x + w + pad,
-        bot_y,
-        cache,
-        cfg.label_color,
-    );
+    let positions = [
+        (BISECT_LABELS[0][0], x - pad, top_y),
+        (BISECT_LABELS[0][1], x + w + pad, top_y),
+        (BISECT_LABELS[1][0], x - pad, bot_y),
+        (BISECT_LABELS[1][1], x + w + pad, bot_y),
+    ];
+    for &(ch, px, py) in &positions {
+        draw_char(pixmap, ch, px, py, cache, cfg.label_color);
+    }
 }
 
 // ── Low-level draw ─────────────────────────────────────────────────
 
-fn rgba(rgb: [u8; 4]) -> Color {
-    Color::from_rgba8(rgb[0], rgb[1], rgb[2], rgb[3])
+fn rgba(color: [u8; 4]) -> Color {
+    Color::from_rgba8(color[0], color[1], color[2], color[3])
 }
 
 fn highlight_color(label: [u8; 4]) -> Color {
@@ -244,32 +219,26 @@ fn draw_line(
 }
 
 fn draw_char(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, cache: &TextCache, rgba: [u8; 4]) {
-    let Some((m, bmp)) = cache.get(ch) else {
-        return;
-    };
-    if bmp.is_empty() {
-        return;
-    }
-    let pw = pixmap.width() as usize;
-    let pixels = pixmap.pixels_mut();
+    let Some((m, bmp)) = cache.get(ch) else { return; };
+    if bmp.is_empty() { return; }
     let gx = cx + m.xmin as f32 - m.advance_width as f32 * 0.5;
     let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
+    blit_glyph(pixmap, &bmp, &m, gx, gy, rgba);
+}
+
+fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rgba: [u8; 4]) {
+    let pw = pixmap.width() as usize;
+    let pixels = pixmap.pixels_mut();
     for row in 0..m.height {
         let off = row * m.width;
         for col in 0..m.width {
             let cov = bmp[off + col];
-            if cov == 0 {
-                continue;
-            }
+            if cov == 0 { continue; }
             let ix = (gx + col as f32) as i32;
             let iy = (gy + row as f32) as i32;
-            if ix < 0 || iy < 0 || ix as usize >= pw {
-                continue;
-            }
+            if ix < 0 || iy < 0 || ix as usize >= pw { continue; }
             let i = iy as usize * pw + ix as usize;
-            if i >= pixels.len() {
-                continue;
-            }
+            if i >= pixels.len() { continue; }
             blend(&mut pixels[i], cov, rgba);
         }
     }
@@ -312,8 +281,6 @@ fn draw_text(
     }
     total_w += space * (chars.len() - 1) as f32;
 
-    let pw = pixmap.width() as usize;
-    let pixels = pixmap.pixels_mut();
     let mut pen = cx - total_w * 0.5;
 
     for &(m, bmp) in entries.iter() {
@@ -323,25 +290,7 @@ fn draw_text(
         }
         let gx = pen + m.xmin as f32;
         let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
-        for row in 0..m.height {
-            let off = row * m.width;
-            for col in 0..m.width {
-                let cov = bmp[off + col];
-                if cov == 0 {
-                    continue;
-                }
-                let ix = (gx + col as f32) as i32;
-                let iy = (gy + row as f32) as i32;
-                if ix < 0 || iy < 0 || ix as usize >= pw {
-                    continue;
-                }
-                let i = iy as usize * pw + ix as usize;
-                if i >= pixels.len() {
-                    continue;
-                }
-                blend(&mut pixels[i], cov, rgba);
-            }
-        }
+        blit_glyph(pixmap, bmp, m, gx, gy, rgba);
         pen += m.advance_width + space;
     }
 }
