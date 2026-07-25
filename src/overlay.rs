@@ -1,3 +1,7 @@
+// Copyright (C) 2026 明雅流风
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+
 use anyhow::{Context, Result};
 use tiny_skia::Pixmap as SkiaPixmap;
 use x11rb::connection::Connection;

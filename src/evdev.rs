@@ -1,3 +1,7 @@
+// Copyright (C) 2026 明雅流风
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+
 use std::os::fd::{IntoRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
 

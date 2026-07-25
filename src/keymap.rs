@@ -1,3 +1,7 @@
+// Copyright (C) 2026 明雅流风
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+
 // US-QWERTY keycode → ASCII byte mapping.
 // Only the 30 keys used by grid mode: a-z, Enter, Space, Backspace, Escape.
 

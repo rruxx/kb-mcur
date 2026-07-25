@@ -1,3 +1,7 @@
+// Copyright (C) 2026 明雅流风
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use kb_mcur::uinput::Mouse;
