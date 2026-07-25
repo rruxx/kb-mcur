@@ -60,9 +60,32 @@ impl X11Overlay {
         for &crtc in &resources.crtcs {
             let info = randr::get_crtc_info(&self.conn, crtc, x11rb::CURRENT_TIME)?.reply()?;
             if info.width == 0 || info.height == 0 {
-                continue; // disabled CRTC
+                continue;
             }
             out.push((info.x as i32, info.y as i32, info.width, info.height));
+        }
+        Ok(out)
+    }
+
+    /// Query monitors with RandR output names (e.g. "eDP-1", "HDMI-1").
+    pub fn named_monitors(&self) -> Result<Vec<(String, i32, i32, u16, u16)>> {
+        let screen = &self.conn.setup().roots[self.screen_num];
+        let resources = randr::get_screen_resources(&self.conn, screen.root)?
+            .reply()?;
+        let mut out = Vec::new();
+        for &output in &resources.outputs {
+            let info = randr::get_output_info(&self.conn, output, x11rb::CURRENT_TIME)?
+                .reply()?;
+            if info.crtc == 0 || info.connection != randr::Connection::CONNECTED {
+                continue;
+            }
+            let crtc = randr::get_crtc_info(&self.conn, info.crtc, x11rb::CURRENT_TIME)?
+                .reply()?;
+            if crtc.width == 0 || crtc.height == 0 {
+                continue;
+            }
+            let name = String::from_utf8_lossy(&info.name).to_string();
+            out.push((name, crtc.x as i32, crtc.y as i32, crtc.width, crtc.height));
         }
         Ok(out)
     }

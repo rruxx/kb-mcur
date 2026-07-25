@@ -11,6 +11,7 @@ pub mod tty;
 pub mod uinput;
 
 use std::os::fd::AsRawFd;
+use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use fontdue::Font;
@@ -25,6 +26,8 @@ use render::TextCache;
 use uinput::Mouse;
 
 const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
+
+static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 
 /// Per-monitor state: the 26×26 grid, its base-layer RGBA bytes, and a
 /// persistent pixmap that is re-uploaded on every redraw.
@@ -41,21 +44,23 @@ pub fn run() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
     let mut overlay = X11Overlay::connect()?;
-    let monitors = overlay.monitors().context("failed to query monitors")?;
-    if monitors.is_empty() {
+    let named = overlay.named_monitors().context("failed to query monitors")?;
+    if named.is_empty() {
         anyhow::bail!("no active monitors detected");
     }
+    let names: Vec<String> = named.iter().map(|n| n.0.clone()).collect();
+    let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
 
     let monitor_idx = if monitors.len() == 1 {
         0
     } else {
         show_display_ids(&mut overlay, &font, &monitors)?;
         let idx = select_display(&monitors)?;
-        // Re-create overlay with only the selected monitor
         overlay = X11Overlay::connect()?;
         idx
     };
     let selected = &monitors[monitor_idx];
+    let _ = MONITOR_NAME.set(names[monitor_idx].clone());
 
     let max_w = monitors
         .iter()
@@ -398,7 +403,7 @@ fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawSta
     };
     if let Some((cx, cy)) = region_center(filter, states) {
         m.warp(cx as i16, cy as i16)?;
-        eprintln!("\n=> ({cx:.0}, {cy:.0})");
+        eprintln!("\n=> {} ({cx:.0}, {cy:.0})", MONITOR_NAME.get().map(|s| s.as_str()).unwrap_or("?"));
     }
     Ok(())
 }
@@ -418,13 +423,18 @@ fn cursor_action(
     if let Some((cx, cy)) = region_center(filter, states) {
         m.warp(cx as i16, cy as i16)?;
     }
+    let name = MONITOR_NAME.get().map(|s| s.as_str()).unwrap_or("?");
     if is_click {
         let n = if repeat == 0 { 1 } else { repeat };
         m.click(button, n)?;
-        eprintln!("click btn{button} x{n}");
+        if let Some((cx, cy)) = region_center(filter, states) {
+            eprintln!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
+        }
     } else {
         m.toggle(button)?;
-        eprintln!("toggle btn{button}");
+        if let Some((cx, cy)) = region_center(filter, states) {
+            eprintln!("toggle btn{button}  {name} ({cx:.0}, {cy:.0})");
+        }
     }
     Ok(())
 }
