@@ -65,10 +65,12 @@ fn main() -> Result<()> {
         Some(Cmd::Move { x, y }) => {
             let mut m = Mouse::new(sw, sh)?;
             m.move_rel(x, y)?;
+            std::thread::sleep(std::time::Duration::from_millis(20));
         }
         Some(Cmd::MoveTo { x, y }) => {
             let mut m = Mouse::new(sw, sh)?;
             m.warp(x, y)?;
+            std::thread::sleep(std::time::Duration::from_millis(20));
         }
         Some(Cmd::Click { repeat, btn }) => {
             let mut m = Mouse::new(sw, sh)?;
