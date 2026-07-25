@@ -66,6 +66,15 @@ impl KeyboardDev {
         Ok(Self { fds })
     }
 
+    /// Release all grabs, then close.
+    pub fn release(&mut self) {
+        for d in &self.fds {
+            unsafe {
+                libc::ioctl(d.fd, EVIOCGRAB, 0);
+            };
+        }
+    }
+
     /// Block until a key event arrives, returns (code, value).
     pub fn next_keypress(&self) -> Result<(u16, i32)> {
         loop {

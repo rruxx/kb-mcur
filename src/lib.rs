@@ -175,7 +175,7 @@ fn run_input_evdev(
     cache: &TextCache,
     font_size: f32,
     draw_states: &mut [DrawState],
-    kbd: KeyboardDev,
+    mut kbd: KeyboardDev,
 ) -> Result<()> {
     let mut ctx = InputCtx::new();
     let mut mods = ModState::default();
@@ -201,6 +201,15 @@ fn run_input_evdev(
             break;
         }
     }
+
+    // Release grab on a background thread — EVIOCGRAB,0 ioctl blocks
+    // in the kernel for ~400ms while the compositor re-acquires the
+    // device.  Doing this inline would keep the overlay visible.
+    std::thread::spawn(move || {
+        kbd.release();
+        drop(kbd);
+    });
+
     Ok(())
 }
 
