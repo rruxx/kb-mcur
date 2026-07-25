@@ -1,7 +1,6 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 // US-QWERTY keycode → ASCII byte mapping.
 // Only the 30 keys used by grid mode: a-z, Enter, Space, Backspace, Escape.
 
@@ -73,7 +72,11 @@ impl ModState {
         let on = pressed;
         match code {
             KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = on,
-            KEY_CAPSLOCK => if on { self.caps = !self.caps },
+            KEY_CAPSLOCK => {
+                if on {
+                    self.caps = !self.caps
+                }
+            }
             _ => {}
         }
     }

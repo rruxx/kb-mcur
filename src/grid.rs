@@ -1,7 +1,6 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 use tiny_skia::{IntRect, Rect};
 
 use crate::config;
@@ -35,12 +34,24 @@ pub struct GridFilter {
 }
 
 impl GridFilter {
-    pub fn new() -> Self { Self::default() }
-    pub fn input(&self) -> &str { &self.input }
-    pub fn len(&self) -> usize { self.input.len() }
-    pub fn push(&mut self, ch: char) { self.input.push(ch); }
-    pub fn pop(&mut self) { self.input.pop(); }
-    pub fn clear(&mut self) { self.input.clear(); }
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn input(&self) -> &str {
+        &self.input
+    }
+    pub fn len(&self) -> usize {
+        self.input.len()
+    }
+    pub fn push(&mut self, ch: char) {
+        self.input.push(ch);
+    }
+    pub fn pop(&mut self) {
+        self.input.pop();
+    }
+    pub fn clear(&mut self) {
+        self.input.clear();
+    }
 
     pub fn matches(&self, label: &str) -> bool {
         label.starts_with(&self.input)
@@ -71,17 +82,36 @@ impl Grid {
                 let cy = row as f32 * cell_h + cell_h / 2.0;
                 let rx = (col as f32 * cell_w) as i32;
                 let ry = (row as f32 * cell_h) as i32;
-                let rw = if col + 1 == config.cols { width - rx as u32 } else { cell_w as u32 };
-                let rh = if row + 1 == config.rows { height - ry as u32 } else { cell_h as u32 };
+                let rw = if col + 1 == config.cols {
+                    width - rx as u32
+                } else {
+                    cell_w as u32
+                };
+                let rh = if row + 1 == config.rows {
+                    height - ry as u32
+                } else {
+                    cell_h as u32
+                };
                 let rect = IntRect::from_xywh(rx, ry, rw, rh).unwrap_or_else(|| {
-                    Rect::from_xywh(rx as f32, ry as f32, rw as f32, rh as f32).unwrap().round_out().expect("round_out")
+                    Rect::from_xywh(rx as f32, ry as f32, rw as f32, rh as f32)
+                        .unwrap()
+                        .round_out()
+                        .expect("round_out")
                 });
                 let row_ch = (b'a' + row as u8) as char;
                 let col_ch = (b'a' + col as u8) as char;
-                cells.push(Cell { rect, center: (cx, cy), label: format!("{row_ch}{col_ch}") });
+                cells.push(Cell {
+                    rect,
+                    center: (cx, cy),
+                    label: format!("{row_ch}{col_ch}"),
+                });
             }
         }
-        Self { cells, cols: config.cols, rows: config.rows }
+        Self {
+            cells,
+            cols: config.cols,
+            rows: config.rows,
+        }
     }
 
     pub fn cell_by_label(&self, label: &str) -> Option<&Cell> {

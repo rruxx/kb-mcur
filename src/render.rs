@@ -1,11 +1,12 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 use std::collections::HashMap;
 
 use fontdue::{Font, Metrics};
-use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform};
+use tiny_skia::{
+    Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform,
+};
 
 use crate::config::{BISECT_LABELS, SUBGRID_LABELS};
 use crate::grid::{Grid, GridConfig, GridFilter};
@@ -18,11 +19,15 @@ pub struct TextCache {
 impl TextCache {
     pub fn new(font: &Font, size: f32) -> Self {
         let mut glyphs = HashMap::new();
-        for ch in 'a'..='z' { glyphs.insert(ch, font.rasterize(ch, size)); }
+        for ch in 'a'..='z' {
+            glyphs.insert(ch, font.rasterize(ch, size));
+        }
         Self { glyphs }
     }
 
-    fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> { self.glyphs.get(&ch) }
+    fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
+        self.glyphs.get(&ch)
+    }
 }
 
 // ── Base layer (background + grid lines) ────────────────────────────
@@ -32,7 +37,10 @@ pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
     let h = pixmap.height() as f32;
     fill_rect(pixmap, 0.0, 0.0, w, h, rgba(cfg.bg_color));
     let line = rgba(cfg.line_color);
-    let stroke = Stroke { width: cfg.line_width, ..Default::default() };
+    let stroke = Stroke {
+        width: cfg.line_width,
+        ..Default::default()
+    };
     for row in 1..grid.rows {
         let y = (row as f32 / grid.rows as f32) * h;
         draw_line(pixmap, 0.0, y, w, y, &line, &stroke);
@@ -53,8 +61,18 @@ pub fn render_labels(
 ) {
     let c = rgba(cfg.label_color);
     for cell in &grid.cells {
-        if filter.is_some_and(|f| !f.matches(&cell.label)) { continue; }
-        draw_text(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, &c);
+        if filter.is_some_and(|f| !f.matches(&cell.label)) {
+            continue;
+        }
+        draw_text(
+            pixmap,
+            &cell.label,
+            cell.center.0,
+            cell.center.1,
+            cache,
+            font_size,
+            &c,
+        );
     }
 }
 
@@ -65,8 +83,10 @@ pub fn render_subgrid(
     cache: &TextCache,
     font_size: f32,
 ) {
-    let x = rect.x() as f32; let y = rect.y() as f32;
-    let w = rect.width() as f32; let h = rect.height() as f32;
+    let x = rect.x() as f32;
+    let y = rect.y() as f32;
+    let w = rect.width() as f32;
+    let h = rect.height() as f32;
 
     draw_focus(pixmap, x, y, w, h, 2, 4, cfg);
 
@@ -77,8 +97,24 @@ pub fn render_subgrid(
     let bot_y = y + h + gap + font_size * 0.5;
     for col in 0..4u32 {
         let cx = x + (col as f32 + 0.5) * cell_w;
-        draw_text(pixmap, &SUBGRID_LABELS[0][col as usize].to_string(), cx, top_y, cache, font_size, &label_c);
-        draw_text(pixmap, &SUBGRID_LABELS[1][col as usize].to_string(), cx, bot_y, cache, font_size, &label_c);
+        draw_text(
+            pixmap,
+            &SUBGRID_LABELS[0][col as usize].to_string(),
+            cx,
+            top_y,
+            cache,
+            font_size,
+            &label_c,
+        );
+        draw_text(
+            pixmap,
+            &SUBGRID_LABELS[1][col as usize].to_string(),
+            cx,
+            bot_y,
+            cache,
+            font_size,
+            &label_c,
+        );
     }
 }
 
@@ -99,39 +135,117 @@ pub fn render_bisect(
     let bot_y = y + h + gap + font_size * 0.5;
     let pad = 12.0;
 
-    draw_text(pixmap, &BISECT_LABELS[0][0].to_string(), x - pad, top_y, cache, font_size, &label_c);
-    draw_text(pixmap, &BISECT_LABELS[0][1].to_string(), x + w + pad, top_y, cache, font_size, &label_c);
-    draw_text(pixmap, &BISECT_LABELS[1][0].to_string(), x - pad, bot_y, cache, font_size, &label_c);
-    draw_text(pixmap, &BISECT_LABELS[1][1].to_string(), x + w + pad, bot_y, cache, font_size, &label_c);
+    draw_text(
+        pixmap,
+        &BISECT_LABELS[0][0].to_string(),
+        x - pad,
+        top_y,
+        cache,
+        font_size,
+        &label_c,
+    );
+    draw_text(
+        pixmap,
+        &BISECT_LABELS[0][1].to_string(),
+        x + w + pad,
+        top_y,
+        cache,
+        font_size,
+        &label_c,
+    );
+    draw_text(
+        pixmap,
+        &BISECT_LABELS[1][0].to_string(),
+        x - pad,
+        bot_y,
+        cache,
+        font_size,
+        &label_c,
+    );
+    draw_text(
+        pixmap,
+        &BISECT_LABELS[1][1].to_string(),
+        x + w + pad,
+        bot_y,
+        cache,
+        font_size,
+        &label_c,
+    );
 }
 
 // ── Low-level draw ─────────────────────────────────────────────────
 
-fn rgba(rgb: [u8; 4]) -> Color { Color::from_rgba8(rgb[0], rgb[1], rgb[2], rgb[3]) }
-
-fn highlight_color(label: [u8; 4]) -> Color {
-    Color::from_rgba8((label[0] as f32 * 0.25) as u8, (label[1] as f32 * 0.25) as u8, (label[2] as f32 * 0.25) as u8, 32)
+fn rgba(rgb: [u8; 4]) -> Color {
+    Color::from_rgba8(rgb[0], rgb[1], rgb[2], rgb[3])
 }
 
-fn draw_focus(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, rows: u32, cols: u32, cfg: &GridConfig) {
+fn highlight_color(label: [u8; 4]) -> Color {
+    Color::from_rgba8(
+        (label[0] as f32 * 0.25) as u8,
+        (label[1] as f32 * 0.25) as u8,
+        (label[2] as f32 * 0.25) as u8,
+        32,
+    )
+}
+
+fn draw_focus(
+    pixmap: &mut Pixmap,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    rows: u32,
+    cols: u32,
+    cfg: &GridConfig,
+) {
     fill_rect(pixmap, x, y, w, h, highlight_color(cfg.label_color));
     let line = rgba(cfg.line_color);
-    let stroke = Stroke { width: cfg.line_width, ..Default::default() };
-    for row in 1..rows { draw_line(pixmap, x, y + (row as f32 / rows as f32) * h, x + w, y + (row as f32 / rows as f32) * h, &line, &stroke); }
-    for col in 1..cols { draw_line(pixmap, x + (col as f32 / cols as f32) * w, y, x + (col as f32 / cols as f32) * w, y + h, &line, &stroke); }
+    let stroke = Stroke {
+        width: cfg.line_width,
+        ..Default::default()
+    };
+    for row in 1..rows {
+        let ly = y + (row as f32 / rows as f32) * h;
+        draw_line(pixmap, x, ly, x + w, ly, &line, &stroke);
+    }
+    for col in 1..cols {
+        let lx = x + (col as f32 / cols as f32) * w;
+        draw_line(pixmap, lx, y, lx, y + h, &line, &stroke);
+    }
 }
 
 fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
     pixmap.fill_path(
         &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
-        &Paint { shader: Shader::SolidColor(color), ..Default::default() },
-        tiny_skia::FillRule::Winding, Transform::identity(), None,
+        &Paint {
+            shader: Shader::SolidColor(color),
+            ..Default::default()
+        },
+        tiny_skia::FillRule::Winding,
+        Transform::identity(),
+        None,
     );
 }
 
-fn draw_line(pixmap: &mut Pixmap, x1: f32, y1: f32, x2: f32, y2: f32, color: &Color, stroke: &Stroke) {
-    let mut pb = PathBuilder::new(); pb.move_to(x1, y1); pb.line_to(x2, y2);
-    pixmap.stroke_path(&pb.finish().unwrap(), &Paint { shader: Shader::SolidColor(*color), anti_alias: true, ..Default::default() }, stroke, Transform::identity(), None);
+fn draw_line(
+    pixmap: &mut Pixmap,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+    color: &Color,
+    stroke: &Stroke,
+) {
+    let mut pb = PathBuilder::new();
+    pb.move_to(x1, y1);
+    pb.line_to(x2, y2);
+    let path = pb.finish().unwrap();
+    let paint = Paint {
+        shader: Shader::SolidColor(*color),
+        anti_alias: true,
+        ..Default::default()
+    };
+    pixmap.stroke_path(&path, &paint, stroke, Transform::identity(), None);
 }
 
 fn draw_text(
@@ -144,13 +258,17 @@ fn draw_text(
     color: &Color,
 ) {
     let chars: Vec<char> = text.chars().collect();
-    if chars.is_empty() { return; }
+    if chars.is_empty() {
+        return;
+    }
     let space = size * 0.12;
 
     let mut entries: Vec<&(Metrics, Vec<u8>)> = Vec::with_capacity(chars.len());
     let mut total_w = 0.0_f32;
     for &ch in &chars {
-        let Some(g) = cache.get(ch) else { return; };
+        let Some(g) = cache.get(ch) else {
+            return;
+        };
         total_w += g.0.advance_width;
         entries.push(g);
     }
@@ -161,19 +279,28 @@ fn draw_text(
     let mut pen = cx - total_w * 0.5;
 
     for &(m, bmp) in entries.iter() {
-        if bmp.is_empty() { pen += m.advance_width + space; continue; }
+        if bmp.is_empty() {
+            pen += m.advance_width + space;
+            continue;
+        }
         let gx = pen + m.xmin as f32;
         let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
         for row in 0..m.height {
             let off = row * m.width;
             for col in 0..m.width {
                 let cov = bmp[off + col] as f32 / 255.0;
-                if cov <= 0.0 { continue; }
+                if cov <= 0.0 {
+                    continue;
+                }
                 let ix = (gx + col as f32) as i32;
                 let iy = (gy + row as f32) as i32;
-                if ix < 0 || iy < 0 || ix as usize >= pw { continue; }
+                if ix < 0 || iy < 0 || ix as usize >= pw {
+                    continue;
+                }
                 let i = iy as usize * pw + ix as usize;
-                if i >= pixels.len() { continue; }
+                if i >= pixels.len() {
+                    continue;
+                }
                 blend(&mut pixels[i], cov, color);
             }
         }
@@ -189,5 +316,6 @@ fn blend(dst: &mut PremultipliedColorU8, coverage: f32, color: &Color) {
         ((color.green() * src_a + dst.green() as f32 / 255.0 * inv) * 255.0).round() as u8,
         ((color.blue() * src_a + dst.blue() as f32 / 255.0 * inv) * 255.0).round() as u8,
         ((src_a + dst.alpha() as f32 / 255.0 * inv) * 255.0).round() as u8,
-    ).unwrap();
+    )
+    .unwrap();
 }

@@ -1,7 +1,6 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 use std::os::fd::{IntoRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
 
@@ -26,7 +25,9 @@ fn eviocgname(len: u16) -> u64 {
 fn device_name(fd: RawFd) -> String {
     let mut buf = [0u8; 80];
     let ret = unsafe { libc::ioctl(fd, eviocgname(80), buf.as_mut_ptr()) };
-    if ret < 0 { return String::new(); }
+    if ret < 0 {
+        return String::new();
+    }
     let len = buf.iter().position(|&b| b == 0).unwrap_or(80);
     String::from_utf8_lossy(&buf[..len]).into_owned()
 }
@@ -69,8 +70,14 @@ impl KeyboardDev {
     pub fn next_keypress(&self) -> Result<(u16, i32)> {
         loop {
             let n = self.fds.len();
-            let mut pfds: Vec<libc::pollfd> = self.fds.iter()
-                .map(|d| libc::pollfd { fd: d.fd, events: libc::POLLIN, revents: 0 })
+            let mut pfds: Vec<libc::pollfd> = self
+                .fds
+                .iter()
+                .map(|d| libc::pollfd {
+                    fd: d.fd,
+                    events: libc::POLLIN,
+                    revents: 0,
+                })
                 .collect();
 
             if unsafe { libc::poll(pfds.as_mut_ptr(), n as libc::nfds_t, -1) } < 0 {
@@ -78,12 +85,18 @@ impl KeyboardDev {
             }
 
             for p in pfds {
-                if p.revents & libc::POLLIN == 0 { continue; }
+                if p.revents & libc::POLLIN == 0 {
+                    continue;
+                }
                 let mut ev: InputEvent = unsafe { std::mem::zeroed() };
                 let sz = std::mem::size_of::<InputEvent>();
                 let n = unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
-                if (n as usize) < sz { continue; }
-                if ev.type_ == EV_KEY { return Ok((ev.code, ev.value)); }
+                if (n as usize) < sz {
+                    continue;
+                }
+                if ev.type_ == EV_KEY {
+                    return Ok((ev.code, ev.value));
+                }
             }
         }
     }

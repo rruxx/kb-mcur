@@ -1,7 +1,6 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 use anyhow::{Context, Result};
 use tiny_skia::Pixmap as SkiaPixmap;
 use x11rb::connection::Connection;
@@ -32,8 +31,7 @@ pub struct X11Overlay {
 impl X11Overlay {
     /// Connect to the X server and pick a suitable visual.
     pub fn connect() -> Result<Self> {
-        let (conn, screen_num) = x11rb::connect(None)
-            .context("cannot connect to X11 display")?;
+        let (conn, screen_num) = x11rb::connect(None).context("cannot connect to X11 display")?;
         let screen = &conn.setup().roots[screen_num];
 
         let (depth, visual_id) = find_visual(screen);
@@ -60,8 +58,7 @@ impl X11Overlay {
 
         let mut out = Vec::new();
         for &crtc in &resources.crtcs {
-            let info = randr::get_crtc_info(&self.conn, crtc, x11rb::CURRENT_TIME)?
-                .reply()?;
+            let info = randr::get_crtc_info(&self.conn, crtc, x11rb::CURRENT_TIME)?.reply()?;
             if info.width == 0 || info.height == 0 {
                 continue; // disabled CRTC
             }
@@ -86,22 +83,35 @@ impl X11Overlay {
             .event_mask(EventMask::EXPOSURE | EventMask::KEY_PRESS);
 
         self.conn.create_window(
-            self.depth, window, screen.root,
-            x as i16, y as i16, w, h,
-            0, WindowClass::INPUT_OUTPUT, self.visual_id, &aux,
+            self.depth,
+            window,
+            screen.root,
+            x as i16,
+            y as i16,
+            w,
+            h,
+            0,
+            WindowClass::INPUT_OUTPUT,
+            self.visual_id,
+            &aux,
         )?;
 
         self.conn
             .create_pixmap(self.depth, pixmap, screen.root, w, h)?;
 
-        self.conn
-            .create_gc(gc, pixmap, &CreateGCAux::default())?;
+        self.conn.create_gc(gc, pixmap, &CreateGCAux::default())?;
 
         self.set_always_on_top(window)?;
         self.set_window_title(window, b"kb-mcur-grid")?;
         self.set_input_shape(window)?;
 
-        self.windows.push(WindowState { window, pixmap, gc, width: w, height: h });
+        self.windows.push(WindowState {
+            window,
+            pixmap,
+            gc,
+            width: w,
+            height: h,
+        });
         Ok(self.windows.len() - 1)
     }
 
@@ -138,10 +148,8 @@ impl X11Overlay {
     /// Redraw all windows (copy pixmap → window, then flush).
     pub fn redraw_all(&self) -> Result<()> {
         for ws in &self.windows {
-            self.conn.copy_area(
-                ws.pixmap, ws.window, ws.gc,
-                0, 0, 0, 0, ws.width, ws.height,
-            )?;
+            self.conn
+                .copy_area(ws.pixmap, ws.window, ws.gc, 0, 0, 0, 0, ws.width, ws.height)?;
         }
         self.conn.flush()?;
         Ok(())
@@ -172,15 +180,7 @@ impl X11Overlay {
                 Some(x11rb::protocol::Event::Expose(_)) => {
                     for ws in &self.windows {
                         self.conn.copy_area(
-                            ws.pixmap,
-                            ws.window,
-                            ws.gc,
-                            0,
-                            0,
-                            0,
-                            0,
-                            ws.width,
-                            ws.height,
+                            ws.pixmap, ws.window, ws.gc, 0, 0, 0, 0, ws.width, ws.height,
                         )?;
                     }
                     self.conn.flush()?;
@@ -194,16 +194,8 @@ impl X11Overlay {
     }
 
     fn set_window_title(&self, window: u32, title: &[u8]) -> Result<()> {
-        let atom = self
-            .conn
-            .intern_atom(false, b"_NET_WM_NAME")?
-            .reply()?
-            .atom;
-        let atom_utf8 = self
-            .conn
-            .intern_atom(false, b"UTF8_STRING")?
-            .reply()?
-            .atom;
+        let atom = self.conn.intern_atom(false, b"_NET_WM_NAME")?.reply()?.atom;
+        let atom_utf8 = self.conn.intern_atom(false, b"UTF8_STRING")?.reply()?.atom;
 
         self.conn.change_property(
             PropMode::REPLACE,
@@ -283,14 +275,22 @@ impl X11Overlay {
 fn find_visual(screen: &Screen) -> (u8, u32) {
     for depth in &screen.allowed_depths {
         if depth.depth == 32 {
-            if let Some(v) = depth.visuals.iter().find(|v| v.class == VisualClass::TRUE_COLOR) {
+            if let Some(v) = depth
+                .visuals
+                .iter()
+                .find(|v| v.class == VisualClass::TRUE_COLOR)
+            {
                 return (32, v.visual_id);
             }
         }
     }
     for depth in &screen.allowed_depths {
         if depth.depth == 24 {
-            if let Some(v) = depth.visuals.iter().find(|v| v.class == VisualClass::TRUE_COLOR) {
+            if let Some(v) = depth
+                .visuals
+                .iter()
+                .find(|v| v.class == VisualClass::TRUE_COLOR)
+            {
                 return (24, v.visual_id);
             }
         }

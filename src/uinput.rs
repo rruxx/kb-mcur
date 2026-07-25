@@ -1,7 +1,6 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-
 use anyhow::{Context, Result};
 use std::fs::File;
 use std::io::{self, Write};
@@ -103,7 +102,12 @@ impl Mouse {
 
         // Write setup struct via ioctl (new API on kernel ≥5.x)
         let setup = UinputSetup {
-            id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
+            id: libc::input_id {
+                bustype: 0,
+                vendor: 0,
+                product: 0,
+                version: 0,
+            },
             name: {
                 let mut n = [0u8; 80];
                 n[..7].copy_from_slice(b"kb-mcur");
@@ -133,7 +137,14 @@ impl Mouse {
         let abs_setup = |code: u16| UinputAbsSetup {
             code,
             _pad: [0; 2],
-            absinfo: InputAbsinfo { value: 0, minimum: 0, maximum: range, fuzz: 0, flat: 0, resolution: 0 },
+            absinfo: InputAbsinfo {
+                value: 0,
+                minimum: 0,
+                maximum: range,
+                fuzz: 0,
+                flat: 0,
+                resolution: 0,
+            },
         };
         ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_X)).context("abs_setup X")?;
         ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_Y)).context("abs_setup Y")?;
@@ -141,7 +152,11 @@ impl Mouse {
         ioctl(&fd, UI_DEV_CREATE, 0).context("UI_DEV_CREATE")?;
         std::thread::sleep(std::time::Duration::from_millis(50)); // wait for compositor to recognise the new device
 
-        Ok(Self { fd, screen_w, screen_h })
+        Ok(Self {
+            fd,
+            screen_w,
+            screen_h,
+        })
     }
 
     fn write_events(&mut self, events: &[InputEvent]) -> Result<()> {
@@ -157,7 +172,10 @@ impl Mouse {
 
     fn event(type_: u16, code: u16, value: i32) -> InputEvent {
         InputEvent {
-            time: libc::timeval { tv_sec: 0, tv_usec: 0 },
+            time: libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
             type_,
             code,
             value,
