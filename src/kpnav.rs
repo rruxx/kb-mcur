@@ -165,7 +165,7 @@ impl Kpd {
 pub fn run() -> Result<()> {
     eprintln!("kp-nav — Meta+NumLock to toggle");
 
-    let kbd = KeyboardDev::open_all()?;
+    let mut kbd = KeyboardDev::open_all()?;
 
     let kbd_bits: Vec<u16> = (1u16..=255).collect();
     let mut kbd_out = create_virt_device("kb-kpd-kbd", &kbd_bits, false)?;
@@ -178,6 +178,10 @@ pub fn run() -> Result<()> {
     let mut kpd = Kpd::new();
 
     loop {
+        if kbd.is_empty() && kpd.toggle {
+            kpd.toggle = false;
+            eprintln!("[mouse mode OFF] (all keyboards gone)");
+        }
         match kbd.poll_event(32) {
             Ok(Some(ev)) => {
                 let code = ev.code;

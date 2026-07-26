@@ -3,12 +3,14 @@
 
 use std::os::fd::{IntoRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 
 use crate::uinput::InputEvent;
 
 const EVIOCGRAB: u64 = 0x40044590;
+const RESCAN_INTERVAL: Duration = Duration::from_secs(1);
 
 fn eviocgname(len: u16) -> u64 {
     (2u64 << 30) | ((len as u64) << 16) | (0x45u64 << 8) | 0x06
@@ -41,54 +43,48 @@ fn is_keyboard(fd: RawFd) -> bool {
 
 struct DeviceFd {
     fd: RawFd,
+    name: String, // e.g. "event3"
 }
 
-/// Holds all grabbed keyboard devices.
+/// Holds all grabbed keyboard devices.  Supports hot-plug via periodic
+/// re-scan of /dev/input/.
 pub struct KeyboardDev {
     fds: Vec<DeviceFd>,
+    last_rescan: Instant,
 }
 
 impl KeyboardDev {
     pub fn open_all() -> Result<Self> {
-        let mut fds = Vec::new();
-        for entry in glob_input_devices()? {
-            match open_device(&entry) {
-                Ok(fd) => {
-                    if is_own_device(fd) {
-                        unsafe { libc::close(fd) };
-                        continue;
-                    }
-                    if !is_keyboard(fd) {
-                        unsafe { libc::close(fd) };
-                        continue;
-                    }
-                    if unsafe { libc::ioctl(fd, EVIOCGRAB, 1) } == 0 {
-                        fds.push(DeviceFd { fd });
-                    } else {
-                        unsafe { libc::close(fd) };
-                    }
-                }
-                Err(_) => {}
-            }
+        let mut devs = Self {
+            fds: Vec::new(),
+            last_rescan: Instant::now(),
+        };
+        for name in event_device_names() {
+            devs.try_add(&name);
         }
-        if fds.is_empty() {
+        if devs.fds.is_empty() {
             anyhow::bail!("no keyboard devices found in /dev/input/");
         }
-        Ok(Self { fds })
+        Ok(devs)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fds.is_empty()
     }
 
     /// Release all grabs, then close.
     pub fn release(&mut self) {
         for d in &self.fds {
-            unsafe {
-                libc::ioctl(d.fd, EVIOCGRAB, 0);
-            };
+            unsafe { libc::ioctl(d.fd, EVIOCGRAB, 0); }
         }
     }
 
     /// Block until a key event arrives, returns (code, value).
-    pub fn next_keypress(&self) -> Result<(u16, i32)> {
+    pub fn next_keypress(&mut self) -> Result<(u16, i32)> {
         loop {
+            if self.is_empty() {
+                anyhow::bail!("all keyboards disconnected");
+            }
             if let Some(ev) = self.poll_event(16)? {
                 if ev.type_ == crate::uinput::EV_KEY {
                     return Ok((ev.code, ev.value));
@@ -97,10 +93,16 @@ impl KeyboardDev {
         }
     }
 
-    /// Poll for any input event with a timeout (ms). Returns the full
-    /// event (including EV_SYN, EV_MSC, etc.).
-    pub fn poll_event(&self, timeout_ms: i32) -> Result<Option<InputEvent>> {
-        let n = self.fds.len();
+    /// Poll for any input event with a timeout (ms).  Also performs
+    /// periodic hot-plug rescan.
+    pub fn poll_event(&mut self, timeout_ms: i32) -> Result<Option<InputEvent>> {
+        self.maybe_rescan();
+
+        if self.fds.is_empty() {
+            std::thread::sleep(Duration::from_millis(timeout_ms as u64));
+            return Ok(None);
+        }
+
         let mut pfds: Vec<libc::pollfd> = self
             .fds
             .iter()
@@ -111,7 +113,7 @@ impl KeyboardDev {
             })
             .collect();
 
-        let ret = unsafe { libc::poll(pfds.as_mut_ptr(), n as libc::nfds_t, timeout_ms) };
+        let ret = unsafe { libc::poll(pfds.as_mut_ptr(), pfds.len() as libc::nfds_t, timeout_ms) };
         if ret < 0 {
             anyhow::bail!("poll failed");
         }
@@ -134,6 +136,55 @@ impl KeyboardDev {
         }
         Ok(None)
     }
+
+    // ── hot-plug ─────────────────────────────────────────────────
+
+    fn maybe_rescan(&mut self) {
+        let now = Instant::now();
+        if now.duration_since(self.last_rescan) < RESCAN_INTERVAL {
+            return;
+        }
+        self.last_rescan = now;
+
+        let current = event_device_names();
+
+        // Remove devices that disappeared
+        self.fds.retain(|d| {
+            if current.contains(&d.name) {
+                true
+            } else {
+                eprintln!("[evdev] lost {}", d.name);
+                unsafe { libc::ioctl(d.fd, EVIOCGRAB, 0); }
+                unsafe { libc::close(d.fd); }
+                false
+            }
+        });
+
+        // Add new devices
+        for name in &current {
+            if !self.fds.iter().any(|d| &d.name == name) {
+                self.try_add(name);
+            }
+        }
+    }
+
+    fn try_add(&mut self, name: &str) {
+        let path = format!("/dev/input/{name}");
+        let fd = match open_device(&path) {
+            Ok(f) => f,
+            Err(_) => return,
+        };
+        if is_own_device(fd) || !is_keyboard(fd) {
+            unsafe { libc::close(fd) };
+            return;
+        }
+        if unsafe { libc::ioctl(fd, EVIOCGRAB, 1) } != 0 {
+            unsafe { libc::close(fd) };
+            return;
+        }
+        eprintln!("[evdev] added {}", name);
+        self.fds.push(DeviceFd { fd, name: name.to_owned() });
+    }
 }
 
 impl Drop for KeyboardDev {
@@ -146,16 +197,14 @@ impl Drop for KeyboardDev {
 
 // ── helpers ────────────────────────────────────────────────────────
 
-fn glob_input_devices() -> Result<Vec<String>> {
-    let mut paths = Vec::new();
-    let dir = std::fs::read_dir("/dev/input/").context("read /dev/input")?;
-    for entry in dir {
-        let name = entry?.file_name().to_string_lossy().into_owned();
-        if name.starts_with("event") {
-            paths.push(format!("/dev/input/{name}"));
-        }
-    }
-    Ok(paths)
+fn event_device_names() -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir("/dev/input/") else {
+        return Vec::new();
+    };
+    dir.filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("event"))
+        .collect()
 }
 
 fn open_device(path: &str) -> Result<RawFd> {

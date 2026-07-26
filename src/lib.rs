@@ -136,7 +136,7 @@ fn show_display_ids(
 }
 
 fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
-    let kbd = KeyboardDev::open_all().context("evdev for display select")?;
+    let mut kbd = KeyboardDev::open_all().context("evdev for display select")?;
     let mut mods = ModState::default();
     let idx = loop {
         let (code, value) = kbd.next_keypress()?;
@@ -217,6 +217,10 @@ fn run_input_evdev(
     let mut ctx = GridCtx::new();
     let mut mods = ModState::default();
     loop {
+        if kbd.is_empty() {
+            eprintln!("all keyboards gone — exiting");
+            break;
+        }
         let (code, value) = kbd.next_keypress()?;
         mods.update(code, value > 0);
         if value == 0 {
