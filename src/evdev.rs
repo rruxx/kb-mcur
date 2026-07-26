@@ -6,7 +6,7 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::{Context, Result};
 
-use crate::uinput::{EV_KEY, InputEvent};
+use crate::uinput::InputEvent;
 
 const EVIOCGRAB: u64 = 0x40044590;
 
@@ -89,15 +89,17 @@ impl KeyboardDev {
     /// Block until a key event arrives, returns (code, value).
     pub fn next_keypress(&self) -> Result<(u16, i32)> {
         loop {
-            if let Some(ev) = self.poll_key(16)? {
-                return Ok(ev);
+            if let Some(ev) = self.poll_event(16)? {
+                if ev.type_ == crate::uinput::EV_KEY {
+                    return Ok((ev.code, ev.value));
+                }
             }
         }
     }
 
-    /// Poll for a key event with a timeout (ms). Returns `Ok(None)` on
-    /// timeout (no event).
-    pub fn poll_key(&self, timeout_ms: i32) -> Result<Option<(u16, i32)>> {
+    /// Poll for any input event with a timeout (ms). Returns the full
+    /// event (including EV_SYN, EV_MSC, etc.).
+    pub fn poll_event(&self, timeout_ms: i32) -> Result<Option<InputEvent>> {
         let n = self.fds.len();
         let mut pfds: Vec<libc::pollfd> = self
             .fds
@@ -128,9 +130,7 @@ impl KeyboardDev {
             if (bytes_read as usize) < sz {
                 continue;
             }
-            if ev.type_ == EV_KEY {
-                return Ok(Some((ev.code, ev.value)));
-            }
+            return Ok(Some(ev));
         }
         Ok(None)
     }

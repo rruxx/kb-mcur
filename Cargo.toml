@@ -22,3 +22,7 @@ opt-level = 2
 
 [profile.dev.package.fontdue]
 opt-level = 2
+
+[[bin]]
+name = "kb-mcur"
+path = "src/main.rs"

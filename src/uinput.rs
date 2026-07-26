@@ -18,10 +18,10 @@ pub struct InputEvent {
 }
 
 #[repr(C)]
-struct UinputSetup {
-    id: libc::input_id,
-    name: [u8; 80],
-    ff_effects_max: u32,
+pub struct UinputSetup {
+    pub id: libc::input_id,
+    pub name: [u8; 80],
+    pub ff_effects_max: u32,
 }
 
 #[repr(C)]
@@ -41,31 +41,31 @@ struct InputAbsinfo {
     resolution: i32,
 }
 
-const UI_SET_EVBIT: u64 = 0x40045564;
-const UI_SET_KEYBIT: u64 = 0x40045565;
-const UI_SET_RELBIT: u64 = 0x40045566;
-const UI_SET_ABSBIT: u64 = 0x40045567;
-const UI_ABS_SETUP: u64 = 0x401C5504;
-const UI_DEV_SETUP: u64 = 0x405C5503;
-const UI_DEV_CREATE: u64 = 0x5501;
-const UI_DEV_DESTROY: u64 = 0x5502;
+pub const UI_SET_EVBIT: u64 = 0x40045564;
+pub const UI_SET_KEYBIT: u64 = 0x40045565;
+pub const UI_SET_RELBIT: u64 = 0x40045566;
+pub const UI_SET_ABSBIT: u64 = 0x40045567;
+pub const UI_ABS_SETUP: u64 = 0x401C5504;
+pub const UI_DEV_SETUP: u64 = 0x405C5503;
+pub const UI_DEV_CREATE: u64 = 0x5501;
+pub const UI_DEV_DESTROY: u64 = 0x5502;
 
-const EV_SYN: u16 = 0;
+pub const EV_SYN: u16 = 0;
 pub const EV_KEY: u16 = 1;
-const EV_REL: u16 = 2;
-const EV_ABS: u16 = 3;
+pub const EV_REL: u16 = 2;
+pub const EV_ABS: u16 = 3;
 
-const REL_X: u16 = 0;
-const REL_Y: u16 = 1;
+pub const REL_X: u16 = 0;
+pub const REL_Y: u16 = 1;
 
-const BTN_LEFT: u16 = 0x110;
-const BTN_MIDDLE: u16 = 0x112;
-const BTN_RIGHT: u16 = 0x111;
+pub const BTN_LEFT: u16 = 0x110;
+pub const BTN_MIDDLE: u16 = 0x112;
+pub const BTN_RIGHT: u16 = 0x111;
 
-const ABS_X: u16 = 0;
-const ABS_Y: u16 = 1;
+pub const ABS_X: u16 = 0;
+pub const ABS_Y: u16 = 1;
 
-const SYN_REPORT: u16 = 0;
+pub const SYN_REPORT: u16 = 0;
 
 pub struct Mouse {
     fd: File,

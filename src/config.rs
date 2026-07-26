@@ -34,25 +34,9 @@ pub fn is_sub_key(ch: char) -> bool {
 
 pub const CURSOR_STEP: i32 = 3;
 pub const MAX_CURSOR_STEP: i32 = 50;
-pub const CTRL_BOOST_STEP: i32 = 80;
 
 /// Every N consecutive timer ticks, step doubles.
 pub const CURSOR_ACCEL_INTERVAL: u32 = 5;
-
-/// Returns (dx, dy) unit direction for movement keys (w/a/s/d).
-pub fn direction_delta(ch: char) -> Option<(i32, i32)> {
-    match ch {
-        'w' => Some((0, -1)),
-        'a' => Some((-1, 0)),
-        's' => Some((0, 1)),
-        'd' => Some((1, 0)),
-        _ => None,
-    }
-}
-
-pub fn is_direction_key(ch: char) -> bool {
-    direction_delta(ch).is_some()
-}
 
 /// Accelerated step size: doubles every `CURSOR_ACCEL_INTERVAL` repeats, capped at `MAX_CURSOR_STEP`.
 pub fn cursor_speed(repeat_count: u32) -> i32 {

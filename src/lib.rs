@@ -5,6 +5,7 @@ pub mod config;
 pub mod evdev;
 pub mod grid;
 pub mod keymap;
+pub mod kpnav;
 pub mod overlay;
 pub mod render;
 pub mod uinput;
@@ -16,8 +17,7 @@ use fontdue::Font;
 use tiny_skia::Pixmap;
 
 use config::{
-    action_key, direction_delta, is_quad_key, is_sub_key, quad_key_index, quad_shrink,
-    sub_key_index,
+    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
 };
 use evdev::KeyboardDev;
 use grid::{Grid, GridConfig, GridFilter};
@@ -98,101 +98,6 @@ pub fn run() -> Result<()> {
         kbd,
     )?;
 
-    eprintln!("bye");
-    Ok(())
-}
-
-// ── Mouse-only entry point (no grid) ────────────────────────────────
-
-pub fn run_mouse() -> Result<()> {
-    let (sw, sh) = overlay::query_screen_size();
-    let mut mouse = Mouse::new(sw, sh).context("uinput")?;
-    let mut kbd = KeyboardDev::open_all().context("keyboard grab")?;
-    eprintln!("mouse mode — w/a/s/d move, j/k/l click, u/i/o toggle, Space exit");
-
-    let mut ctx = MouseCtx::new();
-    let mut mods = ModState::default();
-
-    loop {
-        match kbd.poll_key(32) {
-            Ok(Some((code, value))) => {
-                mods.update(code, value > 0);
-                ctx.shift_held = mods.shift;
-
-                if value == 0 {
-                    if let Some(byte) = key_map(code, &mods) {
-                        let ch = (byte as char).to_ascii_lowercase();
-                        let bit = MouseCtx::dir_bit(ch);
-                        if bit != 0 {
-                            ctx.dir_mask &= !bit;
-                            ctx.dir_held = ctx.dir_held.saturating_sub(1);
-                            if ctx.dir_held == 0 {
-                                ctx.direction_count = 0;
-                            }
-                        }
-                    }
-                    continue;
-                }
-
-                let Some(byte) = key_map(code, &mods) else {
-                    continue;
-                };
-                let ch = (byte as char).to_ascii_lowercase();
-
-                if value == 1 {
-                    let bit = MouseCtx::dir_bit(ch);
-                    if bit != 0 {
-                        ctx.dir_mask |= bit;
-                        ctx.dir_held = ctx.dir_held.saturating_add(1);
-                    }
-                }
-
-                match byte {
-                    b'\r' | b'\n' | b' ' | 0x1b | 0x04 | 0x03 => break,
-                    _ => {}
-                }
-
-                if ch.is_ascii_digit() {
-                    ctx.repeat = ctx
-                        .repeat
-                        .saturating_mul(10)
-                        .saturating_add((ch as u8 - b'0') as u32);
-                    continue;
-                }
-
-                if let Some((btn, is_click)) = action_key(ch) {
-                    if is_click {
-                        let n = if ctx.repeat == 0 { 1 } else { ctx.repeat };
-                        mouse.click(btn, n)?;
-                        eprintln!("click btn{btn} x{n}");
-                    } else {
-                        mouse.toggle(btn)?;
-                        eprintln!("toggle btn{btn}");
-                    }
-                    break;
-                }
-            }
-            Ok(None) => {
-                if ctx.dir_held == 1 {
-                    let dir_ch = MouseCtx::dir_char(ctx.dir_mask);
-                    let (dx, dy) = direction_delta(dir_ch).unwrap_or((0, 0));
-                    let step = if ctx.shift_held {
-                        config::CTRL_BOOST_STEP
-                    } else {
-                        ctx.direction_count = ctx.direction_count.saturating_add(1);
-                        config::cursor_speed(ctx.direction_count)
-                    };
-                    mouse.move_rel(dx * step, dy * step)?;
-                }
-            }
-            Err(e) => return Err(e),
-        }
-    }
-
-    std::thread::spawn(move || {
-        kbd.release();
-        drop(kbd);
-    });
     eprintln!("bye");
     Ok(())
 }
@@ -580,48 +485,4 @@ fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f
 fn region_center(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32)> {
     let (x, y, w, h) = region_rect(filter, states)?;
     Some((x + w * 0.5, y + h * 0.5))
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Mouse mode — standalone w/a/s/d cursor control
-// ═══════════════════════════════════════════════════════════════════
-
-struct MouseCtx {
-    dir_held: u8,
-    dir_mask: u8,
-    direction_count: u32,
-    shift_held: bool,
-    repeat: u32,
-}
-
-impl MouseCtx {
-    fn new() -> Self {
-        Self {
-            dir_held: 0,
-            dir_mask: 0,
-            direction_count: 0,
-            shift_held: false,
-            repeat: 0,
-        }
-    }
-
-    fn dir_bit(ch: char) -> u8 {
-        match ch.to_ascii_lowercase() {
-            'w' => 0x01,
-            'a' => 0x02,
-            's' => 0x04,
-            'd' => 0x08,
-            _ => 0x00,
-        }
-    }
-
-    fn dir_char(mask: u8) -> char {
-        match mask {
-            0x01 => 'w',
-            0x02 => 'a',
-            0x04 => 's',
-            0x08 => 'd',
-            _ => '\0',
-        }
-    }
 }

@@ -12,7 +12,7 @@ use kb_mcur::uinput::Mouse;
     about = "Keyboard-driven mouse cursor control.",
     after_help = "Examples:\n  \
                    kb-mcur                            Start interactive grid\n  \
-                   kb-mcur mouse                      Direct w/a/s/d cursor control\n  \
+                   kb-mcur kp-nav                     NumPad cursor navigation service\n  \
                   kb-mcur move -- 10 -5              Move right 10px, up 5px\n  \
                   kb-mcur moveto 500 300             Warp to (500, 300)\n  \
                   kb-mcur click L                    Left click\n  \
@@ -48,8 +48,9 @@ enum Cmd {
     /// Interactive keyboard grid (default)
     Grid,
 
-    /// Direct w/a/s/d cursor movement (no grid)
-    Mouse,
+    /// NumPad cursor navigation service (Meta+NumLock toggle)
+    #[command(name = "kp-nav")]
+    KpNav,
 }
 
 fn btn_code(s: &str) -> Result<u8> {
@@ -83,8 +84,8 @@ fn main() -> Result<()> {
         Some(Cmd::Grid) | None => {
             kb_mcur::run()?;
         }
-        Some(Cmd::Mouse) => {
-            kb_mcur::run_mouse()?;
+        Some(Cmd::KpNav) => {
+            kb_mcur::kpnav::run()?;
         }
     }
     Ok(())

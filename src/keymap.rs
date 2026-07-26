@@ -35,6 +35,24 @@ pub const KEY_N: u16 = 49;
 pub const KEY_M: u16 = 50;
 pub const KEY_RIGHTSHIFT: u16 = 54;
 pub const KEY_SPACE: u16 = 57;
+pub const KEY_NUMLOCK: u16 = 69;
+pub const KEY_KP7: u16 = 71;
+pub const KEY_KP8: u16 = 72;
+pub const KEY_KP9: u16 = 73;
+pub const KEY_KPMINUS: u16 = 74;
+pub const KEY_KP4: u16 = 75;
+pub const KEY_KP5: u16 = 76;
+pub const KEY_KP6: u16 = 77;
+pub const KEY_KPPLUS: u16 = 78;
+pub const KEY_KP1: u16 = 79;
+pub const KEY_KP2: u16 = 80;
+pub const KEY_KP3: u16 = 81;
+pub const KEY_KP0: u16 = 82;
+pub const KEY_KPDOT: u16 = 83;
+pub const KEY_KPASTERISK: u16 = 55;
+pub const KEY_KPSLASH: u16 = 98;
+pub const KEY_LEFTMETA: u16 = 125;
+pub const KEY_RIGHTMETA: u16 = 126;
 
 #[derive(Default)]
 pub struct ModState {

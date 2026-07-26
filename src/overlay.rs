@@ -67,10 +67,6 @@ impl Overlay {
         delegate!(self, wait_or_timeout, seconds)
     }
 
-    pub fn hide_all(&self) -> Result<()> {
-        delegate!(self, hide_all)
-    }
-
     pub fn poll_fd(&self) -> Option<i32> {
         match self {
             Overlay::X11(_) => None,
