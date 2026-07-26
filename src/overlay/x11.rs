@@ -103,6 +103,14 @@ impl X11Backend {
         Ok(())
     }
 
+    pub fn hide_all(&self) -> Result<()> {
+        for ws in &self.windows {
+            self.conn.unmap_window(ws.window)?;
+        }
+        self.conn.flush()?;
+        Ok(())
+    }
+
     pub fn wait_or_timeout(&self, timeout_secs: u64) -> Result<()> {
         use std::time::Instant;
         let deadline = (timeout_secs > 0).then(|| Instant::now() + std::time::Duration::from_secs(timeout_secs));

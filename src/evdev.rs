@@ -66,37 +66,50 @@ impl KeyboardDev {
     /// Block until a key event arrives, returns (code, value).
     pub fn next_keypress(&self) -> Result<(u16, i32)> {
         loop {
-            let n = self.fds.len();
-            let mut pfds: Vec<libc::pollfd> = self
-                .fds
-                .iter()
-                .map(|d| libc::pollfd {
-                    fd: d.fd,
-                    events: libc::POLLIN,
-                    revents: 0,
-                })
-                .collect();
-
-            if unsafe { libc::poll(pfds.as_mut_ptr(), n as libc::nfds_t, -1) } < 0 {
-                anyhow::bail!("poll failed");
-            }
-
-            for p in pfds {
-                if p.revents & libc::POLLIN == 0 {
-                    continue;
-                }
-                let mut ev: InputEvent = unsafe { std::mem::zeroed() };
-                let sz = std::mem::size_of::<InputEvent>();
-                let bytes_read =
-                    unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
-                if (bytes_read as usize) < sz {
-                    continue;
-                }
-                if ev.type_ == EV_KEY {
-                    return Ok((ev.code, ev.value));
-                }
+            if let Some(ev) = self.poll_key(16)? {
+                return Ok(ev);
             }
         }
+    }
+
+    /// Poll for a key event with a timeout (ms). Returns `Ok(None)` on
+    /// timeout (no event).
+    pub fn poll_key(&self, timeout_ms: i32) -> Result<Option<(u16, i32)>> {
+        let n = self.fds.len();
+        let mut pfds: Vec<libc::pollfd> = self
+            .fds
+            .iter()
+            .map(|d| libc::pollfd {
+                fd: d.fd,
+                events: libc::POLLIN,
+                revents: 0,
+            })
+            .collect();
+
+        let ret = unsafe { libc::poll(pfds.as_mut_ptr(), n as libc::nfds_t, timeout_ms) };
+        if ret < 0 {
+            anyhow::bail!("poll failed");
+        }
+        if ret == 0 {
+            return Ok(None);
+        }
+
+        for p in pfds {
+            if p.revents & libc::POLLIN == 0 {
+                continue;
+            }
+            let mut ev: InputEvent = unsafe { std::mem::zeroed() };
+            let sz = std::mem::size_of::<InputEvent>();
+            let bytes_read =
+                unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
+            if (bytes_read as usize) < sz {
+                continue;
+            }
+            if ev.type_ == EV_KEY {
+                return Ok(Some((ev.code, ev.value)));
+            }
+        }
+        Ok(None)
     }
 }
 

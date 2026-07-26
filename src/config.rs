@@ -30,6 +30,57 @@ pub fn is_sub_key(ch: char) -> bool {
     sub_key_index(ch).is_some()
 }
 
+// ── Level 3+  cursor movement keys ──────────────────────────────────
+
+pub const CURSOR_STEP: i32 = 3;
+pub const MAX_CURSOR_STEP: i32 = 50;
+pub const CTRL_BOOST_STEP: i32 = 80;
+
+/// Every N consecutive timer ticks, step doubles.
+pub const CURSOR_ACCEL_INTERVAL: u32 = 5;
+
+/// Returns (dx, dy) unit direction for movement keys (w/a/s/d).
+pub fn direction_delta(ch: char) -> Option<(i32, i32)> {
+    match ch {
+        'w' => Some((0, -1)),
+        'a' => Some((-1, 0)),
+        's' => Some((0, 1)),
+        'd' => Some((1, 0)),
+        _ => None,
+    }
+}
+
+pub fn is_direction_key(ch: char) -> bool {
+    direction_delta(ch).is_some()
+}
+
+/// Accelerated step size: doubles every `CURSOR_ACCEL_INTERVAL` repeats, capped at `MAX_CURSOR_STEP`.
+pub fn cursor_speed(repeat_count: u32) -> i32 {
+    let shifts = (repeat_count / CURSOR_ACCEL_INTERVAL).min(10);
+    let scale = (1u32 << shifts) as i32;
+    CURSOR_STEP.saturating_mul(scale).min(MAX_CURSOR_STEP)
+}
+
+// ── Action keys ────────────────────────────────────────────────────
+
+pub const TOGGLE_KEYS: [(char, u8); 3] = [('u', 1), ('i', 2), ('o', 3)];
+pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
+
+/// Returns (button, is_click) if `ch` is an action key.
+pub fn action_key(ch: char) -> Option<(u8, bool)> {
+    for &(k, btn) in &TOGGLE_KEYS {
+        if k == ch {
+            return Some((btn, false));
+        }
+    }
+    for &(k, btn) in &CLICK_KEYS {
+        if k == ch {
+            return Some((btn, true));
+        }
+    }
+    None
+}
+
 // ── Levels 4-7  bisect keys (2×2) ──────────────────────────────────
 
 pub const BISECT_LABELS: [[char; 2]; 2] = [['e', 'r'], ['d', 'f']];
@@ -61,26 +112,6 @@ pub fn quad_shrink((x, y, w, h): (f32, f32, f32, f32), idx: usize) -> (f32, f32,
         3 => (x + hw, y + hh, hw, hh),
         _ => (x, y, w, h),
     }
-}
-
-// ── Action keys ────────────────────────────────────────────────────
-
-pub const TOGGLE_KEYS: [(char, u8); 3] = [('u', 1), ('i', 2), ('o', 3)];
-pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
-
-/// Returns (button, is_click) if `ch` is an action key.
-pub fn action_key(ch: char) -> Option<(u8, bool)> {
-    for &(k, btn) in &TOGGLE_KEYS {
-        if k == ch {
-            return Some((btn, false));
-        }
-    }
-    for &(k, btn) in &CLICK_KEYS {
-        if k == ch {
-            return Some((btn, true));
-        }
-    }
-    None
 }
 
 pub const CLICK_INTERVAL_MS: u64 = 100;

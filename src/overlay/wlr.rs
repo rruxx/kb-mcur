@@ -158,6 +158,14 @@ impl WlrBackend {
 
     pub fn show_all(&self) -> Result<()> { self.conn.flush()?; Ok(()) }
     pub fn redraw_all(&self) -> Result<()> { Ok(()) }
+    pub fn hide_all(&self) -> Result<()> {
+        for win in &self.windows {
+            win.surface.attach(None, 0, 0);
+            win.surface.commit();
+        }
+        self.conn.flush()?;
+        Ok(())
+    }
     pub fn wait_or_timeout(&self, s: u64) -> Result<()> { std::thread::sleep(std::time::Duration::from_secs(s)); Ok(()) }
     pub fn poll_fd(&self) -> Option<i32> { Some(self.conn.backend().poll_fd().as_raw_fd()) }
     pub fn dispatch_pending(&self) -> Result<()> { Ok(()) }

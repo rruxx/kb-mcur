@@ -35,24 +35,16 @@ pub const KEY_N: u16 = 49;
 pub const KEY_M: u16 = 50;
 pub const KEY_RIGHTSHIFT: u16 = 54;
 pub const KEY_SPACE: u16 = 57;
-pub const KEY_CAPSLOCK: u16 = 58;
 
 #[derive(Default)]
 pub struct ModState {
-    shift: bool,
-    caps: bool,
+    pub shift: bool,
 }
 
 impl ModState {
     pub fn update(&mut self, code: u16, pressed: bool) {
-        let on = pressed;
         match code {
-            KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = on,
-            KEY_CAPSLOCK => {
-                if on {
-                    self.caps = !self.caps
-                }
-            }
+            KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = pressed,
             _ => {}
         }
     }
@@ -61,7 +53,7 @@ impl ModState {
 /// Map keycode + modifiers → ASCII byte (a-z/linefeed/space/backspace/esc).
 /// Returns None for unsupported / modifier-only keys.
 pub fn map(code: u16, mods: &ModState) -> Option<u8> {
-    let upper = mods.shift ^ mods.caps;
+    let upper = mods.shift;
     const LUT: [(u16, u8); 26] = [
         (KEY_Q, b'q'),
         (KEY_W, b'w'),

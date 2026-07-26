@@ -7,17 +7,18 @@ pub mod grid;
 pub mod keymap;
 pub mod overlay;
 pub mod render;
-pub mod tty;
 pub mod uinput;
 
-use std::os::fd::AsRawFd;
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use fontdue::Font;
 use tiny_skia::Pixmap;
 
-use config::{action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index};
+use config::{
+    action_key, direction_delta, is_quad_key, is_sub_key, quad_key_index, quad_shrink,
+    sub_key_index,
+};
 use evdev::KeyboardDev;
 use grid::{Grid, GridConfig, GridFilter};
 use keymap::{ModState, map as key_map};
@@ -85,40 +86,113 @@ pub fn run() -> Result<()> {
     let (cfg, font_size, cache, mut draw_states) =
         init_overlay(&mut overlay, &font, &single_monitors)?;
 
-    // Prefer evdev global keyboard grab.  Fall back to TTY raw mode,
-    // then to display-only timeout.
-    if let Ok(kbd) = KeyboardDev::open_all() {
-        run_input_evdev(
-            &mut overlay,
-            &mut mouse,
-            &cfg,
-            &cache,
-            font_size,
-            &mut draw_states,
-            kbd,
-        )?;
-    } else {
-        let stdin_fd = std::io::stdin().as_raw_fd();
-        match tty::raw_on(stdin_fd) {
-            Ok(orig) => {
-                run_input_tty(
-                    &mut overlay,
-                    &mut mouse,
-                    &cfg,
-                    &cache,
-                    font_size,
-                    &mut draw_states,
-                    stdin_fd,
-                )?;
-                tty::raw_off(stdin_fd, orig)?;
+    // Grab all keyboards via evdev.
+    let kbd = KeyboardDev::open_all()?;
+    run_input_evdev(
+        &mut overlay,
+        &mut mouse,
+        &cfg,
+        &cache,
+        font_size,
+        &mut draw_states,
+        kbd,
+    )?;
+
+    eprintln!("bye");
+    Ok(())
+}
+
+// ── Mouse-only entry point (no grid) ────────────────────────────────
+
+pub fn run_mouse() -> Result<()> {
+    let (sw, sh) = overlay::query_screen_size();
+    let mut mouse = Mouse::new(sw, sh).context("uinput")?;
+    let mut kbd = KeyboardDev::open_all().context("keyboard grab")?;
+    eprintln!("mouse mode — w/a/s/d move, j/k/l click, u/i/o toggle, Space exit");
+
+    let mut ctx = MouseCtx::new();
+    let mut mods = ModState::default();
+
+    loop {
+        match kbd.poll_key(32) {
+            Ok(Some((code, value))) => {
+                mods.update(code, value > 0);
+                ctx.shift_held = mods.shift;
+
+                if value == 0 {
+                    if let Some(byte) = key_map(code, &mods) {
+                        let ch = (byte as char).to_ascii_lowercase();
+                        let bit = MouseCtx::dir_bit(ch);
+                        if bit != 0 {
+                            ctx.dir_mask &= !bit;
+                            ctx.dir_held = ctx.dir_held.saturating_sub(1);
+                            if ctx.dir_held == 0 {
+                                ctx.direction_count = 0;
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                let Some(byte) = key_map(code, &mods) else {
+                    continue;
+                };
+                let ch = (byte as char).to_ascii_lowercase();
+
+                if value == 1 {
+                    let bit = MouseCtx::dir_bit(ch);
+                    if bit != 0 {
+                        ctx.dir_mask |= bit;
+                        ctx.dir_held = ctx.dir_held.saturating_add(1);
+                    }
+                }
+
+                match byte {
+                    b'\r' | b'\n' | b' ' | 0x1b | 0x04 | 0x03 => break,
+                    _ => {}
+                }
+
+                if ch.is_ascii_digit() {
+                    ctx.repeat = ctx
+                        .repeat
+                        .saturating_mul(10)
+                        .saturating_add((ch as u8 - b'0') as u32);
+                    continue;
+                }
+
+                if let Some((btn, is_click)) = action_key(ch) {
+                    if is_click {
+                        let n = if ctx.repeat == 0 { 1 } else { ctx.repeat };
+                        mouse.click(btn, n)?;
+                        eprintln!("click btn{btn} x{n}");
+                    } else {
+                        mouse.toggle(btn)?;
+                        eprintln!("toggle btn{btn}");
+                    }
+                    break;
+                }
             }
-            Err(_) => {
-                eprintln!("no input source — showing grid for 5 s then exiting");
-                overlay.wait_or_timeout(5)?;
+            Ok(None) => {
+                if ctx.dir_held == 1 {
+                    let dir_ch = MouseCtx::dir_char(ctx.dir_mask);
+                    let (dx, dy) = direction_delta(dir_ch).unwrap_or((0, 0));
+                    let step = if ctx.shift_held {
+                        config::CTRL_BOOST_STEP
+                    } else {
+                        ctx.direction_count = ctx.direction_count.saturating_add(1);
+                        config::cursor_speed(ctx.direction_count)
+                    };
+                    mouse.move_rel(dx * step, dy * step)?;
+                }
             }
+            Err(e) => return Err(e),
         }
     }
 
+    std::thread::spawn(move || {
+        kbd.release();
+        drop(kbd);
+    });
     eprintln!("bye");
     Ok(())
 }
@@ -157,27 +231,6 @@ fn show_display_ids(
 }
 
 fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
-    let stdin_fd = std::io::stdin().as_raw_fd();
-    let orig_term = tty::raw_on(stdin_fd);
-    if let Ok(orig) = orig_term {
-        let idx = loop {
-            let mut byte = 0u8;
-            let n = unsafe { libc::read(stdin_fd, &mut byte as *mut u8 as *mut libc::c_void, 1) };
-            if n <= 0 {
-                anyhow::bail!("stdin closed in display select");
-            }
-            if (b'1'..=b'9').contains(&byte) {
-                let i = (byte - b'1') as usize;
-                if i < monitors.len() {
-                    break i;
-                }
-            }
-        };
-        tty::raw_off(stdin_fd, orig)?;
-        return Ok(idx);
-    }
-
-    // No TTY — try evdev temporarily
     let kbd = KeyboardDev::open_all().context("evdev for display select")?;
     let mut mods = ModState::default();
     let idx = loop {
@@ -231,37 +284,20 @@ fn init_overlay(
     Ok((cfg, font_size, cache, draw_states))
 }
 
-// ── Input loops ─────────────────────────────────────────────────────
+// ── Input loop (grid mode) ──────────────────────────────────────────
 
-fn run_input_tty(
-    overlay: &mut Overlay,
-    mouse: &mut Option<Mouse>,
-    cfg: &GridConfig,
-    cache: &TextCache,
-    font_size: f32,
-    draw_states: &mut [DrawState],
-    stdin_fd: i32,
-) -> Result<()> {
-    let mut ctx = InputCtx::new();
-    loop {
-        let mut byte = 0u8;
-        if unsafe { libc::read(stdin_fd, &mut byte as *mut u8 as *mut libc::c_void, 1) } != 1 {
-            break;
-        }
-        if process_byte(
-            byte,
-            overlay,
-            mouse,
-            cfg,
-            cache,
-            font_size,
-            draw_states,
-            &mut ctx,
-        )? {
-            break;
+struct GridCtx {
+    filter: GridFilter,
+    repeat: u32,
+}
+
+impl GridCtx {
+    fn new() -> Self {
+        Self {
+            filter: GridFilter::new(),
+            repeat: 0,
         }
     }
-    Ok(())
 }
 
 fn run_input_evdev(
@@ -273,7 +309,7 @@ fn run_input_evdev(
     draw_states: &mut [DrawState],
     mut kbd: KeyboardDev,
 ) -> Result<()> {
-    let mut ctx = InputCtx::new();
+    let mut ctx = GridCtx::new();
     let mut mods = ModState::default();
     loop {
         let (code, value) = kbd.next_keypress()?;
@@ -309,20 +345,9 @@ fn run_input_evdev(
     Ok(())
 }
 
-struct InputCtx {
-    filter: GridFilter,
-    repeat: u32,
-}
+// ── Grid-mode byte handler ──────────────────────────────────────────
 
-impl InputCtx {
-    fn new() -> Self {
-        let filter = GridFilter::new();
-        tty::prompt(&filter);
-        Self { filter, repeat: 0 }
-    }
-}
-
-/// Single-byte input handler shared by TTY and evdev paths.
+/// Single-byte input handler for interactive grid mode.
 fn process_byte(
     byte: u8,
     overlay: &mut Overlay,
@@ -331,7 +356,7 @@ fn process_byte(
     cache: &TextCache,
     font_size: f32,
     draw_states: &mut [DrawState],
-    ctx: &mut InputCtx,
+    ctx: &mut GridCtx,
 ) -> Result<bool> {
     match byte {
         b'\r' | b'\n' | b' ' => {
@@ -346,14 +371,12 @@ fn process_byte(
             ctx.filter.clear();
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            tty::prompt(&ctx.filter);
         }
 
         0x7f | b'\x08' => {
             ctx.filter.pop();
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            tty::prompt(&ctx.filter);
         }
 
         0x04 | 0x03 => {
@@ -374,7 +397,14 @@ fn process_byte(
 
             if ctx.filter.len() >= 2 {
                 if let Some((btn, is_click)) = action_key(ch) {
-                    cursor_action(mouse, &ctx.filter, draw_states, btn, is_click, ctx.repeat)?;
+                    cursor_action(
+                        mouse,
+                        &ctx.filter,
+                        draw_states,
+                        btn,
+                        is_click,
+                        ctx.repeat,
+                    )?;
                     if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
                         overlay.pointer_warp(cx as i16, cy as i16)?;
                     }
@@ -392,7 +422,6 @@ fn process_byte(
             ctx.filter.push(ch);
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
-            tty::prompt(&ctx.filter);
         }
     }
     Ok(false)
@@ -401,7 +430,11 @@ fn process_byte(
 // ── Cursor & button actions ────────────────────────────────────────
 
 /// Move the cursor to the centre of the currently-selected region.
-fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawState]) -> Result<()> {
+fn cursor_warp(
+    mouse: &mut Option<Mouse>,
+    filter: &GridFilter,
+    states: &[DrawState],
+) -> Result<()> {
     let Some(m) = mouse else {
         return Ok(());
     };
@@ -484,6 +517,7 @@ fn display_update(
         overlay.upload(idx, &ds.pixmap)?;
     }
 
+    overlay.show_all()?;
     overlay.redraw_all()?;
     Ok(())
 }
@@ -546,4 +580,48 @@ fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f
 fn region_center(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32)> {
     let (x, y, w, h) = region_rect(filter, states)?;
     Some((x + w * 0.5, y + h * 0.5))
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Mouse mode — standalone w/a/s/d cursor control
+// ═══════════════════════════════════════════════════════════════════
+
+struct MouseCtx {
+    dir_held: u8,
+    dir_mask: u8,
+    direction_count: u32,
+    shift_held: bool,
+    repeat: u32,
+}
+
+impl MouseCtx {
+    fn new() -> Self {
+        Self {
+            dir_held: 0,
+            dir_mask: 0,
+            direction_count: 0,
+            shift_held: false,
+            repeat: 0,
+        }
+    }
+
+    fn dir_bit(ch: char) -> u8 {
+        match ch.to_ascii_lowercase() {
+            'w' => 0x01,
+            'a' => 0x02,
+            's' => 0x04,
+            'd' => 0x08,
+            _ => 0x00,
+        }
+    }
+
+    fn dir_char(mask: u8) -> char {
+        match mask {
+            0x01 => 'w',
+            0x02 => 'a',
+            0x04 => 's',
+            0x08 => 'd',
+            _ => '\0',
+        }
+    }
 }
