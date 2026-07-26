@@ -1,8 +1,10 @@
 # kb-mcur — Keyboard Mouse Cursor
 
+[中文](README-zh.md)
+
 **Linux desktop keyboard workflow — throw away the mouse.**
 
-Precision cursor control through 7-level keyboard-driven grid. CLI subcommands for compositor shortcut integration.
+Precision cursor control through 7-level keyboard-driven grid, plus a standalone w/a/s/d mouse mode. CLI subcommands for compositor shortcut integration.
 
 Works on X11 / wlroots / KDE / GNOME. Tested on Openbox / Sway / niri / KDE.
 
@@ -64,6 +66,22 @@ kb-mcur click L             # Left click
 kb-mcur click -r 3 M        # Middle click × 3
 kb-mcur click R             # Right click
 ```
+
+### Mouse Mode
+
+```bash
+kb-mcur mouse   # Direct w/a/s/d cursor control (no grid overlay)
+```
+
+| Key | Action |
+| --- | --- |
+| `w`/`a`/`s`/`d` | Move cursor up/left/down/right |
+| Hold (long press) | Auto-accelerates from 3 px to 50 px per step |
+| Shift + `w/a/s/d` | Fixed 80 px per step (no acceleration) |
+| `j`/`k`/`l` | Click left/middle/right |
+| `u`/`i`/`o` | Toggle left/middle/right press |
+| `3j` | 3× left click |
+| Space / Enter / Esc | Exit |
 
 ## Comparison
 
