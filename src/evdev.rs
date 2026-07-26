@@ -14,10 +14,29 @@ fn eviocgname(len: u16) -> u64 {
     (2u64 << 30) | ((len as u64) << 16) | (0x45u64 << 8) | 0x06
 }
 
+fn eviocgbit(ev_type: u32, len: usize) -> u64 {
+    (2u64 << 30) | ((len as u64) << 16) | (0x45u64 << 8) | (0x20 + ev_type as u64)
+}
+
 fn is_own_device(fd: RawFd) -> bool {
     let mut buf = [0u8; 8];
     let ret = unsafe { libc::ioctl(fd, eviocgname(8), buf.as_mut_ptr()) };
     ret >= 0 && buf.starts_with(b"kb-")
+}
+
+/// Returns true if the device supports standard keyboard keycodes
+/// (letter 'a', keypad '1', or arrow 'up').
+fn is_keyboard(fd: RawFd) -> bool {
+    let mut bits = [0u8; 96];
+    let req = eviocgbit(1, 96); // EV_KEY = 1
+    if unsafe { libc::ioctl(fd, req, bits.as_mut_ptr()) } < 0 {
+        return false;
+    }
+    const KEY_A: usize = 30;
+    const KEY_KP1: usize = 79;
+    const KEY_UP: usize = 103;
+    let has = |code: usize| -> bool { (bits[code / 8] & (1 << (code % 8))) != 0 };
+    has(KEY_A) || has(KEY_KP1) || has(KEY_UP)
 }
 
 struct DeviceFd {
@@ -36,6 +55,10 @@ impl KeyboardDev {
             match open_device(&entry) {
                 Ok(fd) => {
                     if is_own_device(fd) {
+                        unsafe { libc::close(fd) };
+                        continue;
+                    }
+                    if !is_keyboard(fd) {
                         unsafe { libc::close(fd) };
                         continue;
                     }
