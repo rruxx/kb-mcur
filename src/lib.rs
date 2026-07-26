@@ -301,13 +301,12 @@ fn process_byte(
             }
 
             if ctx.filter.len() >= 2 {
-                if let Some((btn, is_click)) = action_key(ch) {
+                if let Some(btn) = action_key(ch) {
                     cursor_action(
                         mouse,
                         &ctx.filter,
                         draw_states,
                         btn,
-                        is_click,
                         ctx.repeat,
                     )?;
                     if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
@@ -353,13 +352,12 @@ fn cursor_warp(
     Ok(())
 }
 
-/// Warp the cursor, then either click N times or toggle a button.
+/// Warp the cursor, then click N times.
 fn cursor_action(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
     button: u8,
-    is_click: bool,
     repeat: u32,
 ) -> Result<()> {
     let Some(m) = mouse else {
@@ -370,17 +368,10 @@ fn cursor_action(
         m.warp(cx as i16, cy as i16)?;
     }
     let name = MONITOR_NAME.get().map_or("?", |s| s.as_str());
-    if is_click {
-        let n = if repeat == 0 { 1 } else { repeat };
-        m.click(button, n)?;
-        if let Some((cx, cy)) = center {
-            eprintln!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
-        }
-    } else {
-        m.toggle(button)?;
-        if let Some((cx, cy)) = center {
-            eprintln!("toggle btn{button}  {name} ({cx:.0}, {cy:.0})");
-        }
+    let n = if repeat == 0 { 1 } else { repeat };
+    m.click(button, n)?;
+    if let Some((cx, cy)) = center {
+        eprintln!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
     }
     Ok(())
 }

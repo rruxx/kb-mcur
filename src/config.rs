@@ -47,19 +47,13 @@ pub fn cursor_speed(repeat_count: u32) -> i32 {
 
 // ── Action keys ────────────────────────────────────────────────────
 
-pub const TOGGLE_KEYS: [(char, u8); 3] = [('u', 1), ('i', 2), ('o', 3)];
 pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
 
-/// Returns (button, is_click) if `ch` is an action key.
-pub fn action_key(ch: char) -> Option<(u8, bool)> {
-    for &(k, btn) in &TOGGLE_KEYS {
-        if k == ch {
-            return Some((btn, false));
-        }
-    }
+/// Returns button number (1=left, 2=middle, 3=right) if `ch` is a click key.
+pub fn action_key(ch: char) -> Option<u8> {
     for &(k, btn) in &CLICK_KEYS {
         if k == ch {
-            return Some((btn, true));
+            return Some(btn);
         }
     }
     None
