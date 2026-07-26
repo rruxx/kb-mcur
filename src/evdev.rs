@@ -26,20 +26,89 @@ fn is_own_device(fd: RawFd) -> bool {
     ret >= 0 && buf.starts_with(b"kb-")
 }
 
-/// Returns true if the device supports standard keyboard keycodes
-/// (letter 'a', keypad '1', or arrow 'up').
-fn is_keyboard(fd: RawFd) -> bool {
-    let mut bits = [0u8; 96];
-    let req = eviocgbit(1, 96); // EV_KEY = 1
-    if unsafe { libc::ioctl(fd, req, bits.as_mut_ptr()) } < 0 {
-        return false;
-    }
-    const KEY_A: usize = 30;
-    const KEY_KP1: usize = 79;
-    const KEY_UP: usize = 103;
-    let has = |code: usize| -> bool { (bits[code / 8] & (1 << (code % 8))) != 0 };
-    has(KEY_A) || has(KEY_KP1) || has(KEY_UP)
+// ── Keyboard detection (mode-specific) ─────────────────────────────
+
+/// Which set of keycodes a keyboard must support to be grabbed.
+#[derive(Clone, Copy)]
+pub enum KeyboardFilter {
+    /// Grid mode: a-z, space, enter, backspace, esc; ≥30 total keys.
+    Grid,
+    /// kp-nav mode: keypad 0-9, /*-+., numlock, keypad enter; ≥17 total keys.
+    KpNav,
 }
+
+/// a-z, 0-9, space, enter, backspace, esc
+const GRID_REQUIRED: &[u16] = &[
+    1,  // KEY_ESC
+    14, // KEY_BACKSPACE
+    28, // KEY_ENTER
+    57, // KEY_SPACE
+    // 0-9
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+    // a-z
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, // Q-P
+    30, 31, 32, 33, 34, 35, 36, 37, 38, // A-L
+    44, 45, 46, 47, 48, 49, 50, // Z-M
+];
+const GRID_MIN_KEYS: u32 = 40;
+
+/// keypad 0-9, /*-+., numlock, keypad enter
+const KPNAV_REQUIRED: &[u16] = &[
+    55, // KEY_KPASTERISK
+    69, // KEY_NUMLOCK
+    71, 72, 73, // KP7-KP9
+    74, // KEY_KPMINUS
+    75, 76, 77, // KP4-KP6
+    78, // KEY_KPPLUS
+    79, 80, 81, // KP1-KP3
+    82, // KEY_KP0
+    83, // KEY_KPDOT
+    96, // KEY_KPENTER
+    98, // KEY_KPSLASH
+];
+const KPNAV_MIN_KEYS: u32 = 17;
+
+fn read_key_bits(fd: RawFd) -> Option<[u8; 96]> {
+    let mut bits = [0u8; 96];
+    let req = eviocgbit(1, 96);
+    if unsafe { libc::ioctl(fd, req, bits.as_mut_ptr()) } < 0 {
+        return None;
+    }
+    Some(bits)
+}
+
+fn has_key(bits: &[u8; 96], code: u16) -> bool {
+    let ix = code as usize;
+    (bits[ix / 8] & (1 << (ix % 8))) != 0
+}
+
+fn count_keys(bits: &[u8; 96]) -> u32 {
+    let mut count = 0;
+    for code in 1u16..=255 {
+        if has_key(bits, code) {
+            count += 1;
+        }
+    }
+    count
+}
+
+fn matches_filter(fd: RawFd, filter: KeyboardFilter) -> bool {
+    let Some(bits) = read_key_bits(fd) else {
+        return false;
+    };
+    match filter {
+        KeyboardFilter::Grid => {
+            count_keys(&bits) >= GRID_MIN_KEYS
+                && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
+        }
+        KeyboardFilter::KpNav => {
+            count_keys(&bits) >= KPNAV_MIN_KEYS
+                && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
+        }
+    }
+}
+
+// ── Device management ──────────────────────────────────────────────
 
 struct DeviceFd {
     fd: RawFd,
@@ -50,13 +119,15 @@ struct DeviceFd {
 /// re-scan of /dev/input/.
 pub struct KeyboardDev {
     fds: Vec<DeviceFd>,
+    filter: KeyboardFilter,
     last_rescan: Instant,
 }
 
 impl KeyboardDev {
-    pub fn open_all() -> Result<Self> {
+    pub fn open_all(filter: KeyboardFilter) -> Result<Self> {
         let mut devs = Self {
             fds: Vec::new(),
+            filter,
             last_rescan: Instant::now(),
         };
         for name in event_device_names() {
@@ -174,7 +245,7 @@ impl KeyboardDev {
             Ok(f) => f,
             Err(_) => return,
         };
-        if is_own_device(fd) || !is_keyboard(fd) {
+        if is_own_device(fd) || !matches_filter(fd, self.filter) {
             unsafe { libc::close(fd) };
             return;
         }

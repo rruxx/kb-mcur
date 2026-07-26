@@ -1,5 +1,5 @@
 [Unit]
-Description=kb-mcurd — NumPad mouse navigation (kb-mcur kp-nav)
+Description=kb-mcurd — NumPad mouse navigation (NumLock+KPEnter toggle)
 Documentation=https://github.com/xxx/kb-mcur
 After=multi-user.target
 

@@ -19,7 +19,7 @@ use tiny_skia::Pixmap;
 use config::{
     action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
 };
-use evdev::KeyboardDev;
+use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
 use keymap::{ModState, map as key_map};
 use overlay::Overlay;
@@ -87,7 +87,7 @@ pub fn run() -> Result<()> {
         init_overlay(&mut overlay, &font, &single_monitors)?;
 
     // Grab all keyboards via evdev.
-    let kbd = KeyboardDev::open_all()?;
+    let kbd = KeyboardDev::open_all(KeyboardFilter::Grid)?;
     run_input_evdev(
         &mut overlay,
         &mut mouse,
@@ -136,7 +136,7 @@ fn show_display_ids(
 }
 
 fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
-    let mut kbd = KeyboardDev::open_all().context("evdev for display select")?;
+    let mut kbd = KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
     let mut mods = ModState::default();
     let idx = loop {
         let (code, value) = kbd.next_keypress()?;

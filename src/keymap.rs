@@ -51,8 +51,7 @@ pub const KEY_KP0: u16 = 82;
 pub const KEY_KPDOT: u16 = 83;
 pub const KEY_KPASTERISK: u16 = 55;
 pub const KEY_KPSLASH: u16 = 98;
-pub const KEY_LEFTMETA: u16 = 125;
-pub const KEY_RIGHTMETA: u16 = 126;
+pub const KEY_KPENTER: u16 = 96;
 
 #[derive(Default)]
 pub struct ModState {

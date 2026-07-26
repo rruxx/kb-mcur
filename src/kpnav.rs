@@ -9,10 +9,10 @@ use anyhow::{Context, Result};
 use libc::timeval;
 use crate::{
     config,
-    evdev::KeyboardDev,
+    evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
         KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
-        KEY_KP0, KEY_KPASTERISK, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA,
+        KEY_KP0, KEY_KPASTERISK, KEY_KPENTER, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
     uinput::{
         BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, EV_SYN, InputEvent, REL_X, REL_Y,
@@ -112,7 +112,7 @@ struct Kpd {
     toggle: bool,
     btn_5: u8,           // 1=left, 2=middle, 3=right
     btn_held: bool,      // true if 0 (hold) was used to press the button
-    meta_held: bool,
+    numlock_held: bool,
 
     // 方向键状态（同 mouse mode 加速模型）
     dir_held: u8,
@@ -126,7 +126,7 @@ impl Kpd {
             toggle: false,
             btn_5: 1,
             btn_held: false,
-            meta_held: false,
+            numlock_held: false,
             dir_held: 0,
             dir_mask: 0,
             dir_count: 0,
@@ -163,9 +163,9 @@ impl Kpd {
 // ── 主入口 ──────────────────────────────────────────────────────────
 
 pub fn run() -> Result<()> {
-    eprintln!("kp-nav — Meta+NumLock to toggle");
+    eprintln!("kp-nav — NumLock+KPEnter to toggle");
 
-    let mut kbd = KeyboardDev::open_all()?;
+    let mut kbd = KeyboardDev::open_all(KeyboardFilter::KpNav)?;
 
     let kbd_bits: Vec<u16> = (1u16..=255).collect();
     let mut kbd_out = create_virt_device("kb-kpd-kbd", &kbd_bits, false)?;
@@ -188,17 +188,17 @@ pub fn run() -> Result<()> {
                 let value = ev.value;
                 let is_press = value > 0;
 
-                // ── Meta 追踪 ──
-                if code == KEY_LEFTMETA || code == KEY_RIGHTMETA {
+                // ── NumLock 追踪 ──
+                if code == KEY_NUMLOCK {
                     if value == 1 {
-                        kpd.meta_held = true;
+                        kpd.numlock_held = true;
                     } else if value == 0 {
-                        kpd.meta_held = false;
+                        kpd.numlock_held = false;
                     }
                 }
 
-                // ── Meta+NumLock 切换 ──
-                if code == KEY_NUMLOCK && is_press && kpd.meta_held {
+                // ── NumLock+KPEnter 切换 ──
+                if code == KEY_KPENTER && is_press && kpd.numlock_held {
                     kpd.toggle = !kpd.toggle;
                     if kpd.active() {
                         eprintln!("[mouse mode ON]");
