@@ -1,0 +1,23 @@
+[Unit]
+Description=kb-mcurd — NumPad mouse navigation (kb-mcur kp-nav)
+Documentation=https://github.com/xxx/kb-mcur
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/kb-mcur kp-nav
+Restart=always
+RestartSec=2
+
+# Requires /dev/input/event* and /dev/uinput access.
+# Either add the user to the input group,
+# or run as root / grant CAP_SYS_ADMIN.
+User=root
+# Alternative: use a dedicated user (see below)
+# User=kb-mcurd
+# SupplementaryGroups=input
+# AmbientCapabilities=CAP_SYS_ADMIN
+# NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

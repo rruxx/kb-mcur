@@ -4,7 +4,7 @@
 
 **Linux desktop keyboard workflow — throw away the mouse.**
 
-Precision cursor control through 7-level keyboard-driven grid, plus a standalone w/a/s/d mouse mode. CLI subcommands for compositor shortcut integration.
+Precision cursor control through 7-level keyboard-driven grid, plus a NumPad mouse navigation service. CLI subcommands for compositor shortcut integration.
 
 Works on X11 / wlroots / KDE / GNOME. Tested on Openbox / Sway / niri / KDE.
 
@@ -14,6 +14,7 @@ Works on X11 / wlroots / KDE / GNOME. Tested on Openbox / Sway / niri / KDE.
 git clone https://github.com/xxx/kb-mcur.git
 cd kb-mcur
 cargo build --release
+sudo install -m755 target/release/kb-mcur /usr/bin/
 ```
 
 ### Permissions
@@ -40,7 +41,7 @@ Wayland compositors (Sway/Hyprland/niri) support transparency natively.
 ### Interactive Grid
 
 ```bash
-kb-mcur     # No args defaults to grid mode
+kb-mcur grid
 ```
 
 | Input | Level | Action |
@@ -52,7 +53,6 @@ kb-mcur     # No args defaults to grid mode
 | Key | Action |
 | --- | --- |
 | Space / Enter | Move cursor and exit |
-| `u`/`i`/`o` | Move + toggle left/middle/right press |
 | `j`/`k`/`l` | Move + click left/middle/right |
 | `3j` | Move + 3× left click |
 | Esc | Reset grid |
@@ -64,24 +64,34 @@ kb-mcur move -- 10 -5       # Relative: right 10px, up 5px
 kb-mcur moveto 500 300      # Absolute: warp to (500, 300)
 kb-mcur click L             # Left click
 kb-mcur click -r 3 M        # Middle click × 3
-kb-mcur click R             # Right click
 ```
 
-### Mouse Mode
+### NumPad Navigation (Service)
 
 ```bash
-kb-mcur mouse   # Direct w/a/s/d cursor control (no grid overlay)
+kb-mcur kp-nav
 ```
+
+Meta+NumLock toggles mouse control on/off. All non-NumPad keys are forwarded.
 
 | Key | Action |
 | --- | --- |
-| `w`/`a`/`s`/`d` | Move cursor up/left/down/right |
-| Hold (long press) | Auto-accelerates from 3 px to 50 px per step |
-| Shift + `w/a/s/d` | Fixed 80 px per step (no acceleration) |
-| `j`/`k`/`l` | Click left/middle/right |
-| `u`/`i`/`o` | Toggle left/middle/right press |
-| `3j` | 3× left click |
-| Space / Enter / Esc | Exit |
+| kp8/2/4/6 | Move up/down/left/right |
+| kp7/9/1/3 | Diagonal move |
+| kp5 | Click (press=down, release=up) |
+| kp0 | Hold button down |
+| kp. | Release button |
+| kp+ | Double-click |
+| kp/ \* - | Switch btn5 to left/middle/right |
+| Hold | Auto-accelerates from 3 px to 50 px per step |
+
+#### systemd Service
+
+```bash
+sudo cp kb-mcurd.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now kb-mcurd
+```
 
 ## Comparison
 
@@ -102,6 +112,7 @@ kb-mcur mouse   # Direct w/a/s/d cursor control (no grid overlay)
 src/
 ├── main.rs      CLI entry
 ├── lib.rs       Grid orchestration
+├── kpnav.rs     NumPad mouse navigation service
 ├── config.rs    Key mappings — edit here
 ├── grid.rs      26×26 grid + region math
 ├── render.rs    Overlay rendering
