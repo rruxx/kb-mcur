@@ -72,7 +72,9 @@ kb-mcur click -r 3 M        # Middle click × 3
 kb-mcur kp-nav
 ```
 
-Meta+NumLock toggles mouse control on/off. All non-NumPad keys are forwarded.
+NumLock+KPEnter toggles mouse control on/off. All non-NumPad keys are forwarded.
+
+Grid mode (`kb-mcur grid`) automatically requests keyboard hand-off from the service via Unix socket at `/run/kb-mcurd.sock`. Hot-plug is detected every second — unplugged keyboards are released, newly plugged keyboards are grabbed.
 
 | Key | Action |
 | --- | --- |
@@ -88,7 +90,7 @@ Meta+NumLock toggles mouse control on/off. All non-NumPad keys are forwarded.
 #### systemd Service
 
 ```bash
-sudo cp kb-mcurd.service /etc/systemd/system/
+sudo cp contrib/systemd/kb-mcurd.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now kb-mcurd
 ```

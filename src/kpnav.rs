@@ -1,9 +1,11 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::{fs::OpenOptionsExt, net::UnixListener};
+use std::sync::mpsc;
+use std::thread;
 
 use anyhow::{Context, Result};
 use libc::timeval;
@@ -162,8 +164,68 @@ impl Kpd {
 
 // ── 主入口 ──────────────────────────────────────────────────────────
 
+pub fn socket_path() -> String {
+    "/run/kb-mcurd.sock".to_string()
+}
+
+enum Cmd {
+    Release,
+    Reacquire,
+}
+
+fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
+    let path = socket_path();
+    let _ = std::fs::remove_file(&path);
+
+    let listener = match UnixListener::bind(&path) {
+        Ok(l) => {
+            let cpath = std::ffi::CString::new(path.as_str()).unwrap();
+            unsafe { libc::chmod(cpath.as_ptr(), 0o666) };
+            l
+        }
+        Err(e) => {
+            eprintln!("[socket] failed to bind {path}: {e}");
+            return;
+        }
+    };
+
+    for stream in listener.incoming() {
+        let mut stream = match stream {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let mut buf = [0u8; 16];
+        let n = match stream.read(&mut buf) {
+            Ok(0) => continue,
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+
+        if buf[..n].trim_ascii() != b"grid" {
+            let _ = stream.write_all(b"ERR\n");
+            continue;
+        }
+
+        eprintln!("[socket] grid session requested");
+        let _ = cmd_tx.send(Cmd::Release);
+        let _ = ack_rx.recv(); // wait for main thread to release
+        let _ = stream.write_all(b"OK\n");
+
+        // Wait for client to disconnect (grid exits)
+        let _ = stream.read(&mut buf);
+
+        let _ = cmd_tx.send(Cmd::Reacquire);
+        eprintln!("[socket] grid session ended");
+    }
+}
+
 pub fn run() -> Result<()> {
     eprintln!("kp-nav — NumLock+KPEnter to toggle");
+
+    let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
+    let (ack_tx, ack_rx) = mpsc::channel::<()>();
+    thread::spawn(move || socket_thread(cmd_tx, ack_rx));
 
     let mut kbd = KeyboardDev::open_all(KeyboardFilter::KpNav)?;
 
@@ -176,11 +238,33 @@ pub fn run() -> Result<()> {
     )?;
 
     let mut kpd = Kpd::new();
+    let mut warn_is_done = false;
 
     loop {
-        if kbd.is_empty() && kpd.toggle {
-            kpd.toggle = false;
-            eprintln!("[mouse mode OFF] (all keyboards gone)");
+        // ── Socket commands (grid takeover) ──
+        match cmd_rx.try_recv() {
+            Ok(Cmd::Release) => {
+                kbd.close_all();
+                eprintln!("[socket] released keyboards for grid session");
+                let _ = ack_tx.send(());
+            }
+            Ok(Cmd::Reacquire) => {
+                if let Ok(k) = KeyboardDev::open_all(KeyboardFilter::KpNav) {
+                    kbd = k;
+                    eprintln!("[socket] re-acquired keyboards");
+                }
+            }
+            Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
+            Err(mpsc::TryRecvError::Empty) => {}
+        }
+
+        if kbd.is_empty() {
+            if !warn_is_done {
+                eprintln!("[warn] all keyboards gone");
+            }
+            warn_is_done = true;
+        } else {
+            warn_is_done = false;
         }
         match kbd.poll_event(32) {
             Ok(Some(ev)) => {

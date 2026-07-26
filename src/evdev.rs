@@ -121,6 +121,7 @@ pub struct KeyboardDev {
     fds: Vec<DeviceFd>,
     filter: KeyboardFilter,
     last_rescan: Instant,
+    suspended: bool,
 }
 
 impl KeyboardDev {
@@ -129,6 +130,7 @@ impl KeyboardDev {
             fds: Vec::new(),
             filter,
             last_rescan: Instant::now(),
+            suspended: false,
         };
         for name in event_device_names() {
             devs.try_add(&name);
@@ -141,6 +143,17 @@ impl KeyboardDev {
 
     pub fn is_empty(&self) -> bool {
         self.fds.is_empty()
+    }
+
+    /// Release grabs, close fds, and clear the device list.
+    /// Also suspends hot-plug rescan until the next open_all().
+    pub fn close_all(&mut self) {
+        for d in &self.fds {
+            unsafe { libc::ioctl(d.fd, EVIOCGRAB, 0); }
+            unsafe { libc::close(d.fd); }
+        }
+        self.fds.clear();
+        self.suspended = true;
     }
 
     /// Release all grabs, then close.
@@ -211,6 +224,9 @@ impl KeyboardDev {
     // ── hot-plug ─────────────────────────────────────────────────
 
     fn maybe_rescan(&mut self) {
+        if self.suspended {
+            return;
+        }
         let now = Instant::now();
         if now.duration_since(self.last_rescan) < RESCAN_INTERVAL {
             return;

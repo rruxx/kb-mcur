@@ -72,7 +72,9 @@ kb-mcur click -r 3 M        # 中键连击 3 次
 kb-mcur kp-nav
 ```
 
-Meta+NumLock 切换鼠标控制。非小键盘按键正常转发。
+NumLock+KPEnter 切换鼠标控制。非小键盘按键正常转发。
+
+Grid 模式（`kb-mcur grid`）通过 Unix socket `/run/kb-mcurd.sock` 自动请求键盘接管。热插拔每秒检测——拔出自动释放，插入自动独占。
 
 | 键 | 行为 |
 | --- | --- |
@@ -88,7 +90,7 @@ Meta+NumLock 切换鼠标控制。非小键盘按键正常转发。
 #### systemd 服务
 
 ```bash
-sudo cp kb-mcurd.service /etc/systemd/system/
+sudo cp contrib/systemd/kb-mcurd.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now kb-mcurd
 ```

@@ -10,6 +10,8 @@ pub mod overlay;
 pub mod render;
 pub mod uinput;
 
+use std::io::{Read, Write};
+use std::os::unix::net::UnixStream;
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
@@ -85,6 +87,30 @@ pub fn run() -> Result<()> {
     let single_monitors = vec![*selected];
     let (cfg, font_size, cache, mut draw_states) =
         init_overlay(&mut overlay, &font, &single_monitors)?;
+
+    // If kp-nav service is running, request keyboard hand-off before
+    // grabbing them ourselves.
+    let _kpnav_conn = if let Ok(mut s) = UnixStream::connect(kpnav::socket_path()) {
+        eprintln!("[kp-nav] socket connected, requesting hand-off…");
+        s.set_read_timeout(Some(std::time::Duration::from_secs(3))).ok();
+        if s.write_all(b"grid\n").is_ok() {
+            let mut buf = [0u8; 4];
+            if s.read(&mut buf).is_ok() && buf.starts_with(b"OK") {
+                eprintln!("[kp-nav] keyboard hand-off OK");
+                Some(s) // keep alive until grid exits
+            } else {
+                let got = std::str::from_utf8(&buf).unwrap_or("?");
+                eprintln!("[kp-nav] hand-off failed — got: {got:?} (expected OK)");
+                None
+            }
+        } else {
+            eprintln!("[kp-nav] write to socket failed — is kp-navd running with new binary?");
+            None
+        }
+    } else {
+        eprintln!("[kp-nav] no socket — kp-navd not running, grabbing directly");
+        None
+    };
 
     // Grab all keyboards via evdev.
     let kbd = KeyboardDev::open_all(KeyboardFilter::Grid)?;
