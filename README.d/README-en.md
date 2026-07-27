@@ -8,7 +8,7 @@ X11 / wlroots / KDE / GNOME.
 ## Install
 
 ```bash
-git clone https://github.com/xxx/key-cursor.git && cd key-cursor
+git clone https://github.com/rruxx/key-cursor.git && cd key-cursor
 cargo build --release
 sudo install -m755 target/release/key-cursor /usr/bin/
 ```
@@ -36,14 +36,14 @@ Run `key-cursor grid --help` for the full key map.
 ### kp-nav — NumPad mouse navigation
 
 NumLock+KPEnter toggle. Non-NumPad keys forwarded to the compositor.
-Grid mode auto-handoff via Unix socket (`/run/key-cursord.sock`).
-Hot-plug: keyboards re-scanned every second.
+Grid mode auto-handoff via Unix socket. Hot-plug re-scanned every second.
 
 Run `key-cursor kp-nav --help` for the full key map.
 
 #### systemd
 
 ```bash
+sudo setcap cap_sys_admin+ep /usr/bin/key-cursor
 sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now key-cursord

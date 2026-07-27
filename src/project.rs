@@ -7,6 +7,11 @@ pub const BIN: &str = "key-cursor";
 pub const SERVICE: &str = "key-cursord";
 pub const SOCKET: &str = "/run/key-cursord.sock";
 
+pub const UINPUT_NAME: &str = "key-cursor";
+
+/// Kernel UINPUT_MAX_NAME_SIZE — struct layout must match this.
+pub const UINPUT_NAME_MAXLEN: usize = 80;
+
 pub const DEV_ABS: &str = "key-cursor";
 pub const DEV_REL: &str = "key-cursor-rel";
 pub const DEV_KBD: &str = "key-cursor-kbd";

@@ -8,7 +8,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/xxx/key-cursor.git && cd key-cursor
+git clone https://github.com/rruxx/key-cursor.git && cd key-cursor
 cargo build --release
 sudo install -m755 target/release/key-cursor /usr/bin/
 ```
@@ -36,14 +36,14 @@ sudo install -m755 target/release/key-cursor /usr/bin/
 ### kp-nav — 小键盘鼠标导航
 
 NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
-Grid 模式通过 Unix socket（`/run/key-cursord.sock`）自动请求键盘接管。
-热插拔：每秒扫描键盘设备，拔出释放、插入独占。
+Grid 模式通过 Unix socket 自动请求键盘接管，热插拔每秒检测。
 
 运行 `key-cursor kp-nav --help` 查看完整键表。
 
 #### systemd
 
 ```bash
+sudo setcap cap_sys_admin+ep /usr/bin/key-cursor
 sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now key-cursord

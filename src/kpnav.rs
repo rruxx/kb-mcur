@@ -6,6 +6,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::{fs::OpenOptionsExt, net::UnixListener};
 use std::sync::mpsc;
 use std::thread;
+use std::time::Instant;
 
 use anyhow::{Context, Result};
 use libc::timeval;
@@ -42,7 +43,7 @@ fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<std::fs
         .open("/dev/uinput")
         .context("open /dev/uinput")?;
 
-    let mut n = [0u8; 80];
+    let mut n = [0u8; crate::project::UINPUT_NAME_MAXLEN];
     n[..name.len()].copy_from_slice(name.as_bytes());
     let setup = UinputSetup {
         id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
@@ -162,6 +163,52 @@ impl Kpd {
     }
 }
 
+// ── Watchdog: fix uinput device ownership ─────────────────────────
+
+fn display_session_uid() -> Option<u32> {
+    // Scan /run/user/* for Wayland sockets
+    if let Ok(dir) = std::fs::read_dir("/run/user") {
+        for entry in dir.flatten() {
+            let uid_str = entry.file_name().to_string_lossy().into_owned();
+            let uid: u32 = uid_str.parse().ok()?;
+            for wn in ["wayland-0", "wayland-1"] {
+                if entry.path().join(wn).exists() {
+                    return Some(uid);
+                }
+            }
+        }
+    }
+    // Fallback: X11
+    let path = std::ffi::CString::new("/tmp/.X11-unix/X0").unwrap();
+    let mut st: libc::stat = unsafe { std::mem::zeroed() };
+    if unsafe { libc::stat(path.as_ptr(), &mut st) } == 0 && st.st_uid != 0 {
+        return Some(st.st_uid);
+    }
+    None
+}
+
+fn watchdog() {
+    let Some(session_uid) = display_session_uid() else { return };
+
+    let Ok(dir) = std::fs::read_dir("/sys/class/input/") else { return };
+    for entry in dir.flatten() {
+        let ev_name = entry.file_name().to_string_lossy().into_owned();
+        if !ev_name.starts_with("event") { continue; }
+
+        let name_path = entry.path().join("device/name");
+        let Ok(dev_name) = std::fs::read_to_string(&name_path) else { continue };
+        if !dev_name.trim().starts_with(crate::project::UINPUT_NAME) { continue; }
+
+        let dev_path = format!("/dev/input/{ev_name}");
+        let Ok(path_c) = std::ffi::CString::new(dev_path) else { continue };
+        let mut st: libc::stat = unsafe { std::mem::zeroed() };
+        if unsafe { libc::stat(path_c.as_ptr(), &mut st) } != 0 { continue; }
+        if st.st_uid != session_uid {
+            unsafe { libc::chown(path_c.as_ptr(), session_uid, st.st_gid) };
+        }
+    }
+}
+
 // ── 主入口 ──────────────────────────────────────────────────────────
 
 pub fn socket_path() -> String {
@@ -247,8 +294,16 @@ pub fn run() -> Result<()> {
     write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
 
     let mut warn_is_done = false;
+    let mut last_wd = Instant::now();
 
     loop {
+        // ── Watchdog: fix uinput device ownership every second ──
+        let now = Instant::now();
+        if now.duration_since(last_wd) >= std::time::Duration::from_secs(1) {
+            watchdog();
+            last_wd = now;
+        }
+
         // ── Socket commands (grid takeover) ──
         match cmd_rx.try_recv() {
             Ok(Cmd::Release) => {
@@ -262,7 +317,7 @@ pub fn run() -> Result<()> {
                     eprintln!("[socket] re-acquired keyboards");
                 }
             }
-            Err(mpsc::TryRecvError::Disconnected) => return Ok(()),
+            Err(mpsc::TryRecvError::Disconnected) => {}  // socket thread exited, keep serving
             Err(mpsc::TryRecvError::Empty) => {}
         }
 
