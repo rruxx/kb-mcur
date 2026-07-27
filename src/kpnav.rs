@@ -238,6 +238,14 @@ pub fn run() -> Result<()> {
     )?;
 
     let mut kpd = Kpd::new();
+
+    // Release all keys via uinput to clear any "stuck key" state
+    // on the compositor from the grab→uinput transition window.
+    for code in 1u16..=255 {
+        write_event(&mut kbd_out, EV_KEY, code, 0)?;
+    }
+    write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
+
     let mut warn_is_done = false;
 
     loop {

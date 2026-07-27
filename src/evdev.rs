@@ -145,6 +145,10 @@ impl KeyboardDev {
         self.fds.is_empty()
     }
 
+    pub fn first_fd(&self) -> Option<RawFd> {
+        self.fds.first().map(|d| d.fd)
+    }
+
     /// Release grabs, close fds, and clear the device list.
     /// Also suspends hot-plug rescan until the next open_all().
     pub fn close_all(&mut self) {
