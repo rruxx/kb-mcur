@@ -1,11 +1,11 @@
 [Unit]
-Description=kb-mcurd — NumPad mouse navigation (NumLock+KPEnter toggle)
-Documentation=https://github.com/xxx/kb-mcur
+Description=key-cursord — NumPad mouse navigation (NumLock+KPEnter toggle)
+Documentation=https://github.com/xxx/key-cursor
 After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/kb-mcur kp-nav
+ExecStart=/usr/bin/key-cursor kp-nav
 Restart=always
 RestartSec=2
 
@@ -14,7 +14,7 @@ RestartSec=2
 # or run as root / grant CAP_SYS_ADMIN.
 User=root
 # Alternative: use a dedicated user (see below)
-# User=kb-mcurd
+# User=key-cursord
 # SupplementaryGroups=input
 # AmbientCapabilities=CAP_SYS_ADMIN
 # NoNewPrivileges=yes

@@ -1,5 +1,5 @@
 [package]
-name = "kb-mcur"
+name = "key-cursor"
 version = "0.1.0"
 edition = "2024"
 
@@ -24,5 +24,5 @@ opt-level = 2
 opt-level = 2
 
 [[bin]]
-name = "kb-mcur"
+name = "key-cursor"
 path = "src/main.rs"

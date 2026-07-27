@@ -7,6 +7,7 @@ pub mod grid;
 pub mod keymap;
 pub mod kpnav;
 pub mod overlay;
+pub mod project;
 pub mod render;
 pub mod uinput;
 
@@ -104,11 +105,11 @@ pub fn run() -> Result<()> {
                 None
             }
         } else {
-            eprintln!("[kp-nav] write to socket failed — is kp-navd running with new binary?");
+                eprintln!("[kp-nav] write to socket failed — is {} running with new binary?", project::SERVICE);
             None
         }
     } else {
-        eprintln!("[kp-nav] no socket — kp-navd not running, grabbing directly");
+        eprintln!("[kp-nav] no socket — {} not running, grabbing directly", project::SERVICE);
         None
     };
 

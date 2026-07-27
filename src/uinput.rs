@@ -110,7 +110,7 @@ impl Mouse {
             },
             name: {
                 let mut n = [0u8; 80];
-                n[..7].copy_from_slice(b"kb-mcur");
+                n[..crate::project::DEV_ABS.len()].copy_from_slice(crate::project::DEV_ABS.as_bytes());
                 n
             },
             ff_effects_max: 0,
@@ -254,7 +254,7 @@ fn create_rel_device() -> Result<File> {
         .write(true).custom_flags(libc::O_NONBLOCK).open("/dev/uinput")?;
     let setup = UinputSetup {
         id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
-        name: { let mut n = [0u8; 80]; n[..10].copy_from_slice(b"kb-rel-mov"); n },
+        name: { let mut n = [0u8; 80]; n[..crate::project::DEV_REL.len()].copy_from_slice(crate::project::DEV_REL.as_bytes()); n },
         ff_effects_max: 0,
     };
     ioctl_ref(&fd, UI_DEV_SETUP, &setup)?;

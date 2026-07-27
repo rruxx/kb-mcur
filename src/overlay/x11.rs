@@ -75,7 +75,7 @@ impl X11Backend {
         self.conn.create_pixmap(self.depth, pixmap, screen.root, w, h)?;
         self.conn.create_gc(gc, pixmap, &CreateGCAux::default())?;
         set_always_on_top(&self.conn, window)?;
-        set_window_title(&self.conn, window, b"kb-mcur-grid")?;
+        set_window_title(&self.conn, window, crate::project::GRID_WINDOW.as_bytes())?;
         shape::rectangles(&self.conn, shape::SO::SET, shape::SK::INPUT, ClipOrdering::UNSORTED, window, 0, 0, &[])?;
         self.windows.push(WindowState { window, pixmap, gc, width: w, height: h });
         Ok(self.windows.len() - 1)

@@ -1,4 +1,4 @@
-# kb-mcur — 键驱鼠标
+# key-cursor — 键驱鼠标
 
 [English](README-en.md)
 
@@ -11,10 +11,10 @@
 ## 安装
 
 ```bash
-git clone https://github.com/xxx/kb-mcur.git
-cd kb-mcur
+git clone https://github.com/xxx/key-cursor.git
+cd key-cursor
 cargo build --release
-sudo install -m755 target/release/kb-mcur /usr/bin/
+sudo install -m755 target/release/key-cursor /usr/bin/
 ```
 
 ### 权限
@@ -41,7 +41,7 @@ Wayland 合成器（Sway/Hyprland/niri）原生支持透明度。
 ### 交互式网格
 
 ```bash
-kb-mcur grid
+key-cursor grid
 ```
 
 | 输入 | 层级 | 操作 |
@@ -60,21 +60,21 @@ kb-mcur grid
 ### CLI
 
 ```bash
-kb-mcur move -- 10 -5       # 相对位移：右 10px，上 5px
-kb-mcur moveto 500 300      # 绝对定位到 (500, 300)
-kb-mcur click L             # 左键单击
-kb-mcur click -r 3 M        # 中键连击 3 次
+key-cursor move -- 10 -5       # 相对位移：右 10px，上 5px
+key-cursor moveto 500 300      # 绝对定位到 (500, 300)
+key-cursor click L             # 左键单击
+key-cursor click -r 3 M        # 中键连击 3 次
 ```
 
 ### NumPad 导航（常驻服务）
 
 ```bash
-kb-mcur kp-nav
+key-cursor kp-nav
 ```
 
 NumLock+KPEnter 切换鼠标控制。非小键盘按键正常转发。
 
-Grid 模式（`kb-mcur grid`）通过 Unix socket `/run/kb-mcurd.sock` 自动请求键盘接管。热插拔每秒检测——拔出自动释放，插入自动独占。
+Grid 模式（`key-cursor grid`）通过 Unix socket `/run/key-cursord.sock` 自动请求键盘接管。热插拔每秒检测——拔出自动释放，插入自动独占。
 
 | 键 | 行为 |
 | --- | --- |
@@ -90,14 +90,14 @@ Grid 模式（`kb-mcur grid`）通过 Unix socket `/run/kb-mcurd.sock` 自动请
 #### systemd 服务
 
 ```bash
-sudo cp contrib/systemd/kb-mcurd.service /etc/systemd/system/
+sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now kb-mcurd
+sudo systemctl enable --now key-cursord
 ```
 
 ## 对比
 
-| | kb-mcur | warpd | wl-kbptr | ydotool | xdotool |
+| | key-cursor | warpd | wl-kbptr | ydotool | xdotool |
 | --- | --- | --- | --- | --- | --- |
 | X11 | ✓ | ✓ | ✗ | ✓ | ✓ |
 | wlroots | ✓ | ✓ | ✓ | ✓ | ✓ (XWayland) |

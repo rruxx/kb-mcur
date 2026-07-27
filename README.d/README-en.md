@@ -1,4 +1,4 @@
-# kb-mcur — Keyboard Mouse Cursor
+# key-cursor — Keyboard Mouse Cursor
 
 [中文](README-zh.md)
 
@@ -11,10 +11,10 @@ Works on X11 / wlroots / KDE / GNOME. Tested on Openbox / Sway / niri / KDE.
 ## Install
 
 ```bash
-git clone https://github.com/xxx/kb-mcur.git
-cd kb-mcur
+git clone https://github.com/xxx/key-cursor.git
+cd key-cursor
 cargo build --release
-sudo install -m755 target/release/kb-mcur /usr/bin/
+sudo install -m755 target/release/key-cursor /usr/bin/
 ```
 
 ### Permissions
@@ -41,7 +41,7 @@ Wayland compositors (Sway/Hyprland/niri) support transparency natively.
 ### Interactive Grid
 
 ```bash
-kb-mcur grid
+key-cursor grid
 ```
 
 | Input | Level | Action |
@@ -60,21 +60,21 @@ kb-mcur grid
 ### CLI
 
 ```bash
-kb-mcur move -- 10 -5       # Relative: right 10px, up 5px
-kb-mcur moveto 500 300      # Absolute: warp to (500, 300)
-kb-mcur click L             # Left click
-kb-mcur click -r 3 M        # Middle click × 3
+key-cursor move -- 10 -5       # Relative: right 10px, up 5px
+key-cursor moveto 500 300      # Absolute: warp to (500, 300)
+key-cursor click L             # Left click
+key-cursor click -r 3 M        # Middle click × 3
 ```
 
 ### NumPad Navigation (Service)
 
 ```bash
-kb-mcur kp-nav
+key-cursor kp-nav
 ```
 
 NumLock+KPEnter toggles mouse control on/off. All non-NumPad keys are forwarded.
 
-Grid mode (`kb-mcur grid`) automatically requests keyboard hand-off from the service via Unix socket at `/run/kb-mcurd.sock`. Hot-plug is detected every second — unplugged keyboards are released, newly plugged keyboards are grabbed.
+Grid mode (`key-cursor grid`) automatically requests keyboard hand-off from the service via Unix socket at `/run/key-cursord.sock`. Hot-plug is detected every second — unplugged keyboards are released, newly plugged keyboards are grabbed.
 
 | Key | Action |
 | --- | --- |
@@ -90,14 +90,14 @@ Grid mode (`kb-mcur grid`) automatically requests keyboard hand-off from the ser
 #### systemd Service
 
 ```bash
-sudo cp contrib/systemd/kb-mcurd.service /etc/systemd/system/
+sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now kb-mcurd
+sudo systemctl enable --now key-cursord
 ```
 
 ## Comparison
 
-| | kb-mcur | warpd | wl-kbptr | ydotool | xdotool |
+| | key-cursor | warpd | wl-kbptr | ydotool | xdotool |
 | --- | --- | --- | --- | --- | --- |
 | X11 | ✓ | ✓ | ✗ | ✓ | ✓ |
 | wlroots | ✓ | ✓ | ✓ | ✓ | ✓ (XWayland) |

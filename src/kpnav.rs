@@ -165,7 +165,7 @@ impl Kpd {
 // ── 主入口 ──────────────────────────────────────────────────────────
 
 pub fn socket_path() -> String {
-    "/run/kb-mcurd.sock".to_string()
+    crate::project::SOCKET.to_string()
 }
 
 enum Cmd {
@@ -230,9 +230,9 @@ pub fn run() -> Result<()> {
     let mut kbd = KeyboardDev::open_all(KeyboardFilter::KpNav)?;
 
     let kbd_bits: Vec<u16> = (1u16..=255).collect();
-    let mut kbd_out = create_virt_device("kb-kpd-kbd", &kbd_bits, false)?;
+    let mut kbd_out = create_virt_device(crate::project::DEV_KBD, &kbd_bits, false)?;
     let mut ptr_out = create_virt_device(
-        "kb-kpd-ptr",
+        crate::project::DEV_PTR,
         &[BTN_LEFT, BTN_MIDDLE, BTN_RIGHT],
         true,
     )?;

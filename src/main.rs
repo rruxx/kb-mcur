@@ -3,12 +3,12 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use kb_mcur::overlay::query_screen_size;
-use kb_mcur::uinput::Mouse;
+use key_cursor::overlay::query_screen_size;
+use key_cursor::uinput::Mouse;
 
 #[derive(Parser)]
 #[command(
-    name = "kb-mcur",
+    name = env!("CARGO_PKG_NAME"),
     about = "Keyboard-driven mouse cursor control.",
 )]
 struct Cli {
@@ -19,18 +19,18 @@ struct Cli {
 #[derive(Subcommand)]
 enum Cmd {
     /// Relative move: x>0 right, y>0 down
-    #[command(after_help = "Example:\n  kb-mcur move -- 10 -5")]
+    #[command(after_help = concat!("Example:\n  ", env!("CARGO_PKG_NAME"), " move -- 10 -5"))]
     Move { x: i32, y: i32 },
 
     /// Absolute positioning to screen pixels (x, y)
     #[command(
         name = "moveto",
-        after_help = "Example:\n  kb-mcur moveto 500 300"
+        after_help = concat!("Example:\n  ", env!("CARGO_PKG_NAME"), " moveto 500 300")
     )]
     MoveTo { x: i16, y: i16 },
 
     /// Mouse click: L|M|R, -r N for repeat
-    #[command(after_help = "Example:\n  kb-mcur click -r 3 M  Middle click 3 times")]
+    #[command(after_help = concat!("Example:\n  ", env!("CARGO_PKG_NAME"), " click -r 3 M  Middle click 3 times"))]
     Click {
         #[arg(short = 'r', default_value = "1")]
         repeat: u32,
@@ -80,13 +80,13 @@ fn main() -> Result<()> {
             m.click(btn_code(&btn)?, repeat)?;
         }
         Some(Cmd::Grid) => {
-            kb_mcur::run()?;
+            key_cursor::run()?;
         }
         None => {
             Cli::command().print_help()?;
         }
         Some(Cmd::KpNav) => {
-            kb_mcur::kpnav::run()?;
+            key_cursor::kpnav::run()?;
         }
     }
     Ok(())

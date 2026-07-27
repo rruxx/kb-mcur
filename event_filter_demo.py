@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scan /dev/input/event* devices and filter them with kb-mcur's is_keyboard() logic."""
+"""Scan /dev/input/event* devices and filter them with key-cursor's keyboard detection logic."""
 
 import struct, fcntl, os
 
