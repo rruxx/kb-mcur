@@ -7,7 +7,6 @@ pub mod grid;
 pub mod keymap;
 pub mod kpnav;
 pub mod overlay;
-pub mod project;
 pub mod render;
 pub mod uinput;
 
@@ -21,6 +20,7 @@ use tiny_skia::Pixmap;
 
 use config::{
     action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
+    FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, SERVICE,
 };
 use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
@@ -72,12 +72,12 @@ pub fn run() -> Result<()> {
         .iter()
         .map(|m| m.0 + m.2 as i32)
         .max()
-        .unwrap_or(1920) as u16;
+        .unwrap_or(FALLBACK_WIDTH as i32) as u16;
     let max_h = monitors
         .iter()
         .map(|m| m.1 + m.3 as i32)
         .max()
-        .unwrap_or(1080) as u16;
+        .unwrap_or(FALLBACK_HEIGHT as i32) as u16;
     let mut mouse = Mouse::new(max_w, max_h)
         .map_err(|e| {
             eprintln!("warn: uinput unavailable — {e}");
@@ -105,11 +105,11 @@ pub fn run() -> Result<()> {
                 None
             }
         } else {
-                eprintln!("[kp-nav] write to socket failed — is {} running with new binary?", project::SERVICE);
+                eprintln!("[kp-nav] write to socket failed — is {} running with new binary?", SERVICE);
             None
         }
     } else {
-        eprintln!("[kp-nav] no socket — {} not running, grabbing directly", project::SERVICE);
+        eprintln!("[kp-nav] no socket — {} not running, grabbing directly", SERVICE);
         None
     };
 
@@ -194,9 +194,9 @@ fn init_overlay(
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
     let cfg = GridConfig::default();
     let font_size =
-        (monitors.iter().map(|m| m.3).min().unwrap_or(1080) as f32 / cfg.rows as f32 / 1.8)
-            .min(14.0)
-            .max(6.0)
+        (monitors.iter().map(|m| m.3).min().unwrap_or(FALLBACK_HEIGHT) as f32 / cfg.rows as f32 / FONT_ROW_DIVISOR)
+            .min(FONT_SIZE_MAX)
+            .max(FONT_SIZE_MIN)
             .round();
     let cache = TextCache::new(font, font_size);
 
@@ -423,12 +423,12 @@ fn display_update(
         render::render_base(&mut ds.pixmap, &ds.grid, cfg);
 
         if let Some(r) = region {
-            let f = (r.2.min(r.3) / 8.0).max(6.0).round();
+            let f = (r.2.min(r.3) / 8.0).max(FONT_SIZE_MIN).round();
             render::render_bisect(&mut ds.pixmap, r, cfg, cache, f);
         } else if let Some(rect) = parent_rect {
             let cw = rect.width() as f32 / 4.0;
             let ch = rect.height() as f32 / 2.0;
-            let f = (cw / 3.0).min(ch / 1.8).max(6.0).round();
+            let f = (cw / 3.0).min(ch / FONT_ROW_DIVISOR).max(FONT_SIZE_MIN).round();
             render::render_subgrid(&mut ds.pixmap, rect, cfg, cache, f);
         } else {
             render::render_labels(

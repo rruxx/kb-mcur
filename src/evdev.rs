@@ -21,9 +21,9 @@ fn eviocgbit(ev_type: u32, len: usize) -> u64 {
 }
 
 fn is_own_device(fd: RawFd) -> bool {
-    let mut buf = [0u8; crate::project::UINPUT_NAME_MAXLEN];
-    let ret = unsafe { libc::ioctl(fd, eviocgname(crate::project::UINPUT_NAME_MAXLEN as u16), buf.as_mut_ptr()) };
-    ret >= 0 && buf.starts_with(crate::project::OWN_PREFIX)
+    let mut buf = [0u8; crate::config::UINPUT_NAME_MAXLEN];
+    let ret = unsafe { libc::ioctl(fd, eviocgname(crate::config::UINPUT_NAME_MAXLEN as u16), buf.as_mut_ptr()) };
+    ret >= 0 && buf.starts_with(crate::config::OWN_PREFIX)
 }
 
 // ── Keyboard detection (mode-specific) ─────────────────────────────

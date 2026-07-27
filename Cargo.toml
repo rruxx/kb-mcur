@@ -10,6 +10,7 @@ fontdue = "0.9"
 anyhow = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
+const_format = "0.2"
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 wayland-backend = { version = "0.3", features = ["client_system"] }

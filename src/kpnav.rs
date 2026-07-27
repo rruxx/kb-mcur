@@ -11,14 +11,14 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use libc::timeval;
 use crate::{
-    config,
+    config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
         KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
         KEY_KP0, KEY_KPASTERISK, KEY_KPENTER, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
     uinput::{
-        BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, EV_KEY, EV_REL, EV_SYN, InputEvent, REL_X, REL_Y,
+        EV_KEY, EV_REL, EV_SYN, InputEvent, REL_X, REL_Y,
         SYN_REPORT, UI_DEV_CREATE, UI_DEV_SETUP, UI_SET_EVBIT, UI_SET_KEYBIT,
         UI_SET_RELBIT, UinputSetup,
     },
@@ -43,7 +43,7 @@ fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<std::fs
         .open("/dev/uinput")
         .context("open /dev/uinput")?;
 
-    let mut n = [0u8; crate::project::UINPUT_NAME_MAXLEN];
+    let mut n = [0u8; crate::config::UINPUT_NAME_MAXLEN];
     n[..name.len()].copy_from_slice(name.as_bytes());
     let setup = UinputSetup {
         id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
@@ -65,7 +65,7 @@ fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<std::fs
     }
 
     ioctl_val(&fd, UI_DEV_CREATE, 0)?;
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::thread::sleep(std::time::Duration::from_millis(crate::config::UINPUT_CREATE_WAIT_MS));
     Ok(fd)
 }
 
@@ -197,7 +197,7 @@ fn watchdog() {
 
         let name_path = entry.path().join("device/name");
         let Ok(dev_name) = std::fs::read_to_string(&name_path) else { continue };
-        if !dev_name.trim().starts_with(crate::project::UINPUT_NAME) { continue; }
+        if !dev_name.trim().starts_with(crate::config::UINPUT_NAME) { continue; }
 
         let dev_path = format!("/dev/input/{ev_name}");
         let Ok(path_c) = std::ffi::CString::new(dev_path) else { continue };
@@ -212,7 +212,7 @@ fn watchdog() {
 // ── 主入口 ──────────────────────────────────────────────────────────
 
 pub fn socket_path() -> String {
-    crate::project::SOCKET.to_string()
+    crate::config::SOCKET.to_string()
 }
 
 enum Cmd {
@@ -277,9 +277,9 @@ pub fn run() -> Result<()> {
     let mut kbd = KeyboardDev::open_all(KeyboardFilter::KpNav)?;
 
     let kbd_bits: Vec<u16> = (1u16..=255).collect();
-    let mut kbd_out = create_virt_device(crate::project::DEV_KBD, &kbd_bits, false)?;
+    let mut kbd_out = create_virt_device(crate::config::DEV_KBD, &kbd_bits, false)?;
     let mut ptr_out = create_virt_device(
-        crate::project::DEV_PTR,
+        crate::config::DEV_PTR,
         &[BTN_LEFT, BTN_MIDDLE, BTN_RIGHT],
         true,
     )?;

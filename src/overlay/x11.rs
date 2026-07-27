@@ -75,7 +75,7 @@ impl X11Backend {
         self.conn.create_pixmap(self.depth, pixmap, screen.root, w, h)?;
         self.conn.create_gc(gc, pixmap, &CreateGCAux::default())?;
         set_always_on_top(&self.conn, window)?;
-        set_window_title(&self.conn, window, crate::project::GRID_WINDOW.as_bytes())?;
+        set_window_title(&self.conn, window, crate::config::GRID_WINDOW.as_bytes())?;
         shape::rectangles(&self.conn, shape::SO::SET, shape::SK::INPUT, ClipOrdering::UNSORTED, window, 0, 0, &[])?;
         self.windows.push(WindowState { window, pixmap, gc, width: w, height: h });
         Ok(self.windows.len() - 1)
@@ -117,7 +117,7 @@ impl X11Backend {
                 }
                 Some(x11rb::protocol::Event::KeyPress(_)) => break,
                 Some(_) => {}
-                None => std::thread::sleep(std::time::Duration::from_millis(16)),
+                None => std::thread::sleep(std::time::Duration::from_millis(crate::config::POLL_INTERVAL_MS)),
             }
         }
         Ok(())
@@ -125,12 +125,13 @@ impl X11Backend {
 }
 
 pub fn query_screen_size() -> (u16, u16) {
-    let Ok((conn, screen_num)) = x11rb::connect(None) else { return (1920, 1080); };
+    let fallback = (crate::config::FALLBACK_WIDTH, crate::config::FALLBACK_HEIGHT);
+    let Ok((conn, screen_num)) = x11rb::connect(None) else { return fallback; };
     let mut monitors = Vec::new();
     let resources = randr::get_screen_resources(&conn, conn.setup().roots[screen_num].root);
-    let Ok(cookie) = resources else { return (1920, 1080); };
+    let Ok(cookie) = resources else { return fallback; };
     let reply = cookie.reply();
-    let Ok(reply) = reply else { return (1920, 1080); };
+    let Ok(reply) = reply else { return fallback; };
     for &crtc in &reply.crtcs {
         let r = randr::get_crtc_info(&conn, crtc, x11rb::CURRENT_TIME);
         let Ok(cookie) = r else { continue; };
@@ -140,9 +141,9 @@ pub fn query_screen_size() -> (u16, u16) {
             monitors.push((info.x as i32, info.y as i32, info.width, info.height));
         }
     }
-    if monitors.is_empty() { return (1920, 1080); }
-    let max_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(1920) as u16;
-    let max_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(1080) as u16;
+    if monitors.is_empty() { return fallback; }
+    let max_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(crate::config::FALLBACK_WIDTH as i32) as u16;
+    let max_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(crate::config::FALLBACK_HEIGHT as i32) as u16;
     (max_w, max_h)
 }
 

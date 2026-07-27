@@ -90,7 +90,7 @@ impl WlrBackend {
         Ok(WlrBackend {
             conn, compositor, shm, layer_shell, vptr: Some(vptr),
             windows: Vec::new(),
-            monitors: vec![("WL-1".into(), 0, 0, 1920, 1080)],
+            monitors: vec![("WL-1".into(), 0, 0, crate::config::FALLBACK_WIDTH, crate::config::FALLBACK_HEIGHT)],
             shm_ptr: std::ptr::null_mut(), shm_len: 0,
             shm_fd: None, shm_pool: None,
         })
@@ -110,7 +110,7 @@ impl WlrBackend {
         let layer_surface = self.layer_shell.get_layer_surface(
             &surface, None,
             zwlr_layer_shell_v1::Layer::Overlay,
-            crate::project::WLR_NAME.into(),
+            crate::config::WLR_NAME.into(),
             &qh, (),
         );
         layer_surface.set_anchor(zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left | zwlr_layer_surface_v1::Anchor::Right);
@@ -236,7 +236,7 @@ fn shm_fd(size: u32) -> Result<OwnedFd> {
     use std::fs::OpenOptions;
     use std::os::unix::fs::OpenOptionsExt;
     use std::os::fd::IntoRawFd;
-    let path = std::env::temp_dir().join(format!("{}-{}", crate::project::SHM_PREFIX, std::process::id()));
+    let path = std::env::temp_dir().join(format!("{}-{}", crate::config::SHM_PREFIX, std::process::id()));
     let file = OpenOptions::new().read(true).write(true).create_new(true)
         .custom_flags(libc::O_CLOEXEC | libc::O_RDWR).open(&path).context("shm temp file")?;
     file.set_len(size as u64)?;

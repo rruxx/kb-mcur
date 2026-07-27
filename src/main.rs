@@ -3,6 +3,7 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
+use key_mcursor::config::MOVE_WAIT_MS;
 use key_mcursor::overlay::query_screen_size;
 use key_mcursor::uinput::Mouse;
 
@@ -66,13 +67,13 @@ fn main() -> Result<()> {
             let (sw, sh) = query_screen_size();
             let mut m = Mouse::new(sw, sh)?;
             m.move_rel(x, y)?;
-            std::thread::sleep(std::time::Duration::from_millis(20));
+            std::thread::sleep(std::time::Duration::from_millis(MOVE_WAIT_MS));
         }
         Some(Cmd::MoveTo { x, y }) => {
             let (sw, sh) = query_screen_size();
             let mut m = Mouse::new(sw, sh)?;
             m.warp(x, y)?;
-            std::thread::sleep(std::time::Duration::from_millis(20));
+            std::thread::sleep(std::time::Duration::from_millis(MOVE_WAIT_MS));
         }
         Some(Cmd::Click { repeat, btn }) => {
             let (sw, sh) = query_screen_size();

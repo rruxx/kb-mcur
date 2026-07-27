@@ -7,7 +7,11 @@ use std::io::{self, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
-use crate::config::{btn_code as button_hid, CLICK_INTERVAL_MS};
+use crate::config::{
+    btn_code as button_hid, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT,
+    CLICK_INTERVAL_MS, DEV_ABS, DEV_REL,
+    UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN,
+};
 
 #[repr(C)]
 pub struct InputEvent {
@@ -20,7 +24,7 @@ pub struct InputEvent {
 #[repr(C)]
 pub struct UinputSetup {
     pub id: libc::input_id,
-    pub name: [u8; crate::project::UINPUT_NAME_MAXLEN],
+    pub name: [u8; UINPUT_NAME_MAXLEN],
     pub ff_effects_max: u32,
 }
 
@@ -57,10 +61,6 @@ pub const EV_ABS: u16 = 3;
 
 pub const REL_X: u16 = 0;
 pub const REL_Y: u16 = 1;
-
-pub const BTN_LEFT: u16 = 0x110;
-pub const BTN_MIDDLE: u16 = 0x112;
-pub const BTN_RIGHT: u16 = 0x111;
 
 pub const ABS_X: u16 = 0;
 pub const ABS_Y: u16 = 1;
@@ -109,8 +109,8 @@ impl Mouse {
                 version: 0,
             },
             name: {
-                let mut n = [0u8; crate::project::UINPUT_NAME_MAXLEN];
-                n[..crate::project::DEV_ABS.len()].copy_from_slice(crate::project::DEV_ABS.as_bytes());
+                let mut n = [0u8; UINPUT_NAME_MAXLEN];
+                n[..DEV_ABS.len()].copy_from_slice(DEV_ABS.as_bytes());
                 n
             },
             ff_effects_max: 0,
@@ -145,7 +145,7 @@ impl Mouse {
         ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_Y)).context("abs_setup Y")?;
 
         ioctl(&fd, UI_DEV_CREATE, 0).context("UI_DEV_CREATE")?;
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(UINPUT_CREATE_WAIT_MS));
 
         // Separate REL device for CLI move command
         let fd_rel = create_rel_device();
@@ -254,7 +254,7 @@ fn create_rel_device() -> Result<File> {
         .write(true).custom_flags(libc::O_NONBLOCK).open("/dev/uinput")?;
     let setup = UinputSetup {
         id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
-        name: { let mut n = [0u8; crate::project::UINPUT_NAME_MAXLEN]; n[..crate::project::DEV_REL.len()].copy_from_slice(crate::project::DEV_REL.as_bytes()); n },
+        name: { let mut n = [0u8; UINPUT_NAME_MAXLEN]; n[..DEV_REL.len()].copy_from_slice(DEV_REL.as_bytes()); n },
         ff_effects_max: 0,
     };
     ioctl_ref(&fd, UI_DEV_SETUP, &setup)?;
