@@ -1,4 +1,4 @@
-# key-cursor — Keyboard-driven cursor control
+# key-mcursor — Keyboard-driven mouse-cursor control
 
 [中文](README-zh.md)
 
@@ -8,9 +8,11 @@ X11 / wlroots / KDE / GNOME.
 ## Install
 
 ```bash
-git clone https://github.com/rruxx/key-cursor.git && cd key-cursor
+git clone https://github.com/rruxx/key-mcursor.git    # GitHub
+git clone https://gitee.com/rruxx/key-mcursor.git     # Gitee
+cd key-mcursor
 cargo build --release
-sudo install -m755 target/release/key-cursor /usr/bin/
+sudo install -m755 target/release/key-mcursor /usr/bin/
 ```
 
 ## Dependencies
@@ -20,7 +22,7 @@ sudo install -m755 target/release/key-cursor /usr/bin/
 | Build | Rust toolchain ≥ 1.80 |
 | Kernel | Linux ≥ 5.0 (`/dev/uinput`) |
 | Permissions | `sudo usermod -aG input $USER` |
-| X11 compositor | picom / compton for overlay transparency — native on Wayland |
+| Overlay transparency | X11 with compositor; Wayland native |
 
 ## Usage
 
@@ -31,31 +33,31 @@ sudo install -m755 target/release/key-cursor /usr/bin/
 3. Multi-level 2×2 quadrant (e/r/d/f)
 4. j/k/l click, Space/Enter warp and exit
 
-Run `key-cursor grid --help` for the full key map.
+Run `key-mcursor grid --help` for the full key map.
 
 ### kp-nav — NumPad mouse navigation
 
 NumLock+KPEnter toggle. Non-NumPad keys forwarded to the compositor.
 Grid mode auto-handoff via Unix socket. Hot-plug re-scanned every second.
 
-Run `key-cursor kp-nav --help` for the full key map.
+Run `key-mcursor kp-nav --help` for the full key map.
 
 #### systemd
 
 ```bash
-sudo setcap cap_sys_admin+ep /usr/bin/key-cursor
-sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
+sudo setcap cap_sys_admin+ep /usr/bin/key-mcursor
+sudo cp contrib/systemd/key-mcursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now key-cursord
+sudo systemctl enable --now key-mcursord
 ```
 
 ### CLI
 
 | Command | Description |
 | --- | --- |
-| `key-cursor move -- 10 -5` | Relative move |
-| `key-cursor moveto 500 300` | Absolute warp |
-| `key-cursor click -r 3 M` | Click with repeat |
+| `key-mcursor move -- 10 -5` | Relative move |
+| `key-mcursor moveto 500 300` | Absolute warp |
+| `key-mcursor click -r 3 M` | Click with repeat |
 
 Run any command with `--help` for details.
 

@@ -1,6 +1,6 @@
 [package]
-name = "key-cursor"
-version = "0.1.0"
+name = "key-mcursor"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
@@ -22,7 +22,3 @@ opt-level = 2
 
 [profile.dev.package.fontdue]
 opt-level = 2
-
-[[bin]]
-name = "key-cursor"
-path = "src/main.rs"

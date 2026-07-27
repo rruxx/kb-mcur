@@ -1,4 +1,4 @@
-# key-cursor — 键盘驱动光标控制
+# key-mcursor — 键驱光标
 
 [English](README-en.md)
 
@@ -8,9 +8,11 @@
 ## 安装
 
 ```bash
-git clone https://github.com/rruxx/key-cursor.git && cd key-cursor
+git clone https://github.com/rruxx/key-mcursor.git    # GitHub
+git clone https://gitee.com/rruxx/key-mcursor.git     # Gitee
+cd key-mcursor
 cargo build --release
-sudo install -m755 target/release/key-cursor /usr/bin/
+sudo install -m755 target/release/key-mcursor /usr/bin/
 ```
 
 ## 依赖
@@ -20,7 +22,7 @@ sudo install -m755 target/release/key-cursor /usr/bin/
 | 构建 | Rust 工具链 ≥ 1.80 |
 | 内核 | Linux ≥ 5.0（`/dev/uinput`） |
 | 权限 | `sudo usermod -aG input $USER` |
-| X11 合成器 | picom / compton 以支持叠加层透明 —— Wayland 原生支持 |
+| 叠加层透明 | X11 搭配合成器；Wayland 原生支持 |
 
 ## 用法
 
@@ -31,31 +33,31 @@ sudo install -m755 target/release/key-cursor /usr/bin/
 3. 多层次 2×2 象限（e/r/d/f）
 4. j/k/l 单击，空格/回车 定位并退出
 
-运行 `key-cursor grid --help` 查看完整键表。
+运行 `key-mcursor grid --help` 查看完整键表。
 
 ### kp-nav — 小键盘鼠标导航
 
 NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
 Grid 模式通过 Unix socket 自动请求键盘接管，热插拔每秒检测。
 
-运行 `key-cursor kp-nav --help` 查看完整键表。
+运行 `key-mcursor kp-nav --help` 查看完整键表。
 
 #### systemd
 
 ```bash
-sudo setcap cap_sys_admin+ep /usr/bin/key-cursor
-sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
+sudo setcap cap_sys_admin+ep /usr/bin/key-mcursor
+sudo cp contrib/systemd/key-mcursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now key-cursord
+sudo systemctl enable --now key-mcursord
 ```
 
 ### CLI
 
 | 命令 | 说明 |
 | --- | --- |
-| `key-cursor move -- 10 -5` | 相对移动 |
-| `key-cursor moveto 500 300` | 绝对定位 |
-| `key-cursor click -r 3 M` | 连击 |
+| `key-mcursor move -- 10 -5` | 相对移动 |
+| `key-mcursor moveto 500 300` | 绝对定位 |
+| `key-mcursor click -r 3 M` | 连击 |
 
 运行任意命令加 `--help` 查看详情。
 

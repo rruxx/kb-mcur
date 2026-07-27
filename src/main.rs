@@ -3,13 +3,13 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use key_cursor::overlay::query_screen_size;
-use key_cursor::uinput::Mouse;
+use key_mcursor::overlay::query_screen_size;
+use key_mcursor::uinput::Mouse;
 
 #[derive(Parser)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
-    about = "Keyboard-driven mouse cursor control.",
+    about = "Keyboard-driven mouse-cursor control.",
 )]
 struct Cli {
     #[command(subcommand)]
@@ -80,13 +80,13 @@ fn main() -> Result<()> {
             m.click(btn_code(&btn)?, repeat)?;
         }
         Some(Cmd::Grid) => {
-            key_cursor::run()?;
+            key_mcursor::run()?;
         }
         None => {
             Cli::command().print_help()?;
         }
         Some(Cmd::KpNav) => {
-            key_cursor::kpnav::run()?;
+            key_mcursor::kpnav::run()?;
         }
     }
     Ok(())
