@@ -1,93 +1,47 @@
-# key-cursor — 键驱鼠标
+# key-cursor — 键盘驱动光标控制
 
 [English](README-en.md)
 
-**Linux 全桌面键盘工作流——扔掉鼠标。**
-
-七级键盘网格渐进细化定位光标到屏幕任意像素，附带 NumPad 鼠标导航常驻服务。支持 CLI 子命令挂载合成器快捷键。
-
-支持 X11 / wlroots / KDE / GNOME。已在 Openbox / Sway / niri / KDE 测试通过。
+渐进式网格光标定位、小键盘鼠标导航常驻服务、CLI 宏快捷键。
+支持 X11 / wlroots / KDE / GNOME。
 
 ## 安装
 
 ```bash
-git clone https://github.com/xxx/key-cursor.git
-cd key-cursor
+git clone https://github.com/xxx/key-cursor.git && cd key-cursor
 cargo build --release
 sudo install -m755 target/release/key-cursor /usr/bin/
 ```
 
-### 权限
+## 依赖
 
-需要 `/dev/input/event*` 和 `/dev/uinput` 读写权限：
-
-```bash
-sudo usermod -aG input $USER
-# 注销并重新登录
-```
-
-### 合成器（X11 透明效果）
-
-遮罩层需要 X11 合成器支持半透明效果。若无合成器的纯窗口管理器，遮罩层背景将不透明（全黑）。
-
-```bash
-picom &    # Openbox/i3 先启动合成器（未测试）
-```
-
-Wayland 合成器（Sway/Hyprland/niri）原生支持透明度。
+| 类别 | 要求 |
+| --- | --- |
+| 构建 | Rust 工具链 ≥ 1.80 |
+| 内核 | Linux ≥ 5.0（`/dev/uinput`） |
+| 权限 | `sudo usermod -aG input $USER` |
+| X11 合成器 | picom / compton 以支持叠加层透明 —— Wayland 原生支持 |
 
 ## 用法
 
-### 交互式网格
+### grid — 交互式渐进网格
 
-```bash
-key-cursor grid
-```
+1. 26×26 网格（a–z，2 个字母）
+2. 4×2 子格（q/w/e/r/a/s/d/f）
+3. 多层次 2×2 象限（e/r/d/f）
+4. j/k/l 单击，空格/回车 定位并退出
 
-| 输入 | 层级 | 操作 |
-| --- | --- | --- |
-| `a–z` | 1–2 | 26×26 网格 |
-| `q/w/e/r/a/s/d/f` | 3 | 4×2 子格 |
-| `e/r/d/f` | 4–7 | 2×2 孙格 |
+运行 `key-cursor grid --help` 查看完整键表。
 
-| 键 | 行为 |
-| --- | --- |
-| 空格/回车 | 移动光标并退出 |
-| `j`/`k`/`l` | 移动光标 + 单击左/中/右键 |
-| `3j` | 移动光标 + 连击 3 次左键 |
-| Esc | 重置网格 |
+### kp-nav — 小键盘鼠标导航
 
-### CLI
+NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
+Grid 模式通过 Unix socket（`/run/key-cursord.sock`）自动请求键盘接管。
+热插拔：每秒扫描键盘设备，拔出释放、插入独占。
 
-```bash
-key-cursor move -- 10 -5       # 相对位移：右 10px，上 5px
-key-cursor moveto 500 300      # 绝对定位到 (500, 300)
-key-cursor click L             # 左键单击
-key-cursor click -r 3 M        # 中键连击 3 次
-```
+运行 `key-cursor kp-nav --help` 查看完整键表。
 
-### NumPad 导航（常驻服务）
-
-```bash
-key-cursor kp-nav
-```
-
-NumLock+KPEnter 切换鼠标控制。非小键盘按键正常转发。
-
-Grid 模式（`key-cursor grid`）通过 Unix socket `/run/key-cursord.sock` 自动请求键盘接管。热插拔每秒检测——拔出自动释放，插入自动独占。
-
-| 键 | 行为 |
-| --- | --- |
-| kp8/2/4/6 | 上/下/左/右移动 |
-| kp7/9/1/3 | 斜向移动 |
-| kp5 | 单击（按下=按住，弹起=松开） |
-| kp0 | 按住按钮 |
-| kp. | 释放按钮 |
-| kp+ | 双击 |
-| kp/ \* - | 切换 5 键为左/中/右键 |
-| 长按 | 步长自动加速 3 px → 50 px |
-
-#### systemd 服务
+#### systemd
 
 ```bash
 sudo cp contrib/systemd/key-cursord.service /etc/systemd/system/
@@ -95,18 +49,15 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now key-cursord
 ```
 
-## 对比
+### CLI
 
-| | key-cursor | warpd | wl-kbptr | ydotool | xdotool |
-| --- | --- | --- | --- | --- | --- |
-| X11 | ✓ | ✓ | ✗ | ✓ | ✓ |
-| wlroots | ✓ | ✓ | ✓ | ✓ | ✓ (XWayland) |
-| KDE/GNOME | ✓ (XWayland) | ✗ | ✗ | ✓ | ✓ (XWayland) |
-| 输出层 | /dev/uinput | XTest / wlr-pointer | wlr-pointer | /dev/uinput | XTest |
-| 权限 | 仅需 input 组 | 无需 | 无需 | 需要 root | 无需 |
-| 键盘接管 | EVIOCGRAB | 合成器绑定 | 合成器绑定 | 不适用 | 不适用 |
-| CLI 鼠标 | ✓ | ✗ | ✗ | ✓ | ✓ |
-| 语言 | Rust | C | C | C | C |
+| 命令 | 说明 |
+| --- | --- |
+| `key-cursor move -- 10 -5` | 相对移动 |
+| `key-cursor moveto 500 300` | 绝对定位 |
+| `key-cursor click -r 3 M` | 连击 |
+
+运行任意命令加 `--help` 查看详情。
 
 ## 架构
 
@@ -114,7 +65,8 @@ sudo systemctl enable --now key-cursord
 src/
 ├── main.rs      CLI 入口
 ├── lib.rs       交互式网格编排
-├── kpnav.rs     NumPad 鼠标导航常驻服务
+├── kpnav.rs     小键盘鼠标导航常驻服务
+├── project.rs   命名常量集中定义
 ├── config.rs    按键映射——改键只需改此
 ├── grid.rs      26×26 网格 + 区域计算
 ├── render.rs    叠加层渲染
