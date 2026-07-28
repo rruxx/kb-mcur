@@ -23,6 +23,9 @@ impl TextCache {
         for ch in 'a'..='z' {
             glyphs.insert(ch, font.rasterize(ch, size));
         }
+        for ch in '0'..='9' {
+            glyphs.insert(ch, font.rasterize(ch, size));
+        }
         Self { glyphs }
     }
 
