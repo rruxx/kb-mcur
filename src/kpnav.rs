@@ -9,12 +9,13 @@ use std::thread;
 use std::time::Instant;
 
 use anyhow::{Context, Result};
+use log::{error, info, warn};
 use libc::timeval;
 use crate::{
     config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
+        KEY_KP5,
         KEY_KP0, KEY_KPASTERISK, KEY_KPENTER, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
     uinput::{
@@ -76,37 +77,59 @@ fn write_event(fd: &mut std::fs::File, type_: u16, code: u16, value: i32) -> io:
         code,
         value,
     };
-    let bytes = unsafe {
-        std::slice::from_raw_parts(&ev as *const _ as *const u8, std::mem::size_of::<InputEvent>())
-    };
-    fd.write_all(bytes)
+    fd.write_all(bytemuck::bytes_of(&ev))
 }
 
 fn write_event_raw(fd: &mut std::fs::File, ev: &InputEvent) -> io::Result<()> {
-    let bytes = unsafe {
-        std::slice::from_raw_parts(ev as *const _ as *const u8, std::mem::size_of::<InputEvent>())
-    };
-    fd.write_all(bytes)
+    fd.write_all(bytemuck::bytes_of(ev))
 }
 
 // ── 方向映射 ────────────────────────────────────────────────────────
 
-fn kp_direction(code: u16) -> Option<(i32, i32)> {
-    match code {
-        KEY_KP8 => Some((0, -1)),
-        KEY_KP2 => Some((0, 1)),
-        KEY_KP4 => Some((-1, 0)),
-        KEY_KP6 => Some((1, 0)),
-        KEY_KP7 => Some((-1, -1)),
-        KEY_KP9 => Some((1, -1)),
-        KEY_KP1 => Some((-1, 1)),
-        KEY_KP3 => Some((1, 1)),
-        _ => None,
+bitflags::bitflags! {
+    /// Keypad direction (one bit per physical key).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct Dir: u8 {
+        const UP    = 0x01; // 8
+        const DOWN  = 0x02; // 2
+        const LEFT  = 0x04; // 4
+        const RIGHT = 0x08; // 6
+        const UP_LEFT    = 0x10; // 7
+        const UP_RIGHT   = 0x20; // 9
+        const DOWN_LEFT  = 0x40; // 1
+        const DOWN_RIGHT = 0x80; // 3
     }
 }
 
-fn is_kp_direction(code: u16) -> bool {
-    kp_direction(code).is_some()
+impl Dir {
+    fn from_keypad(code: u16) -> Option<Self> {
+        use crate::keymap::*;
+        match code {
+            KEY_KP8 => Some(Dir::UP),
+            KEY_KP2 => Some(Dir::DOWN),
+            KEY_KP4 => Some(Dir::LEFT),
+            KEY_KP6 => Some(Dir::RIGHT),
+            KEY_KP7 => Some(Dir::UP_LEFT),
+            KEY_KP9 => Some(Dir::UP_RIGHT),
+            KEY_KP1 => Some(Dir::DOWN_LEFT),
+            KEY_KP3 => Some(Dir::DOWN_RIGHT),
+            _ => None,
+        }
+    }
+
+    fn to_vector(self) -> (i32, i32) {
+        match self {
+            Dir::UP => (0, -1),
+            Dir::DOWN => (0, 1),
+            Dir::LEFT => (-1, 0),
+            Dir::RIGHT => (1, 0),
+            Dir::UP_LEFT => (-1, -1),
+            Dir::UP_RIGHT => (1, -1),
+            Dir::DOWN_LEFT => (-1, 1),
+            Dir::DOWN_RIGHT => (1, 1),
+            _ => (0, 0),
+        }
+    }
 }
 
 // ── 主循环状态 ──────────────────────────────────────────────────────
@@ -119,7 +142,7 @@ struct Kpd {
 
     // 方向键状态（同 mouse mode 加速模型）
     dir_held: u8,
-    dir_mask: u8,
+    dir_mask: Dir,
     dir_count: u32,
 }
 
@@ -131,27 +154,13 @@ impl Kpd {
             btn_held: false,
             numlock_held: false,
             dir_held: 0,
-            dir_mask: 0,
+            dir_mask: Dir::empty(),
             dir_count: 0,
         }
     }
 
     fn active(&self) -> bool {
         self.toggle
-    }
-
-    fn kp_bit(code: u16) -> u8 {
-        match code {
-            KEY_KP8 => 0x01,
-            KEY_KP2 => 0x02,
-            KEY_KP4 => 0x04,
-            KEY_KP6 => 0x08,
-            KEY_KP7 => 0x10,
-            KEY_KP9 => 0x20,
-            KEY_KP1 => 0x40,
-            KEY_KP3 => 0x80,
-            _ => 0x00,
-        }
     }
 
     fn btn_code(&self) -> u16 {
@@ -180,9 +189,10 @@ fn display_session_uid() -> Option<u32> {
     }
     // Fallback: X11
     let path = std::ffi::CString::new("/tmp/.X11-unix/X0").unwrap();
-    let mut st: libc::stat = unsafe { std::mem::zeroed() };
-    if unsafe { libc::stat(path.as_ptr(), &mut st) } == 0 && st.st_uid != 0 {
-        return Some(st.st_uid);
+    if let Ok(st) = nix::sys::stat::stat(path.as_c_str()) {
+        if st.st_uid != 0 {
+            return Some(st.st_uid);
+        }
     }
     None
 }
@@ -201,10 +211,13 @@ fn watchdog() {
 
         let dev_path = format!("/dev/input/{ev_name}");
         let Ok(path_c) = std::ffi::CString::new(dev_path) else { continue };
-        let mut st: libc::stat = unsafe { std::mem::zeroed() };
-        if unsafe { libc::stat(path_c.as_ptr(), &mut st) } != 0 { continue; }
+        let Ok(st) = nix::sys::stat::stat(path_c.as_c_str()) else { continue };
         if st.st_uid != session_uid {
-            unsafe { libc::chown(path_c.as_ptr(), session_uid, st.st_gid) };
+            let _ = nix::unistd::chown(
+                path_c.as_c_str(),
+                Some(nix::unistd::Uid::from_raw(session_uid)),
+                Some(nix::unistd::Gid::from_raw(st.st_gid)),
+            );
         }
     }
 }
@@ -226,12 +239,16 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
 
     let listener = match UnixListener::bind(&path) {
         Ok(l) => {
-            let cpath = std::ffi::CString::new(path.as_str()).unwrap();
-            unsafe { libc::chmod(cpath.as_ptr(), 0o666) };
+            nix::sys::stat::fchmodat(
+                None,
+                path.as_str(),
+                nix::sys::stat::Mode::from_bits_truncate(0o666),
+                nix::sys::stat::FchmodatFlags::FollowSymlink,
+            ).ok();
             l
         }
         Err(e) => {
-            eprintln!("[socket] failed to bind {path}: {e}");
+            error!("[socket] failed to bind {path}: {e}");
             return;
         }
     };
@@ -254,7 +271,7 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
             continue;
         }
 
-        eprintln!("[socket] grid session requested");
+        info!("[socket] grid session requested");
         let _ = cmd_tx.send(Cmd::Release);
         let _ = ack_rx.recv(); // wait for main thread to release
         let _ = stream.write_all(b"OK\n");
@@ -263,12 +280,12 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
         let _ = stream.read(&mut buf);
 
         let _ = cmd_tx.send(Cmd::Reacquire);
-        eprintln!("[socket] grid session ended");
+        info!("[socket] grid session ended");
     }
 }
 
 pub fn run() -> Result<()> {
-    eprintln!("kp-nav — NumLock+KPEnter to toggle");
+    info!("kp-nav — NumLock+KPEnter to toggle");
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
     let (ack_tx, ack_rx) = mpsc::channel::<()>();
@@ -308,13 +325,13 @@ pub fn run() -> Result<()> {
         match cmd_rx.try_recv() {
             Ok(Cmd::Release) => {
                 kbd.close_all();
-                eprintln!("[socket] released keyboards for grid session");
+                info!("[socket] released keyboards for grid session");
                 let _ = ack_tx.send(());
             }
             Ok(Cmd::Reacquire) => {
                 if let Ok(k) = KeyboardDev::open_all(KeyboardFilter::KpNav) {
                     kbd = k;
-                    eprintln!("[socket] re-acquired keyboards");
+                    info!("[socket] re-acquired keyboards");
                 }
             }
             Err(mpsc::TryRecvError::Disconnected) => {}  // socket thread exited, keep serving
@@ -323,7 +340,7 @@ pub fn run() -> Result<()> {
 
         if kbd.is_empty() {
             if !warn_is_done {
-                eprintln!("[warn] all keyboards gone");
+                warn!("all keyboards gone");
             }
             warn_is_done = true;
         } else {
@@ -348,9 +365,9 @@ pub fn run() -> Result<()> {
                 if code == KEY_KPENTER && is_press && kpd.numlock_held {
                     kpd.toggle = !kpd.toggle;
                     if kpd.active() {
-                        eprintln!("[mouse mode ON]");
+                        info!("[mouse mode ON]");
                     } else {
-                        eprintln!("[pass-through]");
+                        info!("[pass-through]");
                     }
                     // 吃掉组合键，不转发
                     continue;
@@ -362,17 +379,16 @@ pub fn run() -> Result<()> {
                 if active {
                     let handled = match code {
                         // 方向键
-                        c if is_kp_direction(c) => {
+                        c if Dir::from_keypad(c).is_some() => {
+                            let flag = Dir::from_keypad(c).unwrap();
                             if value == 0 {
-                                let bit = Kpd::kp_bit(c);
-                                kpd.dir_mask &= !bit;
+                                kpd.dir_mask.remove(flag);
                                 kpd.dir_held = kpd.dir_held.saturating_sub(1);
                                 if kpd.dir_held == 0 {
                                     kpd.dir_count = 0;
                                 }
                             } else if value == 1 {
-                                let bit = Kpd::kp_bit(c);
-                                kpd.dir_mask |= bit;
+                                kpd.dir_mask.insert(flag);
                                 kpd.dir_held = kpd.dir_held.saturating_add(1);
                             }
                             true
@@ -400,7 +416,7 @@ pub fn run() -> Result<()> {
                                 write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 0)?;
                                 write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
                                 kpd.btn_held = false;
-                                eprintln!("[release]");
+                                info!("[release]");
                             }
                             true
                         }
@@ -410,28 +426,28 @@ pub fn run() -> Result<()> {
                                 write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 1)?;
                                 write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
                                 kpd.btn_held = true;
-                                eprintln!("[hold]");
+                                info!("[hold]");
                             }
                             true
                         }
                         KEY_KPASTERISK => {
                             if is_press {
                                 kpd.btn_5 = 2;
-                                eprintln!("[btn5=M]");
+                                info!("[btn5=M]");
                             }
                             true
                         }
                         KEY_KPSLASH => {
                             if is_press {
                                 kpd.btn_5 = 1;
-                                eprintln!("[btn5=L]");
+                                info!("[btn5=L]");
                             }
                             true
                         }
                         KEY_KPMINUS => {
                             if is_press {
                                 kpd.btn_5 = 3;
-                                eprintln!("[btn5=R]");
+                                info!("[btn5=R]");
                             }
                             true
                         }
@@ -450,7 +466,7 @@ pub fn run() -> Result<()> {
                                 std::thread::sleep(half);
                                 write_event(&mut ptr_out, EV_KEY, code, 0)?;
                                 write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                eprintln!("[dblclick]");
+                                info!("[dblclick]");
                             }
                             true
                         }
@@ -468,7 +484,7 @@ pub fn run() -> Result<()> {
             Ok(None) => {
                 // 32 ms 定时器：单方向键移动
                 if kpd.active() && kpd.dir_held == 1 {
-                    let (dx, dy) = direction_from_mask(kpd.dir_mask);
+                    let (dx, dy) = kpd.dir_mask.to_vector();
                     kpd.dir_count = kpd.dir_count.saturating_add(1);
                     let step = config::cursor_speed(kpd.dir_count) as f32;
                     let mx = (dx as f32 * step) as i32;
@@ -480,19 +496,5 @@ pub fn run() -> Result<()> {
             }
             Err(e) => return Err(e),
         }
-    }
-}
-
-fn direction_from_mask(mask: u8) -> (i32, i32) {
-    match mask {
-        0x01 => (0, -1),   // 8
-        0x02 => (0, 1),    // 2
-        0x04 => (-1, 0),   // 4
-        0x08 => (1, 0),    // 6
-        0x10 => (-1, -1),  // 7
-        0x20 => (1, -1),   // 9
-        0x40 => (-1, 1),   // 1
-        0x80 => (1, 1),    // 3
-        _ => (0, 0),
     }
 }

@@ -241,6 +241,6 @@ fn shm_fd(size: u32) -> Result<OwnedFd> {
         .custom_flags(libc::O_CLOEXEC | libc::O_RDWR).open(&path).context("shm temp file")?;
     file.set_len(size as u64)?;
     let raw = file.into_raw_fd();
-    unsafe { libc::unlink(std::ffi::CString::new(path.to_string_lossy().as_ref()).unwrap().as_ptr()) };
+    let _ = nix::unistd::unlink(&path);
     Ok(unsafe { OwnedFd::from_raw_fd(raw) })
 }

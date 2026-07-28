@@ -16,6 +16,7 @@ use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use fontdue::Font;
+use log::{error, info, warn};
 use tiny_skia::Pixmap;
 
 use config::{
@@ -54,7 +55,7 @@ pub fn run() -> Result<()> {
         anyhow::bail!("no active monitors detected");
     }
     let backend = if matches!(overlay, Overlay::Wlr(_)) { "wlr" } else { "x11" };
-    eprintln!("[{backend}] {} monitor(s) detected", named.len());
+    info!("[{backend}] {} monitor(s) detected", named.len());
     let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
 
     let monitor_idx = if monitors.len() == 1 {
@@ -80,7 +81,7 @@ pub fn run() -> Result<()> {
         .unwrap_or(FALLBACK_HEIGHT as i32) as u16;
     let mut mouse = Mouse::new(max_w, max_h)
         .map_err(|e| {
-            eprintln!("warn: uinput unavailable — {e}");
+            warn!("uinput unavailable — {e}");
             e
         })
         .ok();
@@ -92,24 +93,24 @@ pub fn run() -> Result<()> {
     // If kp-nav service is running, request keyboard hand-off before
     // grabbing them ourselves.
     let _kpnav_conn = if let Ok(mut s) = UnixStream::connect(kpnav::socket_path()) {
-        eprintln!("[kp-nav] socket connected, requesting hand-off…");
+        info!("[kp-nav] socket connected, requesting hand-off…");
         s.set_read_timeout(Some(std::time::Duration::from_secs(3))).ok();
         if s.write_all(b"grid\n").is_ok() {
             let mut buf = [0u8; 4];
             if s.read(&mut buf).is_ok() && buf.starts_with(b"OK") {
-                eprintln!("[kp-nav] keyboard hand-off OK");
+                info!("[kp-nav] keyboard hand-off OK");
                 Some(s) // keep alive until grid exits
             } else {
                 let got = std::str::from_utf8(&buf).unwrap_or("?");
-                eprintln!("[kp-nav] hand-off failed — got: {got:?} (expected OK)");
+                warn!("[kp-nav] hand-off failed — got: {got:?} (expected OK)");
                 None
             }
         } else {
-                eprintln!("[kp-nav] write to socket failed — is {} running with new binary?", SERVICE);
+                error!("[kp-nav] write to socket failed — is {} running with new binary?", SERVICE);
             None
         }
     } else {
-        eprintln!("[kp-nav] no socket — {} not running, grabbing directly", SERVICE);
+        info!("[kp-nav] no socket — {} not running, grabbing directly", SERVICE);
         None
     };
 
@@ -125,7 +126,7 @@ pub fn run() -> Result<()> {
         kbd,
     )?;
 
-    eprintln!("bye");
+    info!("bye");
     Ok(())
 }
 
@@ -245,7 +246,7 @@ fn run_input_evdev(
     let mut mods = ModState::default();
     loop {
         if kbd.is_empty() {
-            eprintln!("all keyboards gone — exiting");
+            warn!("all keyboards gone — exiting");
             break;
         }
         let (code, value) = kbd.next_keypress()?;
@@ -316,7 +317,6 @@ fn process_byte(
         }
 
         0x04 | 0x03 => {
-            eprintln!();
             return Ok(true);
         }
 
@@ -375,8 +375,8 @@ fn cursor_warp(
     };
     if let Some((cx, cy)) = region_center(filter, states) {
         m.warp(cx as i16, cy as i16)?;
-        eprintln!(
-            "\n=> {} ({cx:.0}, {cy:.0})",
+        info!(
+            "=> {} ({cx:.0}, {cy:.0})",
             MONITOR_NAME.get().map_or("?", |s| s.as_str())
         );
     }
@@ -402,7 +402,7 @@ fn cursor_action(
     let n = if repeat == 0 { 1 } else { repeat };
     m.click(button, n)?;
     if let Some((cx, cy)) = center {
-        eprintln!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
+        info!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
     }
     Ok(())
 }

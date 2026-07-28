@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use anyhow::{Context, Result};
+use bytemuck::{Pod, Zeroable};
+use log::warn;
 use std::fs::File;
 use std::io::{self, Write};
 use std::os::fd::AsRawFd;
@@ -13,6 +15,7 @@ use crate::config::{
     UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN,
 };
 
+#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct InputEvent {
     pub time: libc::timeval,
@@ -20,6 +23,11 @@ pub struct InputEvent {
     pub code: u16,
     pub value: i32,
 }
+
+// SAFETY: InputEvent is #[repr(C)] with all-primitive fields;
+// every bit pattern is a valid value on Linux.
+unsafe impl Zeroable for InputEvent {}
+unsafe impl Pod for InputEvent {}
 
 #[repr(C)]
 pub struct UinputSetup {
@@ -150,20 +158,14 @@ impl Mouse {
         // Separate REL device for CLI move command
         let fd_rel = create_rel_device();
         if let Err(ref e) = fd_rel {
-            eprintln!("warn: REL device unavailable — {e}");
+            warn!("REL device unavailable — {e}");
         }
 
         Ok(Self { fd, fd_rel: fd_rel.ok(), screen_w, screen_h })
     }
 
     fn write_events(&mut self, events: &[InputEvent]) -> Result<()> {
-        let bytes = unsafe {
-            std::slice::from_raw_parts(
-                events.as_ptr() as *const u8,
-                events.len() * std::mem::size_of::<InputEvent>(),
-            )
-        };
-        self.fd.write_all(bytes)?;
+        self.fd.write_all(bytemuck::cast_slice(events))?;
         Ok(())
     }
 
@@ -197,9 +199,8 @@ impl Mouse {
             InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_REL, code: REL_Y, value: dy },
             InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_SYN, code: SYN_REPORT, value: 0 },
         ];
-        let bytes = unsafe { std::slice::from_raw_parts(events.as_ptr() as *const u8, events.len() * std::mem::size_of::<InputEvent>()) };
         use std::io::Write;
-        fd.write_all(bytes)?;
+        fd.write_all(bytemuck::cast_slice(events))?;
         Ok(())
     }
 

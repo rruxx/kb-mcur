@@ -6,8 +6,10 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use log::info;
 
 use crate::uinput::InputEvent;
+use bytemuck::Zeroable;
 
 const EVIOCGRAB: u64 = 0x40044590;
 const RESCAN_INTERVAL: Duration = Duration::from_secs(1);
@@ -154,7 +156,7 @@ impl KeyboardDev {
     pub fn close_all(&mut self) {
         for d in &self.fds {
             unsafe { libc::ioctl(d.fd, EVIOCGRAB, 0); }
-            unsafe { libc::close(d.fd); }
+            let _ = nix::unistd::close(d.fd);
         }
         self.fds.clear();
         self.suspended = true;
@@ -213,11 +215,11 @@ impl KeyboardDev {
             if p.revents & libc::POLLIN == 0 {
                 continue;
             }
-            let mut ev: InputEvent = unsafe { std::mem::zeroed() };
+            let mut ev: InputEvent = Zeroable::zeroed();
             let sz = std::mem::size_of::<InputEvent>();
-            let bytes_read =
-                unsafe { libc::read(p.fd, &mut ev as *mut _ as *mut libc::c_void, sz) };
-            if (bytes_read as usize) < sz {
+            let bytes = bytemuck::bytes_of_mut(&mut ev);
+            let Ok(n) = nix::unistd::read(p.fd, bytes) else { continue; };
+            if n < sz {
                 continue;
             }
             return Ok(Some(ev));
@@ -244,9 +246,9 @@ impl KeyboardDev {
             if current.contains(&d.name) {
                 true
             } else {
-                eprintln!("[evdev] lost {}", d.name);
+                info!("[evdev] lost {}", d.name);
                 unsafe { libc::ioctl(d.fd, EVIOCGRAB, 0); }
-                unsafe { libc::close(d.fd); }
+                let _ = nix::unistd::close(d.fd);
                 false
             }
         });
@@ -266,14 +268,14 @@ impl KeyboardDev {
             Err(_) => return,
         };
         if is_own_device(fd) || !matches_filter(fd, self.filter) {
-            unsafe { libc::close(fd) };
+            let _ = nix::unistd::close(fd);
             return;
         }
         if unsafe { libc::ioctl(fd, EVIOCGRAB, 1) } != 0 {
-            unsafe { libc::close(fd) };
+            let _ = nix::unistd::close(fd);
             return;
         }
-        eprintln!("[evdev] added {}", name);
+        info!("[evdev] added {}", name);
         self.fds.push(DeviceFd { fd, name: name.to_owned() });
     }
 }
@@ -281,7 +283,7 @@ impl KeyboardDev {
 impl Drop for KeyboardDev {
     fn drop(&mut self) {
         for d in &self.fds {
-            unsafe { libc::close(d.fd) };
+            let _ = nix::unistd::close(d.fd);
         }
     }
 }

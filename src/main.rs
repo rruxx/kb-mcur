@@ -60,6 +60,7 @@ fn btn_code(s: &str) -> Result<u8> {
 }
 
 fn main() -> Result<()> {
+    env_logger::init();
     let cli = Cli::parse();
 
     match cli.cmd {

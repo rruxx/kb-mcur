@@ -84,8 +84,7 @@ impl X11Backend {
     pub fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
         let ws = &self.windows[idx];
         let pixels = rgba_to_x11_pixels(skia.data());
-        let bytes = unsafe { u32_slice_as_bytes(&pixels) };
-        self.conn.put_image(ImageFormat::Z_PIXMAP, ws.pixmap, ws.gc, ws.width, ws.height, 0, 0, 0, self.depth, bytes)?;
+        self.conn.put_image(ImageFormat::Z_PIXMAP, ws.pixmap, ws.gc, ws.width, ws.height, 0, 0, 0, self.depth, bytemuck::cast_slice(&pixels))?;
         Ok(())
     }
 
@@ -163,10 +162,6 @@ fn rgba_to_x11_pixels(rgba: &[u8]) -> Vec<u32> {
         let r = c[0] as u32; let g = c[1] as u32; let b = c[2] as u32; let a = c[3] as u32;
         (a << 24) | (r << 16) | (g << 8) | b
     }).collect()
-}
-
-unsafe fn u32_slice_as_bytes(v: &[u32]) -> &[u8] {
-    unsafe { std::slice::from_raw_parts(v.as_ptr() as *const u8, v.len() * 4) }
 }
 
 fn set_window_title(conn: &RustConnection, window: u32, title: &[u8]) -> Result<()> {
