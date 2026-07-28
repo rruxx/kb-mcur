@@ -256,6 +256,16 @@ fn select_display(
         let Some(byte) = key_map(code, &mods) else {
             continue;
         };
+        if byte == 0x7f || byte == b'\x08' {
+            if let Some(_) = input.pop() {
+                redraw_display(overlay, monitors, &labels, &input, &cfg, &cache, font_size)?;
+            }
+            continue;
+        }
+        if byte == 0x1b || byte == b'\n' || byte == b' ' {
+            std::thread::spawn(move || drop(kbd));
+            std::process::exit(0);
+        }
         if !byte.is_ascii_lowercase() {
             continue;
         }
