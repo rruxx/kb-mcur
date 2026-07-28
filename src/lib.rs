@@ -34,7 +34,7 @@ use std::sync::OnceLock;
 use anyhow::{Context, Result};
 use fontdue::Font;
 use log::{error, info, warn};
-use tiny_skia::Pixmap;
+use tiny_skia::{Pixmap, PremultipliedColorU8};
 
 use config::{
     FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, SERVICE,
@@ -84,8 +84,7 @@ pub fn run() -> Result<()> {
         0
     } else {
         let label_len = display_digits_needed(monitors.len());
-        show_display_ids(&mut overlay, &font, &monitors, label_len)?;
-        let idx = select_display(&monitors, label_len)?;
+        let idx = select_display(&mut overlay, &font, &monitors, label_len)?;
         overlay = Overlay::connect()?;
         idx
     };
@@ -186,43 +185,64 @@ fn display_digits_needed(count: usize) -> usize {
     n
 }
 
-fn show_display_ids(
-    overlay: &mut Overlay,
-    font: &Font,
+/// Redraw overlay windows: matching monitors show their labels,
+/// non‑matching monitors are made fully transparent.
+fn redraw_display(
+    overlay: &Overlay,
     monitors: &[(i32, i32, u16, u16)],
-    label_len: usize,
+    labels: &[String],
+    prefix: &str,
+    cfg: &GridConfig,
+    cache: &TextCache,
+    font_size: f32,
 ) -> Result<()> {
-    let font_size = (96.0 / label_len as f32).max(24.0);
-    let cache = TextCache::new(font, font_size);
-    let cfg = GridConfig::default();
-    for (i, &(x, y, w, h)) in monitors.iter().enumerate() {
+    for (i, &(_, _, w, h)) in monitors.iter().enumerate() {
         let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
-        render::render_base(
-            &mut pixmap,
-            &grid::Grid::new(u32::from(w), u32::from(h), &cfg),
-            &cfg,
-        );
-        render::draw_text(
-            &mut pixmap,
-            &to_base26(i, label_len),
-            f32::from(w) * 0.5,
-            f32::from(h) * 0.5,
-            &cache,
-            font_size,
-            [192, 255, 192, 192],
-        );
-        overlay.add_window(x, y, w, h)?;
+        if labels[i].starts_with(prefix) {
+            render::render_base(
+                &mut pixmap,
+                &grid::Grid::new(u32::from(w), u32::from(h), cfg),
+                cfg,
+            );
+            render::draw_text(
+                &mut pixmap,
+                &labels[i],
+                f32::from(w) * 0.5,
+                f32::from(h) * 0.5,
+                cache,
+                font_size,
+                [192, 255, 192, 192],
+            );
+        } else {
+            pixmap
+                .pixels_mut()
+                .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
+        }
         overlay.upload(i, &pixmap)?;
     }
-    overlay.show_all()?;
     overlay.redraw_all()?;
     Ok(())
 }
 
-fn select_display(monitors: &[(i32, i32, u16, u16)], label_len: usize) -> Result<usize> {
+fn select_display(
+    overlay: &mut Overlay,
+    font: &Font,
+    monitors: &[(i32, i32, u16, u16)],
+    label_len: usize,
+) -> Result<usize> {
     let labels: Vec<String> = (0..monitors.len())
         .map(|i| to_base26(i, label_len))
         .collect();
+    let font_size = (96.0 / label_len as f32).max(24.0);
+    let cache = TextCache::new(font, font_size);
+    let cfg = GridConfig::default();
+
+    for &(x, y, w, h) in monitors {
+        overlay.add_window(x, y, w, h)?;
+    }
+    overlay.show_all()?;
+    redraw_display(overlay, monitors, &labels, "", &cfg, &cache, font_size)?;
+
     let mut kbd =
         KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
     let mut mods = ModState::default();
@@ -239,17 +259,20 @@ fn select_display(monitors: &[(i32, i32, u16, u16)], label_len: usize) -> Result
         if !byte.is_ascii_lowercase() {
             continue;
         }
-        input.push(byte as char);
 
-        let matches: Vec<usize> = (0..labels.len())
-            .filter(|i| labels[*i].starts_with(&input))
+        let test = format!("{input}{}", byte as char);
+        let matching: Vec<usize> = (0..labels.len())
+            .filter(|i| labels[*i].starts_with(&test))
             .collect();
-        if matches.is_empty() {
-            input.pop(); // ignore invalid keystroke, stay at current filter
+        if matching.is_empty() {
             continue;
         }
+
+        input.push(byte as char);
+        redraw_display(overlay, monitors, &labels, &input, &cfg, &cache, font_size)?;
+
         if input.len() >= label_len {
-            let i = matches[0];
+            let i = matching[0];
             std::thread::spawn(move || drop(kbd));
             break i;
         }
