@@ -17,6 +17,7 @@ pub struct TextCache {
 }
 
 impl TextCache {
+    #[must_use]
     pub fn new(font: &Font, size: f32) -> Self {
         let mut glyphs = HashMap::new();
         for ch in 'a'..='z' {
@@ -151,13 +152,14 @@ fn rgba(color: [u8; 4]) -> Color {
 
 fn highlight_color(label: [u8; 4]) -> Color {
     Color::from_rgba8(
-        (label[0] as f32 * 0.25) as u8,
-        (label[1] as f32 * 0.25) as u8,
-        (label[2] as f32 * 0.25) as u8,
+        (f32::from(label[0]) * 0.25) as u8,
+        (f32::from(label[1]) * 0.25) as u8,
+        (f32::from(label[2]) * 0.25) as u8,
         32,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_focus(
     pixmap: &mut Pixmap,
     x: f32,
@@ -219,11 +221,15 @@ fn draw_line(
 }
 
 fn draw_char(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, cache: &TextCache, rgba: [u8; 4]) {
-    let Some((m, bmp)) = cache.get(ch) else { return; };
-    if bmp.is_empty() { return; }
-    let gx = cx + m.xmin as f32 - m.advance_width as f32 * 0.5;
+    let Some((m, bmp)) = cache.get(ch) else {
+        return;
+    };
+    if bmp.is_empty() {
+        return;
+    }
+    let gx = cx + m.xmin as f32 - m.advance_width * 0.5;
     let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
-    blit_glyph(pixmap, &bmp, &m, gx, gy, rgba);
+    blit_glyph(pixmap, bmp, m, gx, gy, rgba);
 }
 
 fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rgba: [u8; 4]) {
@@ -233,12 +239,18 @@ fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rg
         let off = row * m.width;
         for col in 0..m.width {
             let cov = bmp[off + col];
-            if cov == 0 { continue; }
+            if cov == 0 {
+                continue;
+            }
             let ix = (gx + col as f32) as i32;
             let iy = (gy + row as f32) as i32;
-            if ix < 0 || iy < 0 || ix as usize >= pw { continue; }
+            if ix < 0 || iy < 0 || ix as usize >= pw {
+                continue;
+            }
             let i = iy as usize * pw + ix as usize;
-            if i >= pixels.len() { continue; }
+            if i >= pixels.len() {
+                continue;
+            }
             blend(&mut pixels[i], cov, rgba);
         }
     }
@@ -283,7 +295,7 @@ fn draw_text(
 
     let mut pen = cx - total_w * 0.5;
 
-    for &(m, bmp) in entries.iter() {
+    for &(m, bmp) in &entries {
         if bmp.is_empty() {
             pen += m.advance_width + space;
             continue;
@@ -296,11 +308,11 @@ fn draw_text(
 }
 
 fn blend(dst: &mut PremultipliedColorU8, coverage: u8, rgba: [u8; 4]) {
-    let a = (coverage as u16 * rgba[3] as u16) / 255;
+    let a = (u16::from(coverage) * u16::from(rgba[3])) / 255;
     let inv = 255 - a;
-    let r = (rgba[0] as u16 * a + dst.red() as u16 * inv) / 255;
-    let g = (rgba[1] as u16 * a + dst.green() as u16 * inv) / 255;
-    let b = (rgba[2] as u16 * a + dst.blue() as u16 * inv) / 255;
-    let alpha = (255 * a + dst.alpha() as u16 * inv) / 255;
+    let r = (u16::from(rgba[0]) * a + u16::from(dst.red()) * inv) / 255;
+    let g = (u16::from(rgba[1]) * a + u16::from(dst.green()) * inv) / 255;
+    let b = (u16::from(rgba[2]) * a + u16::from(dst.blue()) * inv) / 255;
+    let alpha = (255 * a + u16::from(dst.alpha()) * inv) / 255;
     *dst = PremultipliedColorU8::from_rgba(r as u8, g as u8, b as u8, alpha as u8).unwrap();
 }

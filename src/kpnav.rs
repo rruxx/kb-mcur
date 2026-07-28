@@ -7,21 +7,20 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
-use anyhow::Result;
-use log::{error, info, warn};
 use crate::{
     config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_KP5,
-        KEY_KP0, KEY_KPASTERISK, KEY_KPENTER, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
+        KEY_KP0, KEY_KP5, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS,
+        KEY_KPSLASH, KEY_NUMLOCK,
     },
     uio::{
-        create_virt_device, write_event, write_event_raw,
-        EV_KEY, EV_REL, EV_SYN, REL_X, REL_Y,
-        SYN_REPORT,
+        EV_KEY, EV_REL, EV_SYN, REL_X, REL_Y, SYN_REPORT, create_virt_device, write_event,
+        write_event_raw,
     },
 };
+use anyhow::Result;
+use log::{error, info, warn};
 
 // ── 方向映射 ────────────────────────────────────────────────────────
 
@@ -42,7 +41,9 @@ bitflags::bitflags! {
 
 impl Dir {
     fn from_keypad(code: u16) -> Option<Self> {
-        use crate::keymap::*;
+        use crate::keymap::{
+            KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
+        };
         match code {
             KEY_KP8 => Some(Dir::UP),
             KEY_KP2 => Some(Dir::DOWN),
@@ -75,8 +76,8 @@ impl Dir {
 
 struct Kpd {
     toggle: bool,
-    btn_5: u8,           // 1=left, 2=middle, 3=right
-    btn_held: bool,      // true if 0 (hold) was used to press the button
+    btn_5: u8,      // 1=left, 2=middle, 3=right
+    btn_held: bool, // true if 0 (hold) was used to press the button
     numlock_held: bool,
 
     // 方向键状态（同 mouse mode 加速模型）
@@ -128,29 +129,43 @@ fn display_session_uid() -> Option<u32> {
     }
     // Fallback: X11
     let path = std::ffi::CString::new("/tmp/.X11-unix/X0").unwrap();
-    if let Ok(st) = nix::sys::stat::stat(path.as_c_str()) {
-        if st.st_uid != 0 {
-            return Some(st.st_uid);
-        }
+    if let Ok(st) = nix::sys::stat::stat(path.as_c_str())
+        && st.st_uid != 0
+    {
+        return Some(st.st_uid);
     }
     None
 }
 
 fn watchdog() {
-    let Some(session_uid) = display_session_uid() else { return };
+    let Some(session_uid) = display_session_uid() else {
+        return;
+    };
 
-    let Ok(dir) = std::fs::read_dir("/sys/class/input/") else { return };
+    let Ok(dir) = std::fs::read_dir("/sys/class/input/") else {
+        return;
+    };
     for entry in dir.flatten() {
         let ev_name = entry.file_name().to_string_lossy().into_owned();
-        if !ev_name.starts_with("event") { continue; }
+        if !ev_name.starts_with("event") {
+            continue;
+        }
 
         let name_path = entry.path().join("device/name");
-        let Ok(dev_name) = std::fs::read_to_string(&name_path) else { continue };
-        if !dev_name.trim().starts_with(crate::config::UINPUT_NAME) { continue; }
+        let Ok(dev_name) = std::fs::read_to_string(&name_path) else {
+            continue;
+        };
+        if !dev_name.trim().starts_with(crate::config::UINPUT_NAME) {
+            continue;
+        }
 
         let dev_path = format!("/dev/input/{ev_name}");
-        let Ok(path_c) = std::ffi::CString::new(dev_path) else { continue };
-        let Ok(st) = nix::sys::stat::stat(path_c.as_c_str()) else { continue };
+        let Ok(path_c) = std::ffi::CString::new(dev_path) else {
+            continue;
+        };
+        let Ok(st) = nix::sys::stat::stat(path_c.as_c_str()) else {
+            continue;
+        };
         if st.st_uid != session_uid {
             let _ = nix::unistd::chown(
                 path_c.as_c_str(),
@@ -161,8 +176,122 @@ fn watchdog() {
     }
 }
 
+// ── 方向键事件处理 ──────────────────────────────────────────────────
+
+/// Handle a single key event in mouse mode.
+/// Returns `true` if the event was consumed (should not be forwarded).
+fn handle_key_event(
+    kpd: &mut Kpd,
+    ptr_out: &mut std::fs::File,
+    code: u16,
+    value: i32,
+    is_press: bool,
+) -> Result<bool> {
+    match code {
+        c if Dir::from_keypad(c).is_some() => {
+            let flag = Dir::from_keypad(c).unwrap();
+            if value == 0 {
+                kpd.dir_mask.remove(flag);
+                kpd.dir_held = kpd.dir_held.saturating_sub(1);
+                if kpd.dir_held == 0 {
+                    kpd.dir_count = 0;
+                }
+            } else if value == 1 {
+                kpd.dir_mask.insert(flag);
+                kpd.dir_held = kpd.dir_held.saturating_add(1);
+            }
+            Ok(true)
+        }
+        KEY_KP5 => {
+            if value > 0 {
+                write_event(ptr_out, EV_KEY, kpd.btn_code(), 1)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                kpd.btn_held = true;
+            } else if value == 0 && kpd.btn_held {
+                write_event(ptr_out, EV_KEY, kpd.btn_code(), 0)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                kpd.btn_held = false;
+            }
+            Ok(true)
+        }
+        KEY_KPDOT => {
+            if is_press {
+                write_event(ptr_out, EV_KEY, kpd.btn_code(), 0)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                kpd.btn_held = false;
+                info!("[release]");
+            }
+            Ok(true)
+        }
+        KEY_KP0 => {
+            if value == 1 && !kpd.btn_held {
+                write_event(ptr_out, EV_KEY, kpd.btn_code(), 1)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                kpd.btn_held = true;
+                info!("[hold]");
+            }
+            Ok(true)
+        }
+        KEY_KPASTERISK => {
+            if is_press {
+                kpd.btn_5 = 2;
+                info!("[btn5=M]");
+            }
+            Ok(true)
+        }
+        KEY_KPSLASH => {
+            if is_press {
+                kpd.btn_5 = 1;
+                info!("[btn5=L]");
+            }
+            Ok(true)
+        }
+        KEY_KPMINUS => {
+            if is_press {
+                kpd.btn_5 = 3;
+                info!("[btn5=R]");
+            }
+            Ok(true)
+        }
+        KEY_KPPLUS => {
+            if value == 1 {
+                let code = kpd.btn_code();
+                let half = std::time::Duration::from_millis(50);
+                for _ in 0..2 {
+                    write_event(ptr_out, EV_KEY, code, 1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    std::thread::sleep(half);
+                    write_event(ptr_out, EV_KEY, code, 0)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    std::thread::sleep(half);
+                }
+                info!("[dblclick]");
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
+/// Emit a relative cursor movement for held direction keys.
+fn do_direction_tick(kpd: &mut Kpd, ptr_out: &mut std::fs::File) -> Result<()> {
+    if kpd.dir_held != 1 {
+        return Ok(());
+    }
+    let (dx, dy) = kpd.dir_mask.to_vector();
+    kpd.dir_count = kpd.dir_count.saturating_add(1);
+    let step = config::cursor_speed(kpd.dir_count) as f32;
+    let mx = (dx as f32 * step) as i32;
+    let my = (dy as f32 * step) as i32;
+    write_event(ptr_out, EV_REL, REL_X, mx)?;
+    write_event(ptr_out, EV_REL, REL_Y, my)?;
+    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+    Ok(())
+}
+
 // ── 主入口 ──────────────────────────────────────────────────────────
 
+#[must_use]
 pub fn socket_path() -> String {
     crate::config::SOCKET.to_string()
 }
@@ -189,16 +318,12 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
     };
 
     for stream in listener.incoming() {
-        let mut stream = match stream {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
+        let Ok(mut stream) = stream else { continue };
 
         let mut buf = [0u8; 16];
         let n = match stream.read(&mut buf) {
-            Ok(0) => continue,
+            Ok(0) | Err(_) => continue,
             Ok(n) => n,
-            Err(_) => continue,
         };
 
         if buf[..n].trim_ascii() != b"grid" {
@@ -269,8 +394,7 @@ pub fn run() -> Result<()> {
                     info!("[socket] re-acquired keyboards");
                 }
             }
-            Err(mpsc::TryRecvError::Disconnected) => {}  // socket thread exited, keep serving
-            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected | mpsc::TryRecvError::Empty) => {}
         }
 
         if kbd.is_empty() {
@@ -287,147 +411,32 @@ pub fn run() -> Result<()> {
                 let value = ev.value;
                 let is_press = value > 0;
 
-                // ── NumLock 追踪 ──
                 if code == KEY_NUMLOCK {
-                    if value == 1 {
-                        kpd.numlock_held = true;
-                    } else if value == 0 {
-                        kpd.numlock_held = false;
-                    }
+                    kpd.numlock_held = value != 0;
                 }
 
-                // ── NumLock+KPEnter 切换 ──
                 if code == KEY_KPENTER && is_press && kpd.numlock_held {
                     kpd.toggle = !kpd.toggle;
-                    if kpd.active() {
-                        info!("[mouse mode ON]");
-                    } else {
-                        info!("[pass-through]");
-                    }
-                    // 吃掉组合键，不转发
+                    info!(
+                        "{}",
+                        if kpd.active() {
+                            "[mouse mode ON]"
+                        } else {
+                            "[pass-through]"
+                        }
+                    );
                     continue;
                 }
 
-                let active = kpd.active();
-
-                // ── 鼠标模式下处理 NumPad ──
-                if active {
-                    let handled = match code {
-                        // 方向键
-                        c if Dir::from_keypad(c).is_some() => {
-                            let flag = Dir::from_keypad(c).unwrap();
-                            if value == 0 {
-                                kpd.dir_mask.remove(flag);
-                                kpd.dir_held = kpd.dir_held.saturating_sub(1);
-                                if kpd.dir_held == 0 {
-                                    kpd.dir_count = 0;
-                                }
-                            } else if value == 1 {
-                                kpd.dir_mask.insert(flag);
-                                kpd.dir_held = kpd.dir_held.saturating_add(1);
-                            }
-                            true
-                        }
-                        // 5 键：按/松鼠标按钮
-                        KEY_KP5 => {
-                            if value > 0 {
-                                write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 1)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                kpd.btn_held = true;
-                            } else if value == 0 {
-                                // Only release if 5 was the one that pressed
-                                // (0-hold releases via . instead)
-                                if kpd.btn_held {
-                                    write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 0)?;
-                                    write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                    kpd.btn_held = false;
-                                }
-                            }
-                            true
-                        }
-                        // . * / - 切换 5 的按钮模式
-                        KEY_KPDOT => {
-                            if is_press {
-                                write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 0)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                kpd.btn_held = false;
-                                info!("[release]");
-                            }
-                            true
-                        }
-                        KEY_KP0 => {
-                            // Hold: press button down and keep it held
-                            if value == 1 && !kpd.btn_held {
-                                write_event(&mut ptr_out, EV_KEY, kpd.btn_code(), 1)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                kpd.btn_held = true;
-                                info!("[hold]");
-                            }
-                            true
-                        }
-                        KEY_KPASTERISK => {
-                            if is_press {
-                                kpd.btn_5 = 2;
-                                info!("[btn5=M]");
-                            }
-                            true
-                        }
-                        KEY_KPSLASH => {
-                            if is_press {
-                                kpd.btn_5 = 1;
-                                info!("[btn5=L]");
-                            }
-                            true
-                        }
-                        KEY_KPMINUS => {
-                            if is_press {
-                                kpd.btn_5 = 3;
-                                info!("[btn5=R]");
-                            }
-                            true
-                        }
-                        KEY_KPPLUS => {
-                            if value == 1 {
-                                let code = kpd.btn_code();
-                                let half = std::time::Duration::from_millis(50);
-                                write_event(&mut ptr_out, EV_KEY, code, 1)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                std::thread::sleep(half);
-                                write_event(&mut ptr_out, EV_KEY, code, 0)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                std::thread::sleep(half);
-                                write_event(&mut ptr_out, EV_KEY, code, 1)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                std::thread::sleep(half);
-                                write_event(&mut ptr_out, EV_KEY, code, 0)?;
-                                write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                                info!("[dblclick]");
-                            }
-                            true
-                        }
-                        _ => false,
-                    };
-
-                    if handled {
-                        continue;
-                    }
+                if kpd.active() && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
+                {
+                    continue;
                 }
 
-                // ── 直通模式 / 非 NumPad 键：原样转发 ──
                 write_event_raw(&mut kbd_out, &ev)?;
             }
             Ok(None) => {
-                // 32 ms 定时器：单方向键移动
-                if kpd.active() && kpd.dir_held == 1 {
-                    let (dx, dy) = kpd.dir_mask.to_vector();
-                    kpd.dir_count = kpd.dir_count.saturating_add(1);
-                    let step = config::cursor_speed(kpd.dir_count) as f32;
-                    let mx = (dx as f32 * step) as i32;
-                    let my = (dy as f32 * step) as i32;
-                    write_event(&mut ptr_out, EV_REL, REL_X, mx)?;
-                    write_event(&mut ptr_out, EV_REL, REL_Y, my)?;
-                    write_event(&mut ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                }
+                do_direction_tick(&mut kpd, &mut ptr_out)?;
             }
             Err(e) => return Err(e),
         }

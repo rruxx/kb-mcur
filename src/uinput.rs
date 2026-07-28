@@ -9,17 +9,13 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
 use crate::config::{
-    btn_code as button_hid, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT,
-    CLICK_INTERVAL_MS, DEV_ABS, DEV_REL,
-    UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN,
+    BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, UINPUT_CREATE_WAIT_MS,
+    UINPUT_NAME_MAXLEN, btn_code as button_hid,
 };
 use crate::uio::{
-    create_virt_device,
-    ui_abs_setup, ui_dev_create, ui_dev_destroy, ui_dev_setup,
-    ui_set_absbit, ui_set_evbit, ui_set_keybit,
-    ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN,
-    InputAbsinfo, InputEvent, REL_X, REL_Y, SYN_REPORT,
-    UinputAbsSetup, UinputSetup,
+    ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN, InputAbsinfo, InputEvent, REL_X, REL_Y,
+    SYN_REPORT, UinputAbsSetup, UinputSetup, create_virt_device, ui_abs_setup, ui_dev_create,
+    ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit, ui_set_keybit,
 };
 
 pub struct Mouse {
@@ -52,23 +48,23 @@ impl Mouse {
             ff_effects_max: 0,
         };
         let raw = fd.as_raw_fd();
-        unsafe { ui_dev_setup(raw, &setup) }.context("UI_DEV_SETUP")?;
+        unsafe { ui_dev_setup(raw, &raw const setup) }.context("UI_DEV_SETUP")?;
 
-        unsafe { ui_set_evbit(raw, EV_KEY as _) }.context("EV_KEY")?;
-        unsafe { ui_set_evbit(raw, EV_ABS as _) }.context("EV_ABS")?;
-        unsafe { ui_set_evbit(raw, EV_SYN as _) }.context("EV_SYN")?;
+        unsafe { ui_set_evbit(raw, EV_KEY.into()) }.context("EV_KEY")?;
+        unsafe { ui_set_evbit(raw, EV_ABS.into()) }.context("EV_ABS")?;
+        unsafe { ui_set_evbit(raw, EV_SYN.into()) }.context("EV_SYN")?;
 
-        unsafe { ui_set_keybit(raw, BTN_LEFT as _) }.context("BTN_LEFT")?;
-        unsafe { ui_set_keybit(raw, BTN_MIDDLE as _) }.context("BTN_MIDDLE")?;
-        unsafe { ui_set_keybit(raw, BTN_RIGHT as _) }.context("BTN_RIGHT")?;
+        unsafe { ui_set_keybit(raw, BTN_LEFT.into()) }.context("BTN_LEFT")?;
+        unsafe { ui_set_keybit(raw, BTN_MIDDLE.into()) }.context("BTN_MIDDLE")?;
+        unsafe { ui_set_keybit(raw, BTN_RIGHT.into()) }.context("BTN_RIGHT")?;
 
-        unsafe { ui_set_absbit(raw, ABS_X as _) }.context("ABS_X")?;
-        unsafe { ui_set_absbit(raw, ABS_Y as _) }.context("ABS_Y")?;
+        unsafe { ui_set_absbit(raw, ABS_X.into()) }.context("ABS_X")?;
+        unsafe { ui_set_absbit(raw, ABS_Y.into()) }.context("ABS_Y")?;
 
-        let range = i16::MAX as i32;
+        let range = i32::from(i16::MAX);
         let abs_setup = |code: u16| UinputAbsSetup {
             code,
-            _pad: [0; 2],
+            pad: [0; 2],
             absinfo: InputAbsinfo {
                 value: 0,
                 minimum: 0,
@@ -89,7 +85,12 @@ impl Mouse {
             warn!("REL device unavailable — {e}");
         }
 
-        Ok(Self { fd, fd_rel: fd_rel.ok(), screen_w, screen_h })
+        Ok(Self {
+            fd,
+            fd_rel: fd_rel.ok(),
+            screen_w,
+            screen_h,
+        })
     }
 
     fn write_events(&mut self, events: &[InputEvent]) -> Result<()> {
@@ -99,7 +100,10 @@ impl Mouse {
 
     fn make_event(type_: u16, code: u16, value: i32) -> InputEvent {
         InputEvent {
-            time: libc::timeval { tv_sec: 0, tv_usec: 0 },
+            time: libc::timeval {
+                tv_sec: 0,
+                tv_usec: 0,
+            },
             type_,
             code,
             value,
@@ -107,8 +111,8 @@ impl Mouse {
     }
 
     pub fn warp(&mut self, x: i16, y: i16) -> Result<()> {
-        let abs_x = (x as f32 / self.screen_w as f32 * i16::MAX as f32) as i32;
-        let abs_y = (y as f32 / self.screen_h as f32 * i16::MAX as f32) as i32;
+        let abs_x = (f32::from(x) / f32::from(self.screen_w) * f32::from(i16::MAX)) as i32;
+        let abs_y = (f32::from(y) / f32::from(self.screen_h) * f32::from(i16::MAX)) as i32;
         self.write_events(&[
             Self::make_event(EV_ABS, ABS_X, abs_x),
             Self::make_event(EV_ABS, ABS_Y, abs_y),
@@ -118,17 +122,45 @@ impl Mouse {
     }
 
     pub fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
-        let Some(ref mut fd) = self.fd_rel else { anyhow::bail!("REL device not available"); };
+        let Some(ref mut fd) = self.fd_rel else {
+            anyhow::bail!("REL device not available");
+        };
         let events = &[
-            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_REL, code: REL_X, value: dx },
-            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_REL, code: REL_Y, value: dy },
-            InputEvent { time: libc::timeval { tv_sec: 0, tv_usec: 0 }, type_: EV_SYN, code: SYN_REPORT, value: 0 },
+            InputEvent {
+                time: libc::timeval {
+                    tv_sec: 0,
+                    tv_usec: 0,
+                },
+                type_: EV_REL,
+                code: REL_X,
+                value: dx,
+            },
+            InputEvent {
+                time: libc::timeval {
+                    tv_sec: 0,
+                    tv_usec: 0,
+                },
+                type_: EV_REL,
+                code: REL_Y,
+                value: dy,
+            },
+            InputEvent {
+                time: libc::timeval {
+                    tv_sec: 0,
+                    tv_usec: 0,
+                },
+                type_: EV_SYN,
+                code: SYN_REPORT,
+                value: 0,
+            },
         ];
         fd.write_all(bytemuck::cast_slice(events))?;
         Ok(())
     }
 
-    fn button_code(button: u8) -> u16 { button_hid(button) }
+    fn button_code(button: u8) -> u16 {
+        button_hid(button)
+    }
 
     pub fn button_press(&mut self, button: u8) -> Result<()> {
         let code = Self::button_code(button);

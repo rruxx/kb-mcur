@@ -12,7 +12,7 @@ pub const BIN: &str = PROJECT_NAME;
 pub const SERVICE: &str = concatcp!(PROJECT_NAME, "d");
 pub const SOCKET: &str = concatcp!("/run/", SERVICE, ".sock");
 
-/// Kernel UINPUT_MAX_NAME_SIZE — struct layout must match this.
+/// Kernel `UINPUT_MAX_NAME_SIZE` — struct layout must match this.
 pub const UINPUT_NAME_MAXLEN: usize = 80;
 
 pub const UINPUT_NAME: &str = PROJECT_NAME;
@@ -54,10 +54,11 @@ pub const FONT_ROW_DIVISOR: f32 = 1.8;
 
 pub const SUBGRID_LABELS: [[char; 4]; 2] = [['q', 'w', 'e', 'r'], ['a', 's', 'd', 'f']];
 
+#[must_use]
 pub fn sub_key_index(ch: char) -> Option<usize> {
-    for row in 0..2 {
-        for col in 0..4 {
-            if SUBGRID_LABELS[row][col] == ch {
+    for (row, cols) in SUBGRID_LABELS.iter().enumerate() {
+        for (col, &label) in cols.iter().enumerate() {
+            if label == ch {
                 return Some(row * 4 + col);
             }
         }
@@ -65,6 +66,7 @@ pub fn sub_key_index(ch: char) -> Option<usize> {
     None
 }
 
+#[must_use]
 pub fn is_sub_key(ch: char) -> bool {
     sub_key_index(ch).is_some()
 }
@@ -82,6 +84,7 @@ pub const MAX_ACCEL_SHIFTS: u32 = 10;
 
 /// Accelerated step size: doubles every `CURSOR_ACCEL_INTERVAL` repeats,
 /// bounded by `MAX_ACCEL_SHIFTS` shifts and then `MAX_CURSOR_STEP`.
+#[must_use]
 pub fn cursor_speed(repeat_count: u32) -> i32 {
     let shifts = (repeat_count / CURSOR_ACCEL_INTERVAL).min(MAX_ACCEL_SHIFTS);
     let scale = (1u32 << shifts) as i32;
@@ -93,6 +96,7 @@ pub fn cursor_speed(repeat_count: u32) -> i32 {
 pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
 
 /// Returns button number (1=left, 2=middle, 3=right) if `ch` is a click key.
+#[must_use]
 pub fn action_key(ch: char) -> Option<u8> {
     for &(k, btn) in &CLICK_KEYS {
         if k == ch {
@@ -106,10 +110,11 @@ pub fn action_key(ch: char) -> Option<u8> {
 
 pub const BISECT_LABELS: [[char; 2]; 2] = [['e', 'r'], ['d', 'f']];
 
+#[must_use]
 pub fn quad_key_index(ch: char) -> Option<usize> {
-    for row in 0..2 {
-        for col in 0..2 {
-            if BISECT_LABELS[row][col] == ch {
+    for (row, cols) in BISECT_LABELS.iter().enumerate() {
+        for (col, &label) in cols.iter().enumerate() {
+            if label == ch {
                 return Some(row * 2 + col);
             }
         }
@@ -117,12 +122,14 @@ pub fn quad_key_index(ch: char) -> Option<usize> {
     None
 }
 
+#[must_use]
 pub fn is_quad_key(ch: char) -> bool {
     quad_key_index(ch).is_some()
 }
 
 /// Shrink (x, y, w, h) to the selected quadrant.
 /// idx: 0=TL, 1=TR, 2=BL, 3=BR.
+#[must_use]
 pub fn quad_shrink((x, y, w, h): (f32, f32, f32, f32), idx: usize) -> (f32, f32, f32, f32) {
     let hw = w * 0.5;
     let hh = h * 0.5;
@@ -149,6 +156,7 @@ pub const BTN_MIDDLE: u16 = 0x112;
 pub const BTN_RIGHT: u16 = 0x111;
 
 /// USB HID button code for mouse buttons (1=left, 2=middle, 3=right).
+#[must_use]
 pub const fn btn_code(button: u8) -> u16 {
     match button {
         1 => BTN_LEFT,

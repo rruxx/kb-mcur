@@ -21,7 +21,7 @@ const RESCAN_INTERVAL: Duration = Duration::from_secs(1);
 
 fn is_own_device(fd: RawFd) -> bool {
     let mut buf = [0u8; 80];
-    if unsafe { eviocgname(fd, &mut buf) }.is_err() {
+    if unsafe { eviocgname(fd, &raw mut buf) }.is_err() {
         return false;
     }
     buf.starts_with(crate::config::OWN_PREFIX)
@@ -44,9 +44,7 @@ const GRID_REQUIRED: &[u16] = &[
     14, // KEY_BACKSPACE
     28, // KEY_ENTER
     57, // KEY_SPACE
-    // 0-9
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    // a-z
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, // 0-9
     16, 17, 18, 19, 20, 21, 22, 23, 24, 25, // Q-P
     30, 31, 32, 33, 34, 35, 36, 37, 38, // A-L
     44, 45, 46, 47, 48, 49, 50, // Z-M
@@ -71,7 +69,7 @@ const KPNAV_MIN_KEYS: u32 = 17;
 
 fn read_key_bits(fd: RawFd) -> Option<[u8; 96]> {
     let mut bits = [0u8; 96];
-    if unsafe { eviocgkey(fd, &mut bits) }.is_err() {
+    if unsafe { eviocgkey(fd, &raw mut bits) }.is_err() {
         return None;
     }
     Some(bits)
@@ -98,12 +96,10 @@ fn matches_filter(fd: RawFd, filter: KeyboardFilter) -> bool {
     };
     match filter {
         KeyboardFilter::Grid => {
-            count_keys(&bits) >= GRID_MIN_KEYS
-                && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
+            count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
         KeyboardFilter::KpNav => {
-            count_keys(&bits) >= KPNAV_MIN_KEYS
-                && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
+            count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
     }
 }
@@ -143,16 +139,18 @@ impl KeyboardDev {
         Ok(devs)
     }
 
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.fds.is_empty()
     }
 
+    #[must_use]
     pub fn first_fd(&self) -> Option<RawFd> {
         self.fds.first().map(|d| d.fd)
     }
 
     /// Release grabs, close fds, and clear the device list.
-    /// Also suspends hot-plug rescan until the next open_all().
+    /// Also suspends hot-plug rescan until the next `open_all()`.
     pub fn close_all(&mut self) {
         for d in &self.fds {
             let _ = unsafe { eviocgrab(d.fd, 0) };
@@ -176,10 +174,10 @@ impl KeyboardDev {
             if self.is_empty() {
                 anyhow::bail!("all keyboards disconnected");
             }
-            if let Some(ev) = self.poll_event(16)? {
-                if ev.type_ == crate::uio::EV_KEY {
-                    return Ok((ev.code, ev.value));
-                }
+            if let Some(ev) = self.poll_event(16)?
+                && ev.type_ == crate::uio::EV_KEY
+            {
+                return Ok((ev.code, ev.value));
             }
         }
     }
@@ -196,16 +194,17 @@ impl KeyboardDev {
 
         // Reuse pollfd vector — only rebuild when device count changes
         let n = self.fds.len();
-        if self.pollfds.len() != n {
-            self.pollfds.clear();
-            for d in &self.fds {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
-                self.pollfds.push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
-            }
-        } else {
+        if self.pollfds.len() == n {
             for (i, d) in self.fds.iter().enumerate() {
                 let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
                 self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
+            }
+        } else {
+            self.pollfds.clear();
+            for d in &self.fds {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
+                self.pollfds
+                    .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
             }
         }
 
@@ -215,14 +214,20 @@ impl KeyboardDev {
         }
 
         for (i, p) in self.pollfds.iter().enumerate() {
-            if !p.revents().unwrap_or(nix::poll::PollFlags::empty()).contains(nix::poll::PollFlags::POLLIN) {
+            if !p
+                .revents()
+                .unwrap_or(nix::poll::PollFlags::empty())
+                .contains(nix::poll::PollFlags::POLLIN)
+            {
                 continue;
             }
             let mut ev: InputEvent = Zeroable::zeroed();
             let sz = std::mem::size_of::<InputEvent>();
             let bytes = bytemuck::bytes_of_mut(&mut ev);
             let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.fds[i].fd) };
-            let Ok(n) = nix::unistd::read(fd, bytes) else { continue; };
+            let Ok(n) = nix::unistd::read(fd, bytes) else {
+                continue;
+            };
             if n < sz {
                 continue;
             }
@@ -267,10 +272,7 @@ impl KeyboardDev {
 
     fn try_add(&mut self, name: &str) {
         let path = format!("/dev/input/{name}");
-        let fd = match open_device(&path) {
-            Ok(f) => f,
-            Err(_) => return,
-        };
+        let Ok(fd) = open_device(&path) else { return };
         if is_own_device(fd) || !matches_filter(fd, self.filter) {
             let _ = nix::unistd::close(fd);
             return;
@@ -279,8 +281,11 @@ impl KeyboardDev {
             let _ = nix::unistd::close(fd);
             return;
         }
-        info!("[evdev] added {}", name);
-        self.fds.push(DeviceFd { fd, name: name.to_owned() });
+        info!("[evdev] added {name}");
+        self.fds.push(DeviceFd {
+            fd,
+            name: name.to_owned(),
+        });
         self.pollfds.clear(); // force rebuild next poll
     }
 }
@@ -299,7 +304,7 @@ fn event_device_names() -> Vec<String> {
     let Ok(dir) = std::fs::read_dir("/dev/input/") else {
         return Vec::new();
     };
-    dir.filter_map(|e| e.ok())
+    dir.filter_map(std::result::Result::ok)
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .filter(|n| n.starts_with("event"))
         .collect()

@@ -1,6 +1,21 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#![warn(clippy::pedantic)]
+// Rationale: this is an FFI-heavy project (ioctl, pixel rendering, raw fds).
+// The following pedantic lints produce noise, not bugs, for this domain.
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::needless_pass_by_value)]
+#![allow(clippy::similar_names)]
+#![allow(clippy::too_many_lines)]
+
 pub mod config;
 pub mod evdev;
 pub mod grid;
@@ -8,8 +23,8 @@ pub mod keymap;
 pub mod kpnav;
 pub mod overlay;
 pub mod render;
-pub mod uio;
 pub mod uinput;
+pub mod uio;
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
@@ -21,8 +36,8 @@ use log::{error, info, warn};
 use tiny_skia::Pixmap;
 
 use config::{
-    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
     FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, SERVICE,
+    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
 };
 use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
@@ -55,7 +70,11 @@ pub fn run() -> Result<()> {
     if named.is_empty() {
         anyhow::bail!("no active monitors detected");
     }
-    let backend = if matches!(overlay, Overlay::Wlr(_)) { "wlr" } else { "x11" };
+    let backend = if matches!(overlay, Overlay::Wlr(_)) {
+        "wlr"
+    } else {
+        "x11"
+    };
     info!("[{backend}] {} monitor(s) detected", named.len());
     let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
 
@@ -72,14 +91,14 @@ pub fn run() -> Result<()> {
 
     let max_w = monitors
         .iter()
-        .map(|m| m.0 + m.2 as i32)
+        .map(|m| m.0 + i32::from(m.2))
         .max()
-        .unwrap_or(FALLBACK_WIDTH as i32) as u16;
+        .unwrap_or(i32::from(FALLBACK_WIDTH)) as u16;
     let max_h = monitors
         .iter()
-        .map(|m| m.1 + m.3 as i32)
+        .map(|m| m.1 + i32::from(m.3))
         .max()
-        .unwrap_or(FALLBACK_HEIGHT as i32) as u16;
+        .unwrap_or(i32::from(FALLBACK_HEIGHT)) as u16;
     let mut mouse = Mouse::new(max_w, max_h)
         .map_err(|e| {
             warn!("uinput unavailable — {e}");
@@ -95,7 +114,8 @@ pub fn run() -> Result<()> {
     // grabbing them ourselves.
     let _kpnav_conn = if let Ok(mut s) = UnixStream::connect(kpnav::socket_path()) {
         info!("[kp-nav] socket connected, requesting hand-off…");
-        s.set_read_timeout(Some(std::time::Duration::from_secs(3))).ok();
+        s.set_read_timeout(Some(std::time::Duration::from_secs(3)))
+            .ok();
         if s.write_all(b"grid\n").is_ok() {
             let mut buf = [0u8; 4];
             if s.read(&mut buf).is_ok() && buf.starts_with(b"OK") {
@@ -107,11 +127,11 @@ pub fn run() -> Result<()> {
                 None
             }
         } else {
-                error!("[kp-nav] write to socket failed — is {} running with new binary?", SERVICE);
+            error!("[kp-nav] write to socket failed — is {SERVICE} running with new binary?");
             None
         }
     } else {
-        info!("[kp-nav] no socket — {} not running, grabbing directly", SERVICE);
+        info!("[kp-nav] no socket — {SERVICE} not running, grabbing directly");
         None
     };
 
@@ -141,18 +161,18 @@ fn show_display_ids(
     let cache = TextCache::new(font, 96.0);
     let cfg = GridConfig::default();
     for (i, &(x, y, w, h)) in monitors.iter().enumerate() {
-        let mut pixmap = Pixmap::new(w as u32, h as u32).context("pixmap")?;
+        let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
         render::render_base(
             &mut pixmap,
-            &grid::Grid::new(w as u32, h as u32, &cfg),
+            &grid::Grid::new(u32::from(w), u32::from(h), &cfg),
             &cfg,
         );
         let digit = (b'1' + i as u8) as char;
         render::render_digit(
             &mut pixmap,
             digit,
-            w as f32 * 0.5,
-            h as f32 * 0.5,
+            f32::from(w) * 0.5,
+            f32::from(h) * 0.5,
             &cache,
             [192, 255, 192, 192],
         );
@@ -165,7 +185,8 @@ fn show_display_ids(
 }
 
 fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
-    let mut kbd = KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
+    let mut kbd =
+        KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
     let mut mods = ModState::default();
     let idx = loop {
         let (code, value) = kbd.next_keypress()?;
@@ -195,17 +216,22 @@ fn init_overlay(
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
     let cfg = GridConfig::default();
-    let font_size =
-        (monitors.iter().map(|m| m.3).min().unwrap_or(FALLBACK_HEIGHT) as f32 / cfg.rows as f32 / FONT_ROW_DIVISOR)
-            .min(FONT_SIZE_MAX)
-            .max(FONT_SIZE_MIN)
-            .round();
+    let font_size = (f32::from(
+        monitors
+            .iter()
+            .map(|m| m.3)
+            .min()
+            .unwrap_or(FALLBACK_HEIGHT),
+    ) / cfg.rows as f32
+        / FONT_ROW_DIVISOR)
+        .clamp(FONT_SIZE_MIN, FONT_SIZE_MAX)
+        .round();
     let cache = TextCache::new(font, font_size);
 
     let mut draw_states = Vec::new();
     for (idx, &(x, y, w, h)) in monitors.iter().enumerate() {
-        let grid = Grid::new(w as u32, h as u32, &cfg);
-        let mut pixmap = Pixmap::new(w as u32, h as u32).context("pixmap")?;
+        let grid = Grid::new(u32::from(w), u32::from(h), &cfg);
+        let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
         render::render_base(&mut pixmap, &grid, &cfg);
         render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
         overlay.add_window(x, y, w, h)?;
@@ -286,6 +312,7 @@ fn run_input_evdev(
 // ── Grid-mode byte handler ──────────────────────────────────────────
 
 /// Single-byte input handler for interactive grid mode.
+#[allow(clippy::too_many_arguments)]
 fn process_byte(
     byte: u8,
     overlay: &mut Overlay,
@@ -328,24 +355,18 @@ fn process_byte(
                 ctx.repeat = ctx
                     .repeat
                     .saturating_mul(10)
-                    .saturating_add((ch as u8 - b'0') as u32);
+                    .saturating_add(u32::from(ch as u8 - b'0'));
                 return Ok(false);
             }
 
-            if ctx.filter.len() >= 2 {
-                if let Some(btn) = action_key(ch) {
-                    cursor_action(
-                        mouse,
-                        &ctx.filter,
-                        draw_states,
-                        btn,
-                        ctx.repeat,
-                    )?;
-                    if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
-                        overlay.pointer_warp(cx as i16, cy as i16)?;
-                    }
-                    return Ok(true);
+            if ctx.filter.len() >= 2
+                && let Some(btn) = action_key(ch)
+            {
+                cursor_action(mouse, &ctx.filter, draw_states, btn, ctx.repeat)?;
+                if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
+                    overlay.pointer_warp(cx as i16, cy as i16)?;
                 }
+                return Ok(true);
             }
 
             match ctx.filter.len() {
@@ -353,7 +374,7 @@ fn process_byte(
                 2 if is_sub_key(ch) => {}
                 3..=6 if is_quad_key(ch) => {}
                 _ => return Ok(false),
-            };
+            }
 
             ctx.filter.push(ch);
             ctx.repeat = 0;
@@ -366,11 +387,7 @@ fn process_byte(
 // ── Cursor & button actions ────────────────────────────────────────
 
 /// Move the cursor to the centre of the currently-selected region.
-fn cursor_warp(
-    mouse: &mut Option<Mouse>,
-    filter: &GridFilter,
-    states: &[DrawState],
-) -> Result<()> {
+fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawState]) -> Result<()> {
     let Some(m) = mouse else {
         return Ok(());
     };
@@ -429,7 +446,10 @@ fn display_update(
         } else if let Some(rect) = parent_rect {
             let cw = rect.width() as f32 / 4.0;
             let ch = rect.height() as f32 / 2.0;
-            let f = (cw / 3.0).min(ch / FONT_ROW_DIVISOR).max(FONT_SIZE_MIN).round();
+            let f = (cw / 3.0)
+                .min(ch / FONT_ROW_DIVISOR)
+                .max(FONT_SIZE_MIN)
+                .round();
             render::render_subgrid(&mut ds.pixmap, rect, cfg, cache, f);
         } else {
             render::render_labels(
@@ -450,10 +470,9 @@ fn display_update(
     Ok(())
 }
 
-fn resolve_render_target(
-    filter: &GridFilter,
-    states: &[DrawState],
-) -> (Option<(f32, f32, f32, f32)>, Option<tiny_skia::IntRect>) {
+type RenderTarget = (Option<(f32, f32, f32, f32)>, Option<tiny_skia::IntRect>);
+
+fn resolve_render_target(filter: &GridFilter, states: &[DrawState]) -> RenderTarget {
     if filter.len() < 2 {
         return (None, None);
     }

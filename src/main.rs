@@ -39,7 +39,9 @@ enum Cmd {
     },
 
     /// Interactive grid: 26×26 → 4×2 → 2×2 progressive refinement
-    #[command(after_help = "Keys:\n  a-z           26×26 grid (2 letters)\n  q/w/e/r/a/s/d/f  4×2 sub-grid (1 letter)\n  e/r/d/f       2×2 quadrant\n  Space/Enter    Warp + exit\n  j/k/l          Click left/middle/right\n  0-9 digit prefix  Repeat (e.g. 3j)\n  Esc            Reset grid")]
+    #[command(
+        after_help = "Keys:\n  a-z           26×26 grid (2 letters)\n  q/w/e/r/a/s/d/f  4×2 sub-grid (1 letter)\n  e/r/d/f       2×2 quadrant\n  Space/Enter    Warp + exit\n  j/k/l          Click left/middle/right\n  0-9 digit prefix  Repeat (e.g. 3j)\n  Esc            Reset grid"
+    )]
     Grid,
 
     /// NumPad mouse navigation service

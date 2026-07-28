@@ -34,14 +34,21 @@ pub struct GridFilter {
 }
 
 impl GridFilter {
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
+    #[must_use]
     pub fn input(&self) -> &str {
         &self.input
     }
+    #[must_use]
     pub fn len(&self) -> usize {
         self.input.len()
+    }
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.input.is_empty()
     }
     pub fn push(&mut self, ch: char) {
         self.input.push(ch);
@@ -53,6 +60,7 @@ impl GridFilter {
         self.input.clear();
     }
 
+    #[must_use]
     pub fn matches(&self, label: &str) -> bool {
         label.starts_with(&self.input)
     }
@@ -71,6 +79,7 @@ pub struct Grid {
 }
 
 impl Grid {
+    #[must_use]
     pub fn new(width: u32, height: u32, config: &GridConfig) -> Self {
         let cell_w = width as f32 / config.cols as f32;
         let cell_h = height as f32 / config.rows as f32;
@@ -114,6 +123,7 @@ impl Grid {
         }
     }
 
+    #[must_use]
     pub fn cell_by_label(&self, label: &str) -> Option<&Cell> {
         self.cells.iter().find(|c| c.label == label)
     }

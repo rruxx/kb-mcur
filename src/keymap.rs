@@ -69,8 +69,8 @@ impl ModState {
 
 /// Map keycode + modifiers → ASCII byte (a-z/linefeed/space/backspace/esc).
 /// Returns None for unsupported / modifier-only keys.
+#[must_use]
 pub fn map(code: u16, mods: &ModState) -> Option<u8> {
-    let upper = mods.shift;
     const LUT: [(u16, u8); 26] = [
         (KEY_Q, b'q'),
         (KEY_W, b'w'),
@@ -99,6 +99,7 @@ pub fn map(code: u16, mods: &ModState) -> Option<u8> {
         (KEY_N, b'n'),
         (KEY_M, b'm'),
     ];
+    let upper = mods.shift;
     for &(k, v) in &LUT {
         if code == k {
             return Some(if upper { v - 32 } else { v });

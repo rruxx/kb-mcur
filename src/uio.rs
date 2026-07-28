@@ -39,7 +39,7 @@ pub struct UinputSetup {
 #[repr(C)]
 pub struct UinputAbsSetup {
     pub code: u16,
-    pub _pad: [u8; 2],
+    pub pad: [u8; 2],
     pub absinfo: InputAbsinfo,
 }
 
@@ -83,7 +83,10 @@ pub const SYN_REPORT: u16 = 0;
 
 pub fn write_event(fd: &mut File, type_: u16, code: u16, value: i32) -> std::io::Result<()> {
     let ev = InputEvent {
-        time: libc::timeval { tv_sec: 0, tv_usec: 0 },
+        time: libc::timeval {
+            tv_sec: 0,
+            tv_usec: 0,
+        },
         type_,
         code,
         value,
@@ -113,23 +116,28 @@ pub fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<Fil
     let len = name.len().min(UINPUT_NAME_MAXLEN);
     n[..len].copy_from_slice(&name.as_bytes()[..len]);
     let setup = UinputSetup {
-        id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
+        id: libc::input_id {
+            bustype: 0,
+            vendor: 0,
+            product: 0,
+            version: 0,
+        },
         name: n,
         ff_effects_max: 0,
     };
     let raw = fd.as_raw_fd();
-    unsafe { ui_dev_setup(raw, &setup) }?;
-    unsafe { ui_set_evbit(raw, EV_KEY as _) }?;
-    unsafe { ui_set_evbit(raw, EV_SYN as _) }?;
+    unsafe { ui_dev_setup(raw, &raw const setup) }?;
+    unsafe { ui_set_evbit(raw, EV_KEY.into()) }?;
+    unsafe { ui_set_evbit(raw, EV_SYN.into()) }?;
     if rel {
-        unsafe { ui_set_evbit(raw, EV_REL as _) }?;
+        unsafe { ui_set_evbit(raw, EV_REL.into()) }?;
     }
     for &code in key_bits {
-        unsafe { ui_set_keybit(raw, code as _) }?;
+        unsafe { ui_set_keybit(raw, code.into()) }?;
     }
     if rel {
-        unsafe { ui_set_relbit(raw, REL_X as _) }?;
-        unsafe { ui_set_relbit(raw, REL_Y as _) }?;
+        unsafe { ui_set_relbit(raw, REL_X.into()) }?;
+        unsafe { ui_set_relbit(raw, REL_Y.into()) }?;
     }
     unsafe { ui_dev_create(raw) }?;
     std::thread::sleep(std::time::Duration::from_millis(UINPUT_CREATE_WAIT_MS));

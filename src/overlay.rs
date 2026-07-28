@@ -7,6 +7,8 @@ pub mod x11;
 use anyhow::Result;
 use tiny_skia::Pixmap as SkiaPixmap;
 
+type MonitorInfo = (String, i32, i32, u16, u16);
+
 /// Runtime polypick between X11 and wlr-layer-shell backends.
 pub enum Overlay {
     X11(x11::X11Backend),
@@ -24,10 +26,10 @@ macro_rules! delegate {
 
 impl Overlay {
     pub fn connect() -> Result<Self> {
-        if std::env::var("WAYLAND_DISPLAY").is_ok() {
-            if let Ok(b) = wlr::WlrBackend::connect() {
-                return Ok(Overlay::Wlr(b));
-            }
+        if std::env::var("WAYLAND_DISPLAY").is_ok()
+            && let Ok(b) = wlr::WlrBackend::connect()
+        {
+            return Ok(Overlay::Wlr(b));
         }
         if std::env::var("DISPLAY").is_ok() {
             return Ok(Overlay::X11(x11::X11Backend::connect()?));
@@ -43,7 +45,7 @@ impl Overlay {
         delegate!(self, monitors)
     }
 
-    pub fn named_monitors(&self) -> Result<Vec<(String, i32, i32, u16, u16)>> {
+    pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
         delegate!(self, named_monitors)
     }
 
@@ -81,7 +83,7 @@ impl Overlay {
         }
     }
 
-    /// Cursor control via native protocol (Wlr: zwlr_virtual_pointer, X11: no-op, uses uinput)
+    /// Cursor control via native protocol (Wlr: `zwlr_virtual_pointer`, X11: no-op, uses uinput)
     pub fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
         match self {
             Overlay::X11(_) => Ok(()),
@@ -105,6 +107,7 @@ impl Overlay {
 }
 
 /// Screen dimensions via a temporary X11 connection (for CLI use).
+#[must_use]
 pub fn query_screen_size() -> (u16, u16) {
     x11::query_screen_size()
 }
