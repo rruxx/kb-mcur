@@ -17,6 +17,7 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod config;
+pub mod debug;
 pub mod evdev;
 pub mod grid;
 pub mod keymap;
@@ -76,7 +77,8 @@ pub fn run() -> Result<()> {
         "x11"
     };
     info!("[{backend}] {} monitor(s) detected", named.len());
-    let monitors: Vec<(i32, i32, u16, u16)> = named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
+    let monitors: Vec<(i32, i32, u16, u16)> =
+        debug::clone_monitors(named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect());
 
     let monitor_idx = if monitors.len() == 1 {
         0
@@ -87,7 +89,9 @@ pub fn run() -> Result<()> {
         idx
     };
     let selected = &monitors[monitor_idx];
-    let _ = MONITOR_NAME.set(named[monitor_idx].0.clone());
+    let _ = MONITOR_NAME.set(
+        debug::monitor_name(debug::debug_monitor_count(), monitor_idx, &named[monitor_idx].0)
+    );
 
     let max_w = monitors
         .iter()
