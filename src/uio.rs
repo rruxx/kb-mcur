@@ -1,10 +1,10 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Shared uinput I/O: structs, ioctl constants, device-creation helpers.
+// Shared uinput I/O: structs, ioctl definitions, device-creation helpers.
 
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
@@ -53,16 +53,16 @@ pub struct InputAbsinfo {
     pub resolution: i32,
 }
 
-// ── ioctl numbers ────────────────────────────────────────────────────
+// ── ioctl definitions (generated via nix, no magic numbers) ──────────
 
-pub const UI_SET_EVBIT: u64 = 0x40045564;
-pub const UI_SET_KEYBIT: u64 = 0x40045565;
-pub const UI_SET_RELBIT: u64 = 0x40045566;
-pub const UI_SET_ABSBIT: u64 = 0x40045567;
-pub const UI_ABS_SETUP: u64 = 0x401C5504;
-pub const UI_DEV_SETUP: u64 = 0x405C5503;
-pub const UI_DEV_CREATE: u64 = 0x5501;
-pub const UI_DEV_DESTROY: u64 = 0x5502;
+nix::ioctl_write_int!(ui_set_evbit, b'U', 0x64);
+nix::ioctl_write_int!(ui_set_keybit, b'U', 0x65);
+nix::ioctl_write_int!(ui_set_relbit, b'U', 0x66);
+nix::ioctl_write_int!(ui_set_absbit, b'U', 0x67);
+nix::ioctl_none!(ui_dev_create, b'U', 0x01);
+nix::ioctl_none!(ui_dev_destroy, b'U', 0x02);
+nix::ioctl_write_ptr!(ui_dev_setup, b'U', 0x03, UinputSetup);
+nix::ioctl_write_ptr!(ui_abs_setup, b'U', 0x04, UinputAbsSetup);
 
 // ── Event types & codes ──────────────────────────────────────────────
 
@@ -79,29 +79,9 @@ pub const ABS_Y: u16 = 1;
 
 pub const SYN_REPORT: u16 = 0;
 
-// ── ioctl helpers ────────────────────────────────────────────────────
-
-pub fn ioctl_val(fd: &File, request: u64, value: u32) -> io::Result<()> {
-    let ret = unsafe { libc::ioctl(fd.as_raw_fd(), request, value as libc::c_ulong) };
-    if ret < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
-    }
-}
-
-pub fn ioctl_ref<T>(fd: &File, request: u64, data: &T) -> io::Result<()> {
-    let ret = unsafe { libc::ioctl(fd.as_raw_fd(), request, data as *const T as libc::c_ulong) };
-    if ret < 0 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(())
-    }
-}
-
 // ── Event writers ────────────────────────────────────────────────────
 
-pub fn write_event(fd: &mut File, type_: u16, code: u16, value: i32) -> io::Result<()> {
+pub fn write_event(fd: &mut File, type_: u16, code: u16, value: i32) -> std::io::Result<()> {
     let ev = InputEvent {
         time: libc::timeval { tv_sec: 0, tv_usec: 0 },
         type_,
@@ -111,7 +91,7 @@ pub fn write_event(fd: &mut File, type_: u16, code: u16, value: i32) -> io::Resu
     fd.write_all(bytemuck::bytes_of(&ev))
 }
 
-pub fn write_event_raw(fd: &mut File, ev: &InputEvent) -> io::Result<()> {
+pub fn write_event_raw(fd: &mut File, ev: &InputEvent) -> std::io::Result<()> {
     fd.write_all(bytemuck::bytes_of(ev))
 }
 
@@ -130,26 +110,28 @@ pub fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<Fil
         .context("open /dev/uinput")?;
 
     let mut n = [0u8; UINPUT_NAME_MAXLEN];
-    n[..name.len().min(UINPUT_NAME_MAXLEN)].copy_from_slice(&name.as_bytes()[..name.len().min(UINPUT_NAME_MAXLEN)]);
+    let len = name.len().min(UINPUT_NAME_MAXLEN);
+    n[..len].copy_from_slice(&name.as_bytes()[..len]);
     let setup = UinputSetup {
         id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
         name: n,
         ff_effects_max: 0,
     };
-    ioctl_ref(&fd, UI_DEV_SETUP, &setup)?;
-    ioctl_val(&fd, UI_SET_EVBIT, EV_KEY as u32)?;
-    ioctl_val(&fd, UI_SET_EVBIT, EV_SYN as u32)?;
+    let raw = fd.as_raw_fd();
+    unsafe { ui_dev_setup(raw, &setup) }?;
+    unsafe { ui_set_evbit(raw, EV_KEY as _) }?;
+    unsafe { ui_set_evbit(raw, EV_SYN as _) }?;
     if rel {
-        ioctl_val(&fd, UI_SET_EVBIT, EV_REL as u32)?;
+        unsafe { ui_set_evbit(raw, EV_REL as _) }?;
     }
     for &code in key_bits {
-        ioctl_val(&fd, UI_SET_KEYBIT, code as u32)?;
+        unsafe { ui_set_keybit(raw, code as _) }?;
     }
     if rel {
-        ioctl_val(&fd, UI_SET_RELBIT, REL_X as u32)?;
-        ioctl_val(&fd, UI_SET_RELBIT, REL_Y as u32)?;
+        unsafe { ui_set_relbit(raw, REL_X as _) }?;
+        unsafe { ui_set_relbit(raw, REL_Y as _) }?;
     }
-    ioctl_val(&fd, UI_DEV_CREATE, 0)?;
+    unsafe { ui_dev_create(raw) }?;
     std::thread::sleep(std::time::Duration::from_millis(UINPUT_CREATE_WAIT_MS));
     Ok(fd)
 }

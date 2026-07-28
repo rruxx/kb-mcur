@@ -11,7 +11,7 @@ anyhow = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 const_format = "0.2"
-nix = { version = "0.31", features = ["ioctl", "poll", "fs", "mman", "user"] }
+nix = { version = "0.31", features = ["fs", "ioctl", "mman", "poll", "user"] }
 bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
 env_logger = "0.11"
@@ -28,3 +28,9 @@ opt-level = 2
 
 [profile.dev.package.fontdue]
 opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"

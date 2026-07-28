@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use log::warn;
 use std::fs::File;
 use std::io::Write;
+use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
 use crate::config::{
@@ -13,17 +14,13 @@ use crate::config::{
     UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN,
 };
 use crate::uio::{
-    create_virt_device, ioctl_ref, ioctl_val,
+    create_virt_device,
+    ui_abs_setup, ui_dev_create, ui_dev_destroy, ui_dev_setup,
+    ui_set_absbit, ui_set_evbit, ui_set_keybit,
     ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN,
     InputAbsinfo, InputEvent, REL_X, REL_Y, SYN_REPORT,
-    UI_ABS_SETUP, UI_DEV_CREATE, UI_DEV_DESTROY, UI_DEV_SETUP,
-    UI_SET_ABSBIT, UI_SET_EVBIT, UI_SET_KEYBIT, UinputAbsSetup, UinputSetup,
+    UinputAbsSetup, UinputSetup,
 };
-
-// Re-export shared types so existing callers still work.
-pub use crate::uio::{InputEvent as UioInputEvent};
-// Actually, InputEvent is already in scope via `use`, just re-export.
-// Better: re-export all shared items for backward compat.
 
 pub struct Mouse {
     fd: File,
@@ -40,7 +37,6 @@ impl Mouse {
             .open("/dev/uinput")
             .context("open /dev/uinput")?;
 
-        // Write setup struct via ioctl (new API on kernel ≥5.x)
         let setup = UinputSetup {
             id: libc::input_id {
                 bustype: 0,
@@ -55,18 +51,19 @@ impl Mouse {
             },
             ff_effects_max: 0,
         };
-        ioctl_ref(&fd, UI_DEV_SETUP, &setup).context("UI_DEV_SETUP")?;
+        let raw = fd.as_raw_fd();
+        unsafe { ui_dev_setup(raw, &setup) }.context("UI_DEV_SETUP")?;
 
-        ioctl_val(&fd, UI_SET_EVBIT, EV_KEY as u32).context("EV_KEY")?;
-        ioctl_val(&fd, UI_SET_EVBIT, EV_ABS as u32).context("EV_ABS")?;
-        ioctl_val(&fd, UI_SET_EVBIT, EV_SYN as u32).context("EV_SYN")?;
+        unsafe { ui_set_evbit(raw, EV_KEY as _) }.context("EV_KEY")?;
+        unsafe { ui_set_evbit(raw, EV_ABS as _) }.context("EV_ABS")?;
+        unsafe { ui_set_evbit(raw, EV_SYN as _) }.context("EV_SYN")?;
 
-        ioctl_val(&fd, UI_SET_KEYBIT, BTN_LEFT as u32).context("BTN_LEFT")?;
-        ioctl_val(&fd, UI_SET_KEYBIT, BTN_MIDDLE as u32).context("BTN_MIDDLE")?;
-        ioctl_val(&fd, UI_SET_KEYBIT, BTN_RIGHT as u32).context("BTN_RIGHT")?;
+        unsafe { ui_set_keybit(raw, BTN_LEFT as _) }.context("BTN_LEFT")?;
+        unsafe { ui_set_keybit(raw, BTN_MIDDLE as _) }.context("BTN_MIDDLE")?;
+        unsafe { ui_set_keybit(raw, BTN_RIGHT as _) }.context("BTN_RIGHT")?;
 
-        ioctl_val(&fd, UI_SET_ABSBIT, ABS_X as u32).context("ABS_X")?;
-        ioctl_val(&fd, UI_SET_ABSBIT, ABS_Y as u32).context("ABS_Y")?;
+        unsafe { ui_set_absbit(raw, ABS_X as _) }.context("ABS_X")?;
+        unsafe { ui_set_absbit(raw, ABS_Y as _) }.context("ABS_Y")?;
 
         let range = i16::MAX as i32;
         let abs_setup = |code: u16| UinputAbsSetup {
@@ -81,13 +78,12 @@ impl Mouse {
                 resolution: 0,
             },
         };
-        ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_X)).context("abs_setup X")?;
-        ioctl_ref(&fd, UI_ABS_SETUP, &abs_setup(ABS_Y)).context("abs_setup Y")?;
+        unsafe { ui_abs_setup(raw, &abs_setup(ABS_X)) }.context("abs_setup X")?;
+        unsafe { ui_abs_setup(raw, &abs_setup(ABS_Y)) }.context("abs_setup Y")?;
 
-        ioctl_val(&fd, UI_DEV_CREATE, 0).context("UI_DEV_CREATE")?;
+        unsafe { ui_dev_create(raw) }?;
         std::thread::sleep(std::time::Duration::from_millis(UINPUT_CREATE_WAIT_MS));
 
-        // Separate REL device for CLI move command
         let fd_rel = create_virt_device(DEV_REL, &[BTN_LEFT], true);
         if let Err(ref e) = fd_rel {
             warn!("REL device unavailable — {e}");
@@ -103,10 +99,7 @@ impl Mouse {
 
     fn make_event(type_: u16, code: u16, value: i32) -> InputEvent {
         InputEvent {
-            time: libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
+            time: libc::timeval { tv_sec: 0, tv_usec: 0 },
             type_,
             code,
             value,
@@ -174,9 +167,9 @@ impl Mouse {
 
 impl Drop for Mouse {
     fn drop(&mut self) {
-        let _ = ioctl_val(&self.fd, UI_DEV_DESTROY, 0);
+        let _ = unsafe { ui_dev_destroy(self.fd.as_raw_fd()) };
         if let Some(ref fd) = self.fd_rel {
-            let _ = ioctl_val(fd, UI_DEV_DESTROY, 0);
+            let _ = unsafe { ui_dev_destroy(fd.as_raw_fd()) };
         }
     }
 }
