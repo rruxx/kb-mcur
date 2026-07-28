@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, Result};
 use log::info;
 
-use crate::uinput::InputEvent;
+use crate::uio::InputEvent;
 use bytemuck::Zeroable;
 
 const EVIOCGRAB: u64 = 0x40044590;
@@ -176,7 +176,7 @@ impl KeyboardDev {
                 anyhow::bail!("all keyboards disconnected");
             }
             if let Some(ev) = self.poll_event(16)? {
-                if ev.type_ == crate::uinput::EV_KEY {
+                if ev.type_ == crate::uio::EV_KEY {
                     return Ok((ev.code, ev.value));
                 }
             }
@@ -218,7 +218,8 @@ impl KeyboardDev {
             let mut ev: InputEvent = Zeroable::zeroed();
             let sz = std::mem::size_of::<InputEvent>();
             let bytes = bytemuck::bytes_of_mut(&mut ev);
-            let Ok(n) = nix::unistd::read(p.fd, bytes) else { continue; };
+            let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(p.fd) };
+            let Ok(n) = nix::unistd::read(fd, bytes) else { continue; };
             if n < sz {
                 continue;
             }

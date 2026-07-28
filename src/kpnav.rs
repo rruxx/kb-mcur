@@ -1,16 +1,14 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::io::{self, Read, Write};
-use std::os::fd::AsRawFd;
-use std::os::unix::{fs::OpenOptionsExt, net::UnixListener};
+use std::io::{Read, Write};
+use std::os::unix::net::UnixListener;
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use log::{error, info, warn};
-use libc::timeval;
 use crate::{
     config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
     evdev::{KeyboardDev, KeyboardFilter},
@@ -18,71 +16,12 @@ use crate::{
         KEY_KP5,
         KEY_KP0, KEY_KPASTERISK, KEY_KPENTER, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
-    uinput::{
-        EV_KEY, EV_REL, EV_SYN, InputEvent, REL_X, REL_Y,
-        SYN_REPORT, UI_DEV_CREATE, UI_DEV_SETUP, UI_SET_EVBIT, UI_SET_KEYBIT,
-        UI_SET_RELBIT, UinputSetup,
+    uio::{
+        create_virt_device, write_event, write_event_raw,
+        EV_KEY, EV_REL, EV_SYN, REL_X, REL_Y,
+        SYN_REPORT,
     },
 };
-
-// ── uinput 设备创建 ─────────────────────────────────────────────────
-
-fn ioctl_val(fd: &std::fs::File, request: u64, value: u32) -> io::Result<()> {
-    let ret = unsafe { libc::ioctl(fd.as_raw_fd(), request, value as libc::c_ulong) };
-    if ret < 0 { Err(io::Error::last_os_error()) } else { Ok(()) }
-}
-
-fn ioctl_ref<T>(fd: &std::fs::File, request: u64, data: &T) -> io::Result<()> {
-    let ret = unsafe { libc::ioctl(fd.as_raw_fd(), request, data as *const T as libc::c_ulong) };
-    if ret < 0 { Err(io::Error::last_os_error()) } else { Ok(()) }
-}
-
-fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<std::fs::File> {
-    let fd = std::fs::OpenOptions::new()
-        .write(true)
-        .custom_flags(libc::O_NONBLOCK)
-        .open("/dev/uinput")
-        .context("open /dev/uinput")?;
-
-    let mut n = [0u8; crate::config::UINPUT_NAME_MAXLEN];
-    n[..name.len()].copy_from_slice(name.as_bytes());
-    let setup = UinputSetup {
-        id: libc::input_id { bustype: 0, vendor: 0, product: 0, version: 0 },
-        name: n,
-        ff_effects_max: 0,
-    };
-    ioctl_ref(&fd, UI_DEV_SETUP, &setup)?;
-    ioctl_val(&fd, UI_SET_EVBIT, EV_KEY as u32)?;
-    ioctl_val(&fd, UI_SET_EVBIT, EV_SYN as u32)?;
-    if rel {
-        ioctl_val(&fd, UI_SET_EVBIT, EV_REL as u32)?;
-    }
-    for &code in key_bits {
-        ioctl_val(&fd, UI_SET_KEYBIT, code as u32)?;
-    }
-    if rel {
-        ioctl_val(&fd, UI_SET_RELBIT, REL_X as u32)?;
-        ioctl_val(&fd, UI_SET_RELBIT, REL_Y as u32)?;
-    }
-
-    ioctl_val(&fd, UI_DEV_CREATE, 0)?;
-    std::thread::sleep(std::time::Duration::from_millis(crate::config::UINPUT_CREATE_WAIT_MS));
-    Ok(fd)
-}
-
-fn write_event(fd: &mut std::fs::File, type_: u16, code: u16, value: i32) -> io::Result<()> {
-    let ev = InputEvent {
-        time: timeval { tv_sec: 0, tv_usec: 0 },
-        type_,
-        code,
-        value,
-    };
-    fd.write_all(bytemuck::bytes_of(&ev))
-}
-
-fn write_event_raw(fd: &mut std::fs::File, ev: &InputEvent) -> io::Result<()> {
-    fd.write_all(bytemuck::bytes_of(ev))
-}
 
 // ── 方向映射 ────────────────────────────────────────────────────────
 
@@ -239,12 +178,8 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
 
     let listener = match UnixListener::bind(&path) {
         Ok(l) => {
-            nix::sys::stat::fchmodat(
-                None,
-                path.as_str(),
-                nix::sys::stat::Mode::from_bits_truncate(0o666),
-                nix::sys::stat::FchmodatFlags::FollowSymlink,
-            ).ok();
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666)).ok();
             l
         }
         Err(e) => {

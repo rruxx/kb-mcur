@@ -8,6 +8,7 @@ pub mod keymap;
 pub mod kpnav;
 pub mod overlay;
 pub mod render;
+pub mod uio;
 pub mod uinput;
 
 use std::io::{Read, Write};

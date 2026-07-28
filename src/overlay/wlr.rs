@@ -4,6 +4,7 @@
 //! wlr-layer-shell overlay backend for wlroots-based Wayland compositors.
 
 use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
+use std::ptr::NonNull;
 
 use anyhow::{Context, Result};
 use tiny_skia::Pixmap as SkiaPixmap;
@@ -44,7 +45,7 @@ pub struct WlrBackend {
     vptr: Option<ZwlrVirtualPointerV1>,
     windows: Vec<LayerWin>,
     monitors: Vec<(String, i32, i32, u16, u16)>,
-    shm_ptr: *mut u8,
+    shm_ptr: Option<NonNull<u8>>,
     shm_len: usize,
     shm_fd: Option<OwnedFd>,
     shm_pool: Option<WlShmPool>,
@@ -91,7 +92,7 @@ impl WlrBackend {
             conn, compositor, shm, layer_shell, vptr: Some(vptr),
             windows: Vec::new(),
             monitors: vec![("WL-1".into(), 0, 0, crate::config::FALLBACK_WIDTH, crate::config::FALLBACK_HEIGHT)],
-            shm_ptr: std::ptr::null_mut(), shm_len: 0,
+            shm_ptr: None, shm_len: 0,
             shm_fd: None, shm_pool: None,
         })
     }
@@ -137,7 +138,7 @@ impl WlrBackend {
         let win = &self.windows[idx];
         let stride = win.w as usize * 4;
         let src = skia.data();
-        let dst = unsafe { std::slice::from_raw_parts_mut(self.shm_ptr.add(win.pool_off), (win.h as usize) * stride) };
+        let dst = unsafe { std::slice::from_raw_parts_mut(self.shm_ptr.unwrap().as_ptr().add(win.pool_off), (win.h as usize) * stride) };
         for row in 0..win.h as usize {
             let s = &src[row * stride..(row + 1) * stride];
             let d = &mut dst[row * stride..(row + 1) * stride];
@@ -204,8 +205,17 @@ impl WlrBackend {
         let stride = self.windows.iter().map(|w| w.w).max().unwrap_or(1) * 4;
         let size = self.windows.iter().map(|w| w.h * stride).sum::<i32>().max(1) as u32;
         let fd = shm_fd(size)?;
-        self.shm_ptr = unsafe { libc::mmap(std::ptr::null_mut(), size as usize, libc::PROT_READ | libc::PROT_WRITE, libc::MAP_SHARED, fd.as_raw_fd(), 0) as *mut u8 };
-        if self.shm_ptr == libc::MAP_FAILED as *mut u8 { anyhow::bail!("mmap SHM failed"); }
+        let ptr = unsafe {
+            nix::sys::mman::mmap(
+                None,
+                std::num::NonZeroUsize::new(size as usize).unwrap(),
+                nix::sys::mman::ProtFlags::PROT_READ | nix::sys::mman::ProtFlags::PROT_WRITE,
+                nix::sys::mman::MapFlags::MAP_SHARED,
+                &fd,
+                0,
+            )
+        }.context("mmap SHM failed")?;
+        self.shm_ptr = Some(ptr.cast::<u8>());
         self.shm_len = size as usize;
         let eq = self.conn.new_event_queue::<WlrBackend>();
         let qh = eq.handle();
@@ -226,8 +236,8 @@ impl WlrBackend {
 
 impl Drop for WlrBackend {
     fn drop(&mut self) {
-        if !self.shm_ptr.is_null() && self.shm_ptr != libc::MAP_FAILED as *mut u8 {
-            unsafe { libc::munmap(self.shm_ptr as *mut _, self.shm_len) };
+        if let Some(ptr) = self.shm_ptr {
+            let _ = unsafe { nix::sys::mman::munmap(ptr.cast(), self.shm_len) };
         }
     }
 }
