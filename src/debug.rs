@@ -12,6 +12,7 @@ use log::info;
 /// ```sh
 /// KEY_MCURSOR_DEBUG_MONITORS=3 cargo run -- grid
 /// ```
+#[must_use]
 pub fn clone_monitors(
     monitors: Vec<(i32, i32, u16, u16)>,
 ) -> Vec<(i32, i32, u16, u16)> {
@@ -27,6 +28,7 @@ pub fn clone_monitors(
 }
 
 /// Select a monitor name for debug vs. real.
+#[must_use]
 pub fn monitor_name(
     debug_n: usize,
     monitor_idx: usize,
@@ -39,6 +41,7 @@ pub fn monitor_name(
     }
 }
 
+#[must_use]
 pub fn debug_monitor_count() -> usize {
     std::env::var("KEY_MCURSOR_DEBUG_MONITORS")
         .ok()

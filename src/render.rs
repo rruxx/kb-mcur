@@ -270,7 +270,7 @@ pub fn render_digit(
     draw_char(pixmap, digit, cx, cy, cache, rgba);
 }
 
-fn draw_text(
+pub fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,
     cx: f32,

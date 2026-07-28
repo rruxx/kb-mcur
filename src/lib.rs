@@ -83,14 +83,19 @@ pub fn run() -> Result<()> {
     let monitor_idx = if monitors.len() == 1 {
         0
     } else {
-        show_display_ids(&mut overlay, &font, &monitors)?;
-        let idx = select_display(&monitors)?;
+        let label_len = display_digits_needed(monitors.len());
+        show_display_ids(&mut overlay, &font, &monitors, label_len)?;
+        let idx = select_display(&monitors, label_len)?;
         overlay = Overlay::connect()?;
         idx
     };
     let selected = &monitors[monitor_idx];
     let _ = MONITOR_NAME.set(
-        debug::monitor_name(debug::debug_monitor_count(), monitor_idx, &named[monitor_idx].0)
+        debug::monitor_name(
+            debug::debug_monitor_count(),
+            monitor_idx,
+            named.get(monitor_idx).map_or("?", |n| n.0.as_str()),
+        )
     );
 
     let max_w = monitors
@@ -157,12 +162,38 @@ pub fn run() -> Result<()> {
 
 // ── Display selection (multi-monitor) ───────────────────────────────
 
+/// Convert index to a base-26 label (a=0, b=1, ..., z=25, aa=26, …),
+/// padded to `digits` characters.
+fn to_base26(mut idx: usize, digits: usize) -> String {
+    let mut s = String::with_capacity(digits);
+    for _ in 0..digits {
+        s.push((b'a' + (idx % 26) as u8) as char);
+        idx /= 26;
+    }
+    // SAFETY: ASCII-only chars, reversing is valid.
+    unsafe { s.as_mut_vec().reverse(); }
+    s
+}
+
+/// Number of letters needed to uniquely label `count` monitors.
+fn display_digits_needed(count: usize) -> usize {
+    if count <= 1 { return 1; }
+    let (mut n, mut cap) = (1, 26);
+    while cap < count {
+        n += 1;
+        cap = cap.saturating_mul(26);
+    }
+    n
+}
+
 fn show_display_ids(
     overlay: &mut Overlay,
     font: &Font,
     monitors: &[(i32, i32, u16, u16)],
+    label_len: usize,
 ) -> Result<()> {
-    let cache = TextCache::new(font, 96.0);
+    let font_size = (96.0 / label_len as f32).max(24.0);
+    let cache = TextCache::new(font, font_size);
     let cfg = GridConfig::default();
     for (i, &(x, y, w, h)) in monitors.iter().enumerate() {
         let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
@@ -171,13 +202,13 @@ fn show_display_ids(
             &grid::Grid::new(u32::from(w), u32::from(h), &cfg),
             &cfg,
         );
-        let digit = (b'1' + i as u8) as char;
-        render::render_digit(
+        render::draw_text(
             &mut pixmap,
-            digit,
+            &to_base26(i, label_len),
             f32::from(w) * 0.5,
             f32::from(h) * 0.5,
             &cache,
+            font_size,
             [192, 255, 192, 192],
         );
         overlay.add_window(x, y, w, h)?;
@@ -188,10 +219,14 @@ fn show_display_ids(
     Ok(())
 }
 
-fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
+fn select_display(monitors: &[(i32, i32, u16, u16)], label_len: usize) -> Result<usize> {
+    let labels: Vec<String> = (0..monitors.len())
+        .map(|i| to_base26(i, label_len))
+        .collect();
     let mut kbd =
         KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
     let mut mods = ModState::default();
+    let mut input = String::with_capacity(label_len);
     let idx = loop {
         let (code, value) = kbd.next_keypress()?;
         mods.update(code, value > 0);
@@ -201,14 +236,22 @@ fn select_display(monitors: &[(i32, i32, u16, u16)]) -> Result<usize> {
         let Some(byte) = key_map(code, &mods) else {
             continue;
         };
-        if (b'1'..=b'9').contains(&byte) {
-            let i = (byte - b'1') as usize;
-            if i < monitors.len() {
-                std::thread::spawn(move || {
-                    drop(kbd);
-                });
-                break i;
-            }
+        if !byte.is_ascii_lowercase() {
+            continue;
+        }
+        input.push(byte as char);
+
+        let matches: Vec<usize> = (0..labels.len())
+            .filter(|i| labels[*i].starts_with(&input))
+            .collect();
+        if matches.is_empty() {
+            input.pop(); // ignore invalid keystroke, stay at current filter
+            continue;
+        }
+        if input.len() >= label_len {
+            let i = matches[0];
+            std::thread::spawn(move || drop(kbd));
+            break i;
         }
     };
     Ok(idx)
