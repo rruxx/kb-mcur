@@ -8,7 +8,6 @@
 use const_format::concatcp;
 
 pub const PROJECT_NAME: &str = "key-mcursor";
-pub const BIN: &str = PROJECT_NAME;
 pub const SERVICE: &str = concatcp!(PROJECT_NAME, "d");
 pub const SOCKET: &str = concatcp!("/run/", SERVICE, ".sock");
 

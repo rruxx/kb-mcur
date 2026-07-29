@@ -190,11 +190,6 @@ impl Mouse {
         }
         Ok(())
     }
-
-    pub fn toggle(&mut self, button: u8) -> Result<()> {
-        self.button_press(button)?;
-        Ok(())
-    }
 }
 
 impl Drop for Mouse {

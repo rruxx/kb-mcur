@@ -66,15 +66,19 @@ sudo systemctl enable --now key-mcursord
 ```
 src/
 ├── main.rs      CLI 入口
-├── lib.rs       交互式网格编排
+├── lib.rs       交互式网格编排 + 多屏选屏
 ├── kpnav.rs     小键盘鼠标导航常驻服务
-├── project.rs   命名常量集中定义
-├── config.rs    按键映射——改键只需改此
+├── config.rs    项目标识、按键映射、网格配置
+├── debug.rs     调试辅助（多屏模拟）
 ├── grid.rs      26×26 网格 + 区域计算
-├── render.rs    叠加层渲染
-├── overlay.rs   X11/Wayland 双后端
-├── uinput.rs    /dev/uinput 虚拟键鼠
-├── evdev.rs     EVIOCGRAB 键盘接管
+├── render.rs    叠加层渲染 + 文字绘制
+├── overlay.rs   X11/Wayland 双后端（枚举分发）
+├── overlay/
+│   ├── x11.rs   X11 RandR + SHAPE 叠加层
+│   └── wlr.rs   wlr-layer-shell Wayland 叠加层
+├── uio.rs       共享 uinput：结构体、ioctl 定义、设备创建
+├── uinput.rs    /dev/uinput 虚拟键鼠（Mouse）
+├── evdev.rs     EVIOCGRAB 键盘接管 + 热插拔
 └── keymap.rs    US-QWERTY 键码映射
 ```
 

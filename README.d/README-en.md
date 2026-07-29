@@ -66,16 +66,20 @@ Run any command with `--help` for details.
 ```
 src/
 ├── main.rs      CLI entry
-├── lib.rs       Grid orchestration
+├── lib.rs       Grid orchestration + display selection
 ├── kpnav.rs     NumPad mouse navigation service
-├── project.rs   Centralised naming constants
-├── config.rs    Key mappings — edit here
+├── config.rs    Project identity, key mappings, grid config
+├── debug.rs     Debug helpers (multi-monitor simulation)
 ├── grid.rs      26×26 grid + region math
-├── render.rs    Overlay rendering
-├── overlay.rs   X11/Wayland overlay backends
-├── uinput.rs    /dev/uinput virtual pointer
-├── evdev.rs     EVIOCGRAB keyboard grab
-└── keymap.rs    US-QWERTY keycode → ASCII
+├── render.rs    Overlay rendering + text drawing
+├── overlay.rs   X11/Wayland overlay backends (enum dispatch)
+├── overlay/
+│   ├── x11.rs   X11 RandR + SHAPE overlay
+│   └── wlr.rs   wlr-layer-shell Wayland overlay
+├── uio.rs       Shared uinput: structs, ioctl definitions, device creation
+├── uinput.rs    /dev/uinput virtual pointer (Mouse)
+├── evdev.rs     EVIOCGRAB keyboard grab + hot-plug
+└── keymap.rs    US-QWERTY keycode → ASCII map
 ```
 
 ## License

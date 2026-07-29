@@ -259,17 +259,6 @@ fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rg
     }
 }
 
-pub fn render_digit(
-    pixmap: &mut Pixmap,
-    digit: char,
-    cx: f32,
-    cy: f32,
-    cache: &TextCache,
-    rgba: [u8; 4],
-) {
-    draw_char(pixmap, digit, cx, cy, cache, rgba);
-}
-
 pub fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,

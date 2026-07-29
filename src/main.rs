@@ -38,9 +38,10 @@ enum Cmd {
         btn: String,
     },
 
-    /// Interactive grid: 26×26 → 4×2 → 2×2 progressive refinement
+    /// Interactive grid: 26×26 → 4×2 → 2×2 progressive refinement.
+    /// Multi-monitor: type label letters (a-z) to select display.
     #[command(
-        after_help = "Keys:\n  a-z           26×26 grid (2 letters)\n  q/w/e/r/a/s/d/f  4×2 sub-grid (1 letter)\n  e/r/d/f       2×2 quadrant\n  Space/Enter    Warp + exit\n  j/k/l          Click left/middle/right\n  0-9 digit prefix  Repeat (e.g. 3j)\n  Esc            Reset grid"
+        after_help = "Grid keys:\n  a-z           26×26 grid (2 letters)\n  q/w/e/r/a/s/d/f  4×2 sub-grid (1 letter)\n  e/r/d/f       2×2 quadrant (1 letter)\n  Space/Enter    Warp / exit\n  j/k/l          Click left/middle/right\n  0-9 prefix     Repeat (e.g. 3j)\n  Esc            Reset"
     )]
     Grid,
 

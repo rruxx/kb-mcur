@@ -36,13 +36,9 @@ impl Overlay {
         }
         anyhow::bail!(
             "no display server detected.\n\
-             For wlroots compositors (Sway/Hyprland/niri): wlr-layer-shell backend not yet implemented.\n\
-             Install XWayland as a workaround: ensure DISPLAY is set."
+             For wlroots compositors (Sway/Hyprland/niri) ensure zwlr-layer-shell is enabled.\n\
+             X11: ensure DISPLAY is set."
         )
-    }
-
-    pub fn monitors(&self) -> Result<Vec<(i32, i32, u16, u16)>> {
-        delegate!(self, monitors)
     }
 
     pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
@@ -65,43 +61,10 @@ impl Overlay {
         delegate!(self, redraw_all)
     }
 
-    pub fn wait_or_timeout(&self, seconds: u64) -> Result<()> {
-        delegate!(self, wait_or_timeout, seconds)
-    }
-
-    pub fn poll_fd(&self) -> Option<i32> {
-        match self {
-            Overlay::X11(_) => None,
-            Overlay::Wlr(b) => b.poll_fd(),
-        }
-    }
-
-    pub fn dispatch_pending(&self) -> Result<()> {
-        match self {
-            Overlay::X11(_) => Ok(()),
-            Overlay::Wlr(b) => b.dispatch_pending(),
-        }
-    }
-
-    /// Cursor control via native protocol (Wlr: `zwlr_virtual_pointer`, X11: no-op, uses uinput)
     pub fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
         match self {
             Overlay::X11(_) => Ok(()),
             Overlay::Wlr(b) => b.pointer_warp(x, y),
-        }
-    }
-
-    pub fn pointer_click(&self, button: u8, count: u32) -> Result<()> {
-        match self {
-            Overlay::X11(_) => Ok(()),
-            Overlay::Wlr(b) => b.pointer_click(button, count),
-        }
-    }
-
-    pub fn pointer_toggle(&self, button: u8) -> Result<()> {
-        match self {
-            Overlay::X11(_) => Ok(()),
-            Overlay::Wlr(b) => b.pointer_toggle(button),
         }
     }
 }

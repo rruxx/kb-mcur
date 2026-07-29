@@ -457,23 +457,19 @@ fn process_byte(
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
         }
 
-        0x04 | 0x03 => {
-            return Ok(true);
-        }
-
         ch => {
-            let ch = ch as char;
+            let c = ch as char;
 
-            if ctx.filter.len() >= 2 && ch.is_ascii_digit() {
+            if ctx.filter.len() >= 2 && c.is_ascii_digit() {
                 ctx.repeat = ctx
                     .repeat
                     .saturating_mul(10)
-                    .saturating_add(u32::from(ch as u8 - b'0'));
+                    .saturating_add(u32::from(c as u8 - b'0'));
                 return Ok(false);
             }
 
             if ctx.filter.len() >= 2
-                && let Some(btn) = action_key(ch)
+                && let Some(btn) = action_key(c)
             {
                 cursor_action(mouse, &ctx.filter, draw_states, btn, ctx.repeat)?;
                 if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
@@ -483,13 +479,13 @@ fn process_byte(
             }
 
             match ctx.filter.len() {
-                0 | 1 if ch.is_ascii_lowercase() => {}
-                2 if is_sub_key(ch) => {}
-                3..=6 if is_quad_key(ch) => {}
+                0 | 1 if c.is_ascii_lowercase() => {}
+                2 if is_sub_key(c) => {}
+                3..=6 if is_quad_key(c) => {}
                 _ => return Ok(false),
             }
 
-            ctx.filter.push(ch);
+            ctx.filter.push(c);
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
         }
