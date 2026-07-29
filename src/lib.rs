@@ -34,11 +34,11 @@ use std::sync::OnceLock;
 use anyhow::{Context, Result};
 use fontdue::Font;
 use log::{error, info, warn};
-use tiny_skia::{Pixmap, PremultipliedColorU8};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
 use config::{
-    FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, SERVICE,
-    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
+    BG_COLOR, FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN,
+    SERVICE, action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
 };
 use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
@@ -185,43 +185,58 @@ fn display_digits_needed(count: usize) -> usize {
     n
 }
 
-/// Redraw overlay windows: matching monitors show their labels,
-/// non‑matching monitors are made fully transparent.
-fn redraw_display(
-    overlay: &Overlay,
+/// Render matching monitor labels onto a single pixmap spanning all
+/// monitors' bounding box.  Matching monitors get an ellipse + label at
+/// their screen position; non-matching monitors are transparent.
+#[allow(clippy::too_many_arguments)]
+fn redraw_into(
+    pixmap: &mut Pixmap,
     monitors: &[(i32, i32, u16, u16)],
     labels: &[String],
     prefix: &str,
-    cfg: &GridConfig,
     cache: &TextCache,
     font_size: f32,
-) -> Result<()> {
-    for (i, &(_, _, w, h)) in monitors.iter().enumerate() {
-        let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
-        if labels[i].starts_with(prefix) {
-            render::render_base(
-                &mut pixmap,
-                &grid::Grid::new(u32::from(w), u32::from(h), cfg),
-                cfg,
-            );
-            render::draw_text(
-                &mut pixmap,
-                &labels[i],
-                f32::from(w) * 0.5,
-                f32::from(h) * 0.5,
-                cache,
-                font_size,
-                [192, 255, 192, 192],
-            );
-        } else {
-            pixmap
-                .pixels_mut()
-                .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
+    bbox_x: i32,
+    bbox_y: i32,
+) {
+    pixmap
+        .pixels_mut()
+        .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
+
+    let bg_color = Color::from_rgba8(BG_COLOR[0], BG_COLOR[1], BG_COLOR[2], BG_COLOR[3]);
+    let paint = Paint {
+        shader: Shader::SolidColor(bg_color),
+        anti_alias: true,
+        ..Default::default()
+    };
+    let pw = font_size * 2.0;  // label plate width
+    let ph = font_size * 2.0;  // label plate height
+
+    for (i, label) in labels.iter().enumerate() {
+        if !label.starts_with(prefix) {
+            continue;
         }
-        overlay.upload(i, &pixmap)?;
+        let &(mx, my, mw, mh) = &monitors[i];
+        let cx = (mx - bbox_x) as f32 + mw as f32 * 0.5;
+        let cy = (my - bbox_y) as f32 + mh as f32 * 0.5;
+        let x = cx - pw * 0.5;
+        let y = cy - ph * 0.5;
+
+        // Semi-transparent ellipse.
+        let mut pb = PathBuilder::new();
+        pb.push_oval(tiny_skia::Rect::from_xywh(x, y, pw, ph).unwrap());
+        let oval = pb.finish().unwrap();
+        pixmap.fill_path(
+            &oval, &paint,
+            tiny_skia::FillRule::Winding, Transform::identity(), None,
+        );
+
+        // Label text centred on the ellipse.
+        render::draw_text(
+            pixmap, label, cx, cy,
+            cache, font_size, [192, 255, 192, 192],
+        );
     }
-    overlay.redraw_all()?;
-    Ok(())
 }
 
 fn select_display(
@@ -233,15 +248,22 @@ fn select_display(
     let labels: Vec<String> = (0..monitors.len())
         .map(|i| to_base26(i, label_len))
         .collect();
-    let font_size = (96.0 / label_len as f32).max(24.0);
+    let font_size = (384.0 / label_len as f32).max(96.0);
     let cache = TextCache::new(font, font_size);
-    let cfg = GridConfig::default();
 
-    for &(x, y, w, h) in monitors {
-        overlay.add_window(x, y, w, h)?;
-    }
+    // Bounding box of all monitors.
+    let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
+    let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
+    let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
+    let bbox_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(0) - bbox_y;
+
+    overlay.add_window(bbox_x, bbox_y, bbox_w as u16, bbox_h as u16)?;
     overlay.show_all()?;
-    redraw_display(overlay, monitors, &labels, "", &cfg, &cache, font_size)?;
+
+    let mut pixmap = Pixmap::new(bbox_w as u32, bbox_h as u32).context("pixmap")?;
+    redraw_into(&mut pixmap, monitors, &labels, "", &cache, font_size, bbox_x, bbox_y);
+    overlay.upload(0, &pixmap)?;
+    overlay.redraw_all()?;
 
     let mut kbd =
         KeyboardDev::open_all(KeyboardFilter::Grid).context("evdev for display select")?;
@@ -257,12 +279,21 @@ fn select_display(
             continue;
         };
         if byte == 0x7f || byte == b'\x08' {
-            if let Some(_) = input.pop() {
-                redraw_display(overlay, monitors, &labels, &input, &cfg, &cache, font_size)?;
+            if input.pop().is_some() {
+                redraw_into(&mut pixmap, monitors, &labels, &input, &cache, font_size, bbox_x, bbox_y);
+                overlay.upload(0, &pixmap)?;
+                overlay.redraw_all()?;
             }
             continue;
         }
-        if byte == 0x1b || byte == b'\n' || byte == b' ' {
+        if byte == 0x1b {
+            input.clear();
+            redraw_into(&mut pixmap, monitors, &labels, "", &cache, font_size, bbox_x, bbox_y);
+            overlay.upload(0, &pixmap)?;
+            overlay.redraw_all()?;
+            continue;
+        }
+        if byte == b'\n' || byte == b' ' {
             std::thread::spawn(move || drop(kbd));
             std::process::exit(0);
         }
@@ -279,7 +310,9 @@ fn select_display(
         }
 
         input.push(byte as char);
-        redraw_display(overlay, monitors, &labels, &input, &cfg, &cache, font_size)?;
+        redraw_into(&mut pixmap, monitors, &labels, &input, &cache, font_size, bbox_x, bbox_y);
+        overlay.upload(0, &pixmap)?;
+        overlay.redraw_all()?;
 
         if input.len() >= label_len {
             let i = matching[0];
