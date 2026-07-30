@@ -53,15 +53,21 @@ pub const KEY_KPASTERISK: u16 = 55;
 pub const KEY_KPSLASH: u16 = 98;
 pub const KEY_KPENTER: u16 = 96;
 
+pub const KEY_CAPSLOCK: u16 = 58;
+pub const KEY_LEFTMETA: u16 = 125;
+pub const KEY_RIGHTMETA: u16 = 126;
+
 #[derive(Default)]
 pub struct ModState {
     pub shift: bool,
+    pub meta: bool,
 }
 
 impl ModState {
     pub fn update(&mut self, code: u16, pressed: bool) {
         match code {
             KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = pressed,
+            KEY_LEFTMETA | KEY_RIGHTMETA => self.meta = pressed,
             _ => {}
         }
     }

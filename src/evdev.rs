@@ -35,6 +35,8 @@ pub enum KeyboardFilter {
     Grid,
     /// kp-nav mode: keypad 0-9, /*-+., numlock, keypad enter; ≥17 total keys.
     KpNav,
+    /// Unified service: matches keypads or main keyboards.
+    Service,
 }
 
 /// a-z, 0-9, space, enter, backspace, esc
@@ -99,6 +101,13 @@ fn matches_filter(fd: RawFd, filter: KeyboardFilter) -> bool {
         }
         KeyboardFilter::KpNav => {
             count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
+        }
+        KeyboardFilter::Service => {
+            let grid_ok =
+                count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
+            let kp_ok =
+                count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c));
+            grid_ok || kp_ok
         }
     }
 }

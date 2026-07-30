@@ -9,7 +9,6 @@ use const_format::concatcp;
 
 pub const PROJECT_NAME: &str = "key-mcursor";
 pub const SERVICE: &str = concatcp!(PROJECT_NAME, "d");
-pub const SOCKET: &str = concatcp!("/run/", SERVICE, ".sock");
 
 /// Kernel `UINPUT_MAX_NAME_SIZE` — struct layout must match this.
 pub const UINPUT_NAME_MAXLEN: usize = 80;

@@ -38,19 +38,11 @@ enum Cmd {
         btn: String,
     },
 
-    /// Interactive grid: 26×26 → 4×2 → 2×2 progressive refinement.
-    /// Multi-monitor: type label letters (a-z) to select display.
+    /// Unified keyboard mouse service (kp-nav + grid).
     #[command(
-        after_help = "Grid keys:\n  a-z           26×26 grid (2 letters)\n  q/w/e/r/a/s/d/f  4×2 sub-grid (1 letter)\n  e/r/d/f       2×2 quadrant (1 letter)\n  Space/Enter    Warp / exit\n  j/k/l          Click left/middle/right\n  0-9 prefix     Repeat (e.g. 3j)\n  Esc            Reset"
+        after_help = "kp-nav (NumPad):\n  NumLock+KPEnter   Toggle mouse mode\n  8/2/4/6           Move up/down/left/right\n  7/9/1/3           Diagonal move\n  5                 Click\n  0                 Hold\n  .                 Release\n  +                 Double-click\n  / * -             Switch btn5 to L/M/R\n  NumLock+/ 8 7 9   Scroll up/down/left/right\n  NumLock+* -       Back/forward\n\ngrid (meta+capslock):\n  a-z               26×26 grid\n  q/w/e/r/a/s/d/f   4×2 sub-grid\n  e/r/d/f           2×2 quadrant\n  Space/Enter        Warp & exit\n  j/k/l              Click L/M/R\n  0-9 prefix         Repeat\n  Esc                Reset"
     )]
-    Grid,
-
-    /// NumPad mouse navigation service
-    #[command(
-        name = "kp-nav",
-        after_help = "NumLock+KPEnter toggles mouse control on/off.\n\nKeys (mouse mode):\n  8/2/4/6        Move up/down/left/right\n  7/9/1/3        Diagonal move\n  5              Click (press=down, release=up)\n  0              Hold button down\n  .              Release button\n  +              Double-click\n  / * -          Switch btn5 to left/middle/right\n\nScroll (NumLock held):\n  / 8 7 9        Scroll up/down/left/right\n  * -            Back/forward\n\nAll non-NumPad keys are forwarded to the compositor.\nHold direction keys to auto-accelerate (3→50 px)."
-    )]
-    KpNav,
+    Service,
 }
 
 fn btn_code(s: &str) -> Result<u8> {
@@ -84,14 +76,11 @@ fn main() -> Result<()> {
             let mut m = Mouse::new(sw, sh)?;
             m.click(btn_code(&btn)?, repeat)?;
         }
-        Some(Cmd::Grid) => {
-            key_mcursor::run()?;
+        Some(Cmd::Service) => {
+            key_mcursor::kpnav::run_service()?;
         }
         None => {
             Cli::command().print_help()?;
-        }
-        Some(Cmd::KpNav) => {
-            key_mcursor::kpnav::run()?;
         }
     }
     Ok(())

@@ -27,18 +27,16 @@ pub mod render;
 pub mod uinput;
 pub mod uio;
 
-use std::io::{Read, Write};
-use std::os::unix::net::UnixStream;
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
 use fontdue::Font;
-use log::{error, info, warn};
+use log::{info, warn};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
 use config::{
     BG_COLOR, FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN,
-    SERVICE, action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
+    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
 };
 use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
@@ -47,13 +45,13 @@ use overlay::Overlay;
 use render::TextCache;
 use uinput::Mouse;
 
-const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
+pub const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
 
 static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 
 /// Per-monitor state: the 26×26 grid, its base-layer RGBA bytes, and a
 /// persistent pixmap that is re-uploaded on every redraw.
-struct DrawState {
+pub struct DrawState {
     grid: Grid,
     pixmap: Pixmap,
 }
@@ -115,31 +113,6 @@ pub fn run() -> Result<()> {
     let single_monitors = vec![*selected];
     let (cfg, font_size, cache, mut draw_states) =
         init_overlay(&mut overlay, &font, &single_monitors)?;
-
-    // If kp-nav service is running, request keyboard hand-off before
-    // grabbing them ourselves.
-    let _kpnav_conn = if let Ok(mut s) = UnixStream::connect(kpnav::socket_path()) {
-        info!("[kp-nav] socket connected, requesting hand-off…");
-        s.set_read_timeout(Some(std::time::Duration::from_secs(3)))
-            .ok();
-        if s.write_all(b"grid\n").is_ok() {
-            let mut buf = [0u8; 4];
-            if s.read(&mut buf).is_ok() && buf.starts_with(b"OK") {
-                info!("[kp-nav] keyboard hand-off OK");
-                Some(s) // keep alive until grid exits
-            } else {
-                let got = std::str::from_utf8(&buf).unwrap_or("?");
-                warn!("[kp-nav] hand-off failed — got: {got:?} (expected OK)");
-                None
-            }
-        } else {
-            error!("[kp-nav] write to socket failed — is {SERVICE} running with new binary?");
-            None
-        }
-    } else {
-        info!("[kp-nav] no socket — {SERVICE} not running, grabbing directly");
-        None
-    };
 
     // Grab all keyboards via evdev.
     let kbd = KeyboardDev::open_all(KeyboardFilter::Grid)?;
@@ -249,7 +222,7 @@ fn redraw_into(
     }
 }
 
-fn select_display(
+pub fn select_display(
     overlay: &mut Overlay,
     font: &Font,
     monitors: &[(i32, i32, u16, u16)],
@@ -369,7 +342,7 @@ fn select_display(
     Ok(idx)
 }
 
-fn init_overlay(
+pub fn init_overlay(
     overlay: &mut Overlay,
     font: &Font,
     monitors: &[(i32, i32, u16, u16)],
@@ -405,13 +378,13 @@ fn init_overlay(
 
 // ── Input loop (grid mode) ──────────────────────────────────────────
 
-struct GridCtx {
+pub struct GridCtx {
     filter: GridFilter,
     repeat: u32,
 }
 
 impl GridCtx {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             filter: GridFilter::new(),
             repeat: 0,
@@ -472,7 +445,7 @@ fn run_input_evdev(
 
 /// Single-byte input handler for interactive grid mode.
 #[allow(clippy::too_many_arguments)]
-fn process_byte(
+pub fn process_byte(
     byte: u8,
     overlay: &mut Overlay,
     mouse: &mut Option<Mouse>,
