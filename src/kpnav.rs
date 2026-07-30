@@ -9,11 +9,11 @@ use std::thread;
 use std::time::Instant;
 
 use crate::{
-    config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
+    config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT,
-        KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
+        KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER,
+        KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
     uio::{
         EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT,
@@ -218,6 +218,24 @@ fn handle_key_event(
                 }
                 return Ok(true);
             }
+            KEY_KPASTERISK => {
+                if is_press {
+                    write_event(ptr_out, EV_KEY, BTN_SIDE, 1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    write_event(ptr_out, EV_KEY, BTN_SIDE, 0)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
+            KEY_KPMINUS => {
+                if is_press {
+                    write_event(ptr_out, EV_KEY, BTN_EXTRA, 1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    write_event(ptr_out, EV_KEY, BTN_EXTRA, 0)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
             _ => {}
         }
     }
@@ -389,8 +407,14 @@ pub fn run() -> Result<()> {
     info!("kp-nav — NumLock+KPEnter to toggle");
 
     unsafe {
-        libc::signal(libc::SIGINT, shutdown_signal as *const () as libc::sighandler_t);
-        libc::signal(libc::SIGTERM, shutdown_signal as *const () as libc::sighandler_t);
+        libc::signal(
+            libc::SIGINT,
+            shutdown_signal as *const () as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGTERM,
+            shutdown_signal as *const () as libc::sighandler_t,
+        );
     }
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
@@ -403,7 +427,7 @@ pub fn run() -> Result<()> {
     let mut kbd_out = create_virt_device(crate::config::DEV_KBD, &kbd_bits, false)?;
     let mut ptr_out = create_virt_device(
         crate::config::DEV_PTR,
-        &[BTN_LEFT, BTN_MIDDLE, BTN_RIGHT],
+        &[BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, BTN_EXTRA],
         true,
     )?;
 

@@ -151,8 +151,10 @@ pub const POLL_INTERVAL_MS: u64 = 16;
 // ── USB HID buttons ───────────────────────────────────────────────────
 
 pub const BTN_LEFT: u16 = 0x110;
-pub const BTN_MIDDLE: u16 = 0x112;
 pub const BTN_RIGHT: u16 = 0x111;
+pub const BTN_MIDDLE: u16 = 0x112;
+pub const BTN_SIDE: u16 = 0x113;
+pub const BTN_EXTRA: u16 = 0x114;
 
 /// USB HID button code for mouse buttons (1=left, 2=middle, 3=right).
 #[must_use]
