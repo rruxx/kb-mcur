@@ -5,6 +5,15 @@
 渐进式网格光标定位、小键盘鼠标导航常驻服务、CLI 宏快捷键。
 支持 X11 / wlroots / KDE / GNOME。
 
+## 初衷
+
+- Linux 缺乏跨 X11 和 Wayland 的统一键盘鼠标工作流。
+- [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) 仅支持 wlroots 系合成器（Sway、Hyprland），KDE 和 GNOME 不可用。
+- KDE 5 原本有类似 Windows 的开关快捷键，但 KDE 6 已不可用。
+- GNOME 从未提供此功能。
+
+key-mcursor 一个二进制适配全部。
+
 ## 安装
 
 ```bash
@@ -33,14 +42,10 @@ sudo install -m755 target/release/key-mcursor /usr/bin/
 3. 多层次 2×2 象限（e/r/d/f）
 4. j/k/l 单击，空格/回车 定位并退出
 
-运行 `key-mcursor grid --help` 查看完整键表。
-
 ### kp-nav — 小键盘鼠标导航
 
 NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
-Grid 模式通过 Unix socket 自动请求键盘接管，热插拔每秒检测。
-
-运行 `key-mcursor kp-nav --help` 查看完整键表。
+Grid 模式通过 Unix socket 自动请求键盘接管，热插拔通过 inotify 事件驱动。
 
 #### systemd
 
@@ -59,7 +64,7 @@ sudo systemctl enable --now key-mcursord
 | `key-mcursor moveto 500 300` | 绝对定位 |
 | `key-mcursor click -r 3 M` | 连击 |
 
-运行任意命令加 `--help` 查看详情。
+各命令加 `--help` 查看完整键表。
 
 ## 架构
 
@@ -78,10 +83,17 @@ src/
 │   └── wlr.rs   wlr-layer-shell Wayland 叠加层
 ├── uio.rs       共享 uinput：结构体、ioctl 定义、设备创建
 ├── uinput.rs    /dev/uinput 虚拟键鼠（Mouse）
-├── evdev.rs     EVIOCGRAB 键盘接管 + 热插拔
+├── evdev.rs     EVIOCGRAB 键盘接管 + inotify 热插拔
 └── keymap.rs    US-QWERTY 键码映射
 ```
 
 ## 许可证
 
 AGPL-3.0-or-later
+
+## 参考
+
+- [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) — wlroots 键盘驱动指针
+- [warpd](https://github.com/rvaiya/warpd) — 模态键盘驱动鼠标
+- [mouseless](https://github.com/jbensmann/mouseless) — 键盘驱动鼠标控制
+- [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland 自动化工具
