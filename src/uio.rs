@@ -73,6 +73,8 @@ pub const EV_ABS: u16 = 3;
 
 pub const REL_X: u16 = 0;
 pub const REL_Y: u16 = 1;
+pub const REL_HWHEEL: u16 = 6;
+pub const REL_WHEEL: u16 = 8;
 
 pub const ABS_X: u16 = 0;
 pub const ABS_Y: u16 = 1;
@@ -138,6 +140,8 @@ pub fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<Fil
     if rel {
         unsafe { ui_set_relbit(raw, REL_X.into()) }?;
         unsafe { ui_set_relbit(raw, REL_Y.into()) }?;
+        unsafe { ui_set_relbit(raw, REL_HWHEEL.into()) }?;
+        unsafe { ui_set_relbit(raw, REL_WHEEL.into()) }?;
     }
     unsafe { ui_dev_create(raw) }?;
     std::thread::sleep(std::time::Duration::from_millis(UINPUT_CREATE_WAIT_MS));

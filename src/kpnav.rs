@@ -12,12 +12,12 @@ use crate::{
     config::{self, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_KP0, KEY_KP5, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS,
-        KEY_KPSLASH, KEY_NUMLOCK,
+        KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT,
+        KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK,
     },
     uio::{
-        EV_KEY, EV_REL, EV_SYN, REL_X, REL_Y, SYN_REPORT, create_virt_device, write_event,
-        write_event_raw,
+        EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT,
+        create_virt_device, write_event, write_event_raw,
     },
 };
 use anyhow::Result;
@@ -188,6 +188,40 @@ fn handle_key_event(
     value: i32,
     is_press: bool,
 ) -> Result<bool> {
+    if kpd.numlock_held {
+        match code {
+            KEY_KPSLASH => {
+                if is_press {
+                    write_event(ptr_out, EV_REL, REL_WHEEL, 1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
+            KEY_KP8 => {
+                if is_press {
+                    write_event(ptr_out, EV_REL, REL_WHEEL, -1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
+            KEY_KP7 => {
+                if is_press {
+                    write_event(ptr_out, EV_REL, REL_HWHEEL, -1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
+            KEY_KP9 => {
+                if is_press {
+                    write_event(ptr_out, EV_REL, REL_HWHEEL, 1)?;
+                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+                return Ok(true);
+            }
+            _ => {}
+        }
+    }
+
     match code {
         c if Dir::from_keypad(c).is_some() => {
             let flag = Dir::from_keypad(c).unwrap();
