@@ -46,6 +46,7 @@ sudo install -m755 target/release/key-mcursor /usr/bin/
 
 NumLock+KPEnter toggle. Non-NumPad keys forwarded to the compositor.
 Grid mode auto-handoff via Unix socket. Hot-plug via inotify.
+NumLock held + / 8 7 9 = scroll; * - = back/forward.
 
 #### systemd
 

@@ -28,12 +28,14 @@ export PROJ="$(pwd)"  # path to this project
 
 cargo clean
 RUSTFLAGS="-Cprofile-generate=${PROJ}/tmp/pgo-data" cargo build --release
-sudo cp ${PROJ}/target/release/key-mcursor /usr/bin/
+
+sudo cp ${PROJ}/target/release/key-mcursor           /usr/bin/
 sudo cp ${PROJ}/contrib/systemd/key-mcursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
 
 key-mcursor grid
-systemctl start key-mcursord    # NumLock+KPEnter, move, NumLock+KPEnter
+
+systemctl start key-mcursord    # NumLock+KPEnter, do sth, NumLock+KPEnter
 systemctl stop key-mcursord
 
 llvm-profdata merge -o ${PROJ}/tmp/merged.profdata ${PROJ}/tmp/pgo-data

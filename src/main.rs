@@ -48,7 +48,7 @@ enum Cmd {
     /// NumPad mouse navigation service
     #[command(
         name = "kp-nav",
-        after_help = "NumLock+KPEnter toggles mouse control on/off.\n\nKeys (mouse mode):\n  8/2/4/6        Move up/down/left/right\n  7/9/1/3        Diagonal move\n  5              Click (press=down, release=up)\n  0              Hold button down\n  .              Release button\n  +              Double-click\n  / * -          Switch btn5 to left/middle/right\n\nAll non-NumPad keys are forwarded to the compositor.\nHold direction keys to auto-accelerate (3→50 px)."
+        after_help = "NumLock+KPEnter toggles mouse control on/off.\n\nKeys (mouse mode):\n  8/2/4/6        Move up/down/left/right\n  7/9/1/3        Diagonal move\n  5              Click (press=down, release=up)\n  0              Hold button down\n  .              Release button\n  +              Double-click\n  / * -          Switch btn5 to left/middle/right\n\nScroll (NumLock held):\n  / 8 7 9        Scroll up/down/left/right\n  * -            Back/forward\n\nAll non-NumPad keys are forwarded to the compositor.\nHold direction keys to auto-accelerate (3→50 px)."
     )]
     KpNav,
 }

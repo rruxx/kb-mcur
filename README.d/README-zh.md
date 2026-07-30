@@ -46,6 +46,7 @@ sudo install -m755 target/release/key-mcursor /usr/bin/
 
 NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
 Grid 模式通过 Unix socket 自动请求键盘接管，热插拔通过 inotify 事件驱动。
+按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
 
 #### systemd
 
