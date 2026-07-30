@@ -577,11 +577,23 @@ pub fn run_service() -> Result<()> {
                     // ── Navigating phase: tab → 切换显示器 ──
                     if code == KEY_TAB && grid_monitors.len() > 1 {
                         grid_monitor_idx = (grid_monitor_idx + 1) % grid_monitors.len();
-                        info!(
-                            "[grid] monitor {}/{}",
-                            grid_monitor_idx + 1,
-                            grid_monitors.len()
-                        );
+                        overlay = None;
+                        if let Ok(state) =
+                            init_grid_monitor(grid_monitor_idx, &grid_monitors)
+                        {
+                            overlay = Some(state.overlay);
+                            mouse = state.mouse;
+                            grid_cfg = Some(state.cfg);
+                            grid_cache = Some(state.cache);
+                            grid_font_size = state.font_size;
+                            grid_states_all = Some(state.draw_states);
+                            grid_ctx = Some(GridCtx::new());
+                            info!(
+                                "[grid] monitor {}/{}",
+                                grid_monitor_idx + 1,
+                                grid_monitors.len()
+                            );
+                        }
                         continue;
                     }
 
