@@ -1,12 +1,13 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::os::fd::{IntoRawFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, IntoRawFd, RawFd};
 use std::os::unix::fs::OpenOptionsExt;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use log::info;
+use nix::sys::inotify::{AddWatchFlags, InitFlags, Inotify};
 
 use crate::uio::InputEvent;
 use bytemuck::Zeroable;
@@ -16,8 +17,6 @@ use bytemuck::Zeroable;
 nix::ioctl_write_int!(eviocgrab, b'E', 0x90);
 nix::ioctl_read!(eviocgname, b'E', 0x06, [u8; 80]);
 nix::ioctl_read!(eviocgkey, b'E', 0x21, [u8; 96]);
-
-const RESCAN_INTERVAL: Duration = Duration::from_secs(1);
 
 fn is_own_device(fd: RawFd) -> bool {
     let mut buf = [0u8; 80];
@@ -111,22 +110,29 @@ struct DeviceFd {
     name: String, // e.g. "event3"
 }
 
-/// Holds all grabbed keyboard devices.  Supports hot-plug via periodic
-/// re-scan of /dev/input/.
+/// Holds all grabbed keyboard devices.  Hot-plug via inotify on /dev/input/.
 pub struct KeyboardDev {
     fds: Vec<DeviceFd>,
     filter: KeyboardFilter,
-    last_rescan: Instant,
+    inotify: Option<Inotify>,
     suspended: bool,
     pollfds: Vec<nix::poll::PollFd<'static>>,
 }
 
 impl KeyboardDev {
     pub fn open_all(filter: KeyboardFilter) -> Result<Self> {
+        let ino = Inotify::init(InitFlags::IN_NONBLOCK)
+            .context("inotify_init")?;
+        ino.add_watch(
+            "/dev/input/",
+            AddWatchFlags::IN_CREATE | AddWatchFlags::IN_DELETE,
+        )
+        .context("inotify watch /dev/input/")?;
+
         let mut devs = Self {
             fds: Vec::new(),
             filter,
-            last_rescan: Instant::now(),
+            inotify: Some(ino),
             suspended: false,
             pollfds: Vec::new(),
         };
@@ -182,29 +188,38 @@ impl KeyboardDev {
         }
     }
 
-    /// Poll for any input event with a timeout (ms).  Also performs
-    /// periodic hot-plug rescan.
+    /// Poll for any input event with a timeout (ms).
+    /// Hot-plug is driven by inotify — no periodic scanning.
     pub fn poll_event(&mut self, timeout_ms: i32) -> Result<Option<InputEvent>> {
-        self.maybe_rescan();
-
         if self.fds.is_empty() {
             std::thread::sleep(Duration::from_millis(timeout_ms as u64));
             return Ok(None);
         }
 
-        // Reuse pollfd vector — only rebuild when device count changes
-        let n = self.fds.len();
-        if self.pollfds.len() == n {
-            for (i, d) in self.fds.iter().enumerate() {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
-                self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
-            }
-        } else {
+        let nk = self.fds.len();
+        // pollfds = [keyboard_0, ..., keyboard_n, inotify]
+        let total = nk + 1;
+        let ino_fd = self.inotify.as_ref().map(|i| i.as_fd().as_raw_fd());
+        if self.pollfds.len() != total {
             self.pollfds.clear();
             for d in &self.fds {
                 let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
                 self.pollfds
                     .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
+            }
+            if let Some(fd) = ino_fd {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
+                self.pollfds
+                    .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
+            }
+        } else {
+            for (i, d) in self.fds.iter().enumerate() {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
+                self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
+            }
+            if let Some(fd) = ino_fd {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
+                self.pollfds[nk] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
             }
         }
 
@@ -213,25 +228,38 @@ impl KeyboardDev {
             return Ok(None);
         }
 
-        for (i, p) in self.pollfds.iter().enumerate() {
-            if !p
+        for i in 0..total {
+            let revents = self.pollfds[i]
                 .revents()
-                .unwrap_or(nix::poll::PollFlags::empty())
-                .contains(nix::poll::PollFlags::POLLIN)
-            {
+                .unwrap_or(nix::poll::PollFlags::empty());
+            if !revents.contains(nix::poll::PollFlags::POLLIN) {
                 continue;
             }
-            let mut ev: InputEvent = Zeroable::zeroed();
-            let sz = std::mem::size_of::<InputEvent>();
-            let bytes = bytemuck::bytes_of_mut(&mut ev);
-            let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.fds[i].fd) };
-            let Ok(n) = nix::unistd::read(fd, bytes) else {
-                continue;
-            };
-            if n < sz {
-                continue;
+            if i < nk {
+                let mut ev: InputEvent = Zeroable::zeroed();
+                let sz = std::mem::size_of::<InputEvent>();
+                let bytes = bytemuck::bytes_of_mut(&mut ev);
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(self.fds[i].fd) };
+                let Ok(n) = nix::unistd::read(fd, bytes) else {
+                    continue;
+                };
+                if n < sz {
+                    continue;
+                }
+                return Ok(Some(ev));
             }
-            return Ok(Some(ev));
+            // inotify fd (i == nk): read events, rescan only for event* files.
+            if let Some(ref ino) = self.inotify {
+                let events = ino.read_events()?;
+                let has_event_device = events.iter().any(|e| {
+                    e.name
+                        .as_ref()
+                        .is_some_and(|n| n.to_string_lossy().starts_with("event"))
+                });
+                if has_event_device {
+                    self.maybe_rescan();
+                }
+            }
         }
         Ok(None)
     }
@@ -242,11 +270,6 @@ impl KeyboardDev {
         if self.suspended {
             return;
         }
-        let now = Instant::now();
-        if now.duration_since(self.last_rescan) < RESCAN_INTERVAL {
-            return;
-        }
-        self.last_rescan = now;
 
         let current = event_device_names();
 

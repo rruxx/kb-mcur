@@ -11,7 +11,7 @@ anyhow = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 const_format = "0.2"
-nix = { version = "0.31", features = ["fs", "ioctl", "mman", "poll", "user"] }
+nix = { version = "0.31", features = ["fs", "inotify", "ioctl", "mman", "poll", "user"] }
 bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
 env_logger = "0.11"
