@@ -121,8 +121,7 @@ pub struct KeyboardDev {
 
 impl KeyboardDev {
     pub fn open_all(filter: KeyboardFilter) -> Result<Self> {
-        let ino = Inotify::init(InitFlags::IN_NONBLOCK)
-            .context("inotify_init")?;
+        let ino = Inotify::init(InitFlags::IN_NONBLOCK).context("inotify_init")?;
         ino.add_watch(
             "/dev/input/",
             AddWatchFlags::IN_CREATE | AddWatchFlags::IN_DELETE,
@@ -200,7 +199,16 @@ impl KeyboardDev {
         // pollfds = [keyboard_0, ..., keyboard_n, inotify]
         let total = nk + 1;
         let ino_fd = self.inotify.as_ref().map(|i| i.as_fd().as_raw_fd());
-        if self.pollfds.len() != total {
+        if self.pollfds.len() == total {
+            for (i, d) in self.fds.iter().enumerate() {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
+                self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
+            }
+            if let Some(fd) = ino_fd {
+                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
+                self.pollfds[nk] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
+            }
+        } else {
             self.pollfds.clear();
             for d in &self.fds {
                 let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
@@ -211,15 +219,6 @@ impl KeyboardDev {
                 let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
                 self.pollfds
                     .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
-            }
-        } else {
-            for (i, d) in self.fds.iter().enumerate() {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd) };
-                self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
-            }
-            if let Some(fd) = ino_fd {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
-                self.pollfds[nk] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
             }
         }
 

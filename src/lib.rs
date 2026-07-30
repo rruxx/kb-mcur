@@ -89,13 +89,11 @@ pub fn run() -> Result<()> {
         idx
     };
     let selected = &monitors[monitor_idx];
-    let _ = MONITOR_NAME.set(
-        debug::monitor_name(
-            debug::debug_monitor_count(),
-            monitor_idx,
-            named.get(monitor_idx).map_or("?", |n| n.0.as_str()),
-        )
-    );
+    let _ = MONITOR_NAME.set(debug::monitor_name(
+        debug::debug_monitor_count(),
+        monitor_idx,
+        named.get(monitor_idx).map_or("?", |n| n.0.as_str()),
+    ));
 
     let max_w = monitors
         .iter()
@@ -170,13 +168,17 @@ fn to_base26(mut idx: usize, digits: usize) -> String {
         idx /= 26;
     }
     // SAFETY: ASCII-only chars, reversing is valid.
-    unsafe { s.as_mut_vec().reverse(); }
+    unsafe {
+        s.as_mut_vec().reverse();
+    }
     s
 }
 
 /// Number of letters needed to uniquely label `count` monitors.
 fn display_digits_needed(count: usize) -> usize {
-    if count <= 1 { return 1; }
+    if count <= 1 {
+        return 1;
+    }
     let (mut n, mut cap) = (1, 26);
     while cap < count {
         n += 1;
@@ -209,8 +211,8 @@ fn redraw_into(
         anti_alias: true,
         ..Default::default()
     };
-    let pw = font_size * 2.0;  // label plate width
-    let ph = font_size * 2.0;  // label plate height
+    let pw = font_size * 2.0; // label plate width
+    let ph = font_size * 2.0; // label plate height
 
     for (i, label) in labels.iter().enumerate() {
         if !label.starts_with(prefix) {
@@ -227,14 +229,22 @@ fn redraw_into(
         pb.push_oval(tiny_skia::Rect::from_xywh(x, y, pw, ph).unwrap());
         let oval = pb.finish().unwrap();
         pixmap.fill_path(
-            &oval, &paint,
-            tiny_skia::FillRule::Winding, Transform::identity(), None,
+            &oval,
+            &paint,
+            tiny_skia::FillRule::Winding,
+            Transform::identity(),
+            None,
         );
 
         // Label text centred on the ellipse.
         render::draw_text(
-            pixmap, label, cx, cy,
-            cache, font_size, [192, 255, 192, 192],
+            pixmap,
+            label,
+            cx,
+            cy,
+            cache,
+            font_size,
+            [192, 255, 192, 192],
         );
     }
 }
@@ -261,7 +271,16 @@ fn select_display(
     overlay.show_all()?;
 
     let mut pixmap = Pixmap::new(bbox_w as u32, bbox_h as u32).context("pixmap")?;
-    redraw_into(&mut pixmap, monitors, &labels, "", &cache, font_size, bbox_x, bbox_y);
+    redraw_into(
+        &mut pixmap,
+        monitors,
+        &labels,
+        "",
+        &cache,
+        font_size,
+        bbox_x,
+        bbox_y,
+    );
     overlay.upload(0, &pixmap)?;
     overlay.redraw_all()?;
 
@@ -280,7 +299,16 @@ fn select_display(
         };
         if byte == 0x7f || byte == b'\x08' {
             if input.pop().is_some() {
-                redraw_into(&mut pixmap, monitors, &labels, &input, &cache, font_size, bbox_x, bbox_y);
+                redraw_into(
+                    &mut pixmap,
+                    monitors,
+                    &labels,
+                    &input,
+                    &cache,
+                    font_size,
+                    bbox_x,
+                    bbox_y,
+                );
                 overlay.upload(0, &pixmap)?;
                 overlay.redraw_all()?;
             }
@@ -288,7 +316,16 @@ fn select_display(
         }
         if byte == 0x1b {
             input.clear();
-            redraw_into(&mut pixmap, monitors, &labels, "", &cache, font_size, bbox_x, bbox_y);
+            redraw_into(
+                &mut pixmap,
+                monitors,
+                &labels,
+                "",
+                &cache,
+                font_size,
+                bbox_x,
+                bbox_y,
+            );
             overlay.upload(0, &pixmap)?;
             overlay.redraw_all()?;
             continue;
@@ -310,7 +347,16 @@ fn select_display(
         }
 
         input.push(byte as char);
-        redraw_into(&mut pixmap, monitors, &labels, &input, &cache, font_size, bbox_x, bbox_y);
+        redraw_into(
+            &mut pixmap,
+            monitors,
+            &labels,
+            &input,
+            &cache,
+            font_size,
+            bbox_x,
+            bbox_y,
+        );
         overlay.upload(0, &pixmap)?;
         overlay.redraw_all()?;
 

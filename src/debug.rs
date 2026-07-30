@@ -13,9 +13,7 @@ use log::info;
 /// KEY_MCURSOR_DEBUG_MONITORS=3 cargo run -- grid
 /// ```
 #[must_use]
-pub fn clone_monitors(
-    monitors: Vec<(i32, i32, u16, u16)>,
-) -> Vec<(i32, i32, u16, u16)> {
+pub fn clone_monitors(monitors: Vec<(i32, i32, u16, u16)>) -> Vec<(i32, i32, u16, u16)> {
     let debug_n: usize = debug_monitor_count();
 
     if debug_n > 1 && monitors.len() == 1 {
@@ -29,11 +27,7 @@ pub fn clone_monitors(
 
 /// Select a monitor name for debug vs. real.
 #[must_use]
-pub fn monitor_name(
-    debug_n: usize,
-    monitor_idx: usize,
-    real_name: &str,
-) -> String {
+pub fn monitor_name(debug_n: usize, monitor_idx: usize, real_name: &str) -> String {
     if debug_n > 1 {
         format!("debug-{}", monitor_idx + 1)
     } else {
