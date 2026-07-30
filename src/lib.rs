@@ -461,7 +461,10 @@ pub fn process_byte(
             if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
                 overlay.pointer_warp(cx as i16, cy as i16)?;
             }
-            return Ok(true);
+            ctx.filter.clear();
+            ctx.repeat = 0;
+            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+            return Ok(false);
         }
 
         0x1b => {
@@ -494,7 +497,10 @@ pub fn process_byte(
                 if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
                     overlay.pointer_warp(cx as i16, cy as i16)?;
                 }
-                return Ok(true);
+                ctx.filter.clear();
+                ctx.repeat = 0;
+                display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+                return Ok(false);
             }
 
             match ctx.filter.len() {

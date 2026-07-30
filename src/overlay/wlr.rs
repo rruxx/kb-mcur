@@ -115,16 +115,16 @@ impl WlrBackend {
         let layer_shell: ZwlrLayerShellV1 = globals
             .bind(&qh, 1..=5, ())
             .context("zwlr_layer_shell_v1")?;
-        let vptr_mgr: ZwlrVirtualPointerManagerV1 = globals
+        let vptr = globals
             .bind(&qh, 1..=2, ())
-            .context("zwlr_virtual_pointer_manager_v1")?;
-        let vptr = vptr_mgr.create_virtual_pointer(None, &qh, ());
+            .ok()
+            .map(|mgr: ZwlrVirtualPointerManagerV1| mgr.create_virtual_pointer(None, &qh, ()));
         Ok(WlrBackend {
             conn,
             compositor,
             shm,
             layer_shell,
-            vptr: Some(vptr),
+            vptr,
             windows: Vec::new(),
             monitors: vec![(
                 "WL-1".into(),

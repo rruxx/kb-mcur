@@ -8,9 +8,9 @@ use crate::{
     config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_CAPSLOCK, KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK,
-        KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_LEFTMETA,
-        KEY_NUMLOCK, KEY_RIGHTMETA, ModState, map as key_map,
+        KEY_CAPSLOCK, KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT,
+        KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_LEFTMETA, KEY_NUMLOCK,
+        KEY_RIGHTMETA, ModState, map as key_map,
     },
     uio::{
         EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT,
@@ -21,9 +21,7 @@ use anyhow::Result;
 use log::{info, warn};
 
 use crate::{
-    DrawState, FONT_DATA, GridCtx, init_overlay, process_byte,
-    overlay::Overlay,
-    uinput::Mouse,
+    DrawState, FONT_DATA, GridCtx, init_overlay, overlay::Overlay, process_byte, uinput::Mouse,
 };
 
 // ── 方向映射 ────────────────────────────────────────────────────────
@@ -134,6 +132,32 @@ fn display_session_uid() -> Option<u32> {
         return Some(st.st_uid);
     }
     None
+}
+
+fn setup_display_env(uid: u32) {
+    let run_user = format!("/run/user/{uid}");
+
+    for wn in ["wayland-1", "wayland-0"] {
+        if std::path::Path::new(&format!("{run_user}/{wn}")).exists() {
+            unsafe {
+                std::env::set_var("WAYLAND_DISPLAY", wn);
+                std::env::set_var("XDG_RUNTIME_DIR", &run_user);
+            }
+            return;
+        }
+    }
+
+    let home = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid))
+        .ok()
+        .flatten()
+        .map_or_else(
+            || format!("/home/{uid}"),
+            |u| u.dir.to_string_lossy().into_owned(),
+        );
+    unsafe {
+        std::env::set_var("DISPLAY", ":0");
+        std::env::set_var("HOME", &home);
+    }
 }
 
 fn watchdog() {
@@ -454,30 +478,43 @@ pub fn run_service() -> Result<()> {
                             }
                         }
                     }
+                    // Flush held modifier keys so compositor doesn't see
+                    // stale modifiers on subsequent uinput actions.
+                    for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_CAPSLOCK] {
+                        write_event(&mut kbd_out, EV_KEY, key, 0)?;
+                    }
+                    write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
                     continue;
                 }
 
                 // ── grid 模式：主键盘区按键 → grid 处理 ──
                 if grid_active {
+                    if ev.type_ != EV_KEY {
+                        continue;
+                    }
+                    if value == 0 {
+                        continue;
+                    }
                     let byte = key_map(code, &mods);
                     if let Some(b) = byte {
-                        if let (Some(o), Some(gcfg), Some(gcache), Some(gstates), Some(gctx)) =
-                            (&mut overlay, grid_cfg.as_mut(), grid_cache.as_mut(), grid_states.as_mut(), grid_ctx.as_mut())
-                        {
-                            match process_byte(b, o, &mut mouse, gcfg, gcache, grid_font_size, gstates, gctx) {
-                                Ok(true) => {
-                                    overlay = None;
-                                    mouse = None;
-                                    grid_cfg = None;
-                                    grid_cache = None;
-                                    grid_states = None;
-                                    grid_ctx = None;
-                                    grid_active = false;
-                                    info!("[grid] done");
-                                    continue;
-                                }
-                                Ok(false) => {}
-                                Err(e) => warn!("[grid] error: {e}"),
+                        if let (Some(o), Some(gcfg), Some(gcache), Some(gstates), Some(gctx)) = (
+                            &mut overlay,
+                            grid_cfg.as_mut(),
+                            grid_cache.as_mut(),
+                            grid_states.as_mut(),
+                            grid_ctx.as_mut(),
+                        ) {
+                            if let Err(e) = process_byte(
+                                b,
+                                o,
+                                &mut mouse,
+                                gcfg,
+                                gcache,
+                                grid_font_size,
+                                gstates,
+                                gctx,
+                            ) {
+                                warn!("[grid] error: {e}");
                             }
                         }
                         continue;
@@ -502,8 +539,7 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if kpd.active()
-                    && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
+                if kpd.active() && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
                 {
                     continue;
                 }
@@ -540,45 +576,60 @@ fn enter_grid() -> Result<GridState> {
     let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
-    let mut overlay = Overlay::connect()?;
-    let named = overlay
-        .named_monitors()
-        .context("failed to query monitors")?;
-    if named.is_empty() {
-        anyhow::bail!("no active monitors detected");
-    }
-    let monitors: Vec<(i32, i32, u16, u16)> =
-        named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
+    let Some(session_uid) = display_session_uid() else {
+        anyhow::bail!("no display session detected");
+    };
+    setup_display_env(session_uid);
 
-    let monitor_idx = 0;
-    let selected = &monitors[monitor_idx];
+    let saved_uid = nix::unistd::geteuid();
+    nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid))
+        .context("seteuid to session user")?;
 
-    let max_w = monitors
-        .iter()
-        .map(|m| m.0 + i32::from(m.2))
-        .max()
-        .unwrap_or(i32::from(FALLBACK_WIDTH)) as u16;
-    let max_h = monitors
-        .iter()
-        .map(|m| m.1 + i32::from(m.3))
-        .max()
-        .unwrap_or(i32::from(crate::config::FALLBACK_HEIGHT)) as u16;
-    let mouse = Mouse::new(max_w, max_h)
-        .map_err(|e| {
-            warn!("uinput unavailable — {e}");
-            e
+    let result = (|| -> Result<GridState> {
+        let mut overlay = Overlay::connect()?;
+        let named = overlay
+            .named_monitors()
+            .context("failed to query monitors")?;
+        if named.is_empty() {
+            anyhow::bail!("no active monitors detected");
+        }
+        let monitors: Vec<(i32, i32, u16, u16)> =
+            named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect();
+
+        let monitor_idx = 0;
+        let selected = &monitors[monitor_idx];
+
+        let max_w = monitors
+            .iter()
+            .map(|m| m.0 + i32::from(m.2))
+            .max()
+            .unwrap_or(i32::from(FALLBACK_WIDTH)) as u16;
+        let max_h = monitors
+            .iter()
+            .map(|m| m.1 + i32::from(m.3))
+            .max()
+            .unwrap_or(i32::from(crate::config::FALLBACK_HEIGHT)) as u16;
+        let mouse = Mouse::new(max_w, max_h)
+            .map_err(|e| {
+                warn!("uinput unavailable — {e}");
+                e
+            })
+            .ok();
+
+        let single_monitors = vec![*selected];
+        let (cfg, font_size, cache, draw_states) =
+            init_overlay(&mut overlay, &font, &single_monitors)?;
+
+        Ok(GridState {
+            overlay,
+            mouse,
+            cfg,
+            cache,
+            font_size,
+            draw_states,
         })
-        .ok();
+    })();
 
-    let single_monitors = vec![*selected];
-    let (cfg, font_size, cache, draw_states) = init_overlay(&mut overlay, &font, &single_monitors)?;
-
-    Ok(GridState {
-        overlay,
-        mouse,
-        cfg,
-        cache,
-        font_size,
-        draw_states,
-    })
+    let _ = nix::unistd::seteuid(saved_uid);
+    result
 }

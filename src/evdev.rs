@@ -103,10 +103,10 @@ fn matches_filter(fd: RawFd, filter: KeyboardFilter) -> bool {
             count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
         KeyboardFilter::Service => {
-            let grid_ok =
-                count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
-            let kp_ok =
-                count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c));
+            let grid_ok = count_keys(&bits) >= GRID_MIN_KEYS
+                && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
+            let kp_ok = count_keys(&bits) >= KPNAV_MIN_KEYS
+                && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c));
             grid_ok || kp_ok
         }
     }

@@ -5,6 +5,7 @@ pub mod wlr;
 pub mod x11;
 
 use anyhow::Result;
+use log::warn;
 use tiny_skia::Pixmap as SkiaPixmap;
 
 type MonitorInfo = (String, i32, i32, u16, u16);
@@ -26,10 +27,11 @@ macro_rules! delegate {
 
 impl Overlay {
     pub fn connect() -> Result<Self> {
-        if std::env::var("WAYLAND_DISPLAY").is_ok()
-            && let Ok(b) = wlr::WlrBackend::connect()
-        {
-            return Ok(Overlay::Wlr(b));
+        if std::env::var("WAYLAND_DISPLAY").is_ok() {
+            match wlr::WlrBackend::connect() {
+                Ok(b) => return Ok(Overlay::Wlr(b)),
+                Err(e) => warn!("Wayland connection failed: {e:#}"),
+            }
         }
         if std::env::var("DISPLAY").is_ok() {
             return Ok(Overlay::X11(x11::X11Backend::connect()?));

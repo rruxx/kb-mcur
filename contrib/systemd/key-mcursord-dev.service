@@ -1,11 +1,11 @@
 [Unit]
-Description=key-mcursord — NumPad mouse navigation (NumLock+KPEnter toggle)
+Description=key-mcursord — Keyboard mouse service (NumPad + grid overlay)
 Documentation=https://github.com/rruxx/key-mcursor https://gitee.com/rrux/key-mcursor
 After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/key-mcursor kp-nav
+ExecStart=/usr/bin/key-mcursor service
 RuntimeMaxSec=16
 Environment=RUST_LOG=warn
 User=root
