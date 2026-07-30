@@ -5,6 +5,7 @@
 
 pub const KEY_ESC: u16 = 1;
 pub const KEY_BACKSPACE: u16 = 14;
+pub const KEY_TAB: u16 = 15;
 pub const KEY_Q: u16 = 16;
 pub const KEY_W: u16 = 17;
 pub const KEY_E: u16 = 18;
