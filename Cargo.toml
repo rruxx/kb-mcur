@@ -20,6 +20,12 @@ wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 wayland-backend = { version = "0.3", features = ["client_system"] }
 
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+
 [profile.dev]
 opt-level = 1
 
@@ -28,9 +34,3 @@ opt-level = 2
 
 [profile.dev.package.fontdue]
 opt-level = 2
-
-[profile.release]
-opt-level = 3
-lto = true
-# codegen-units = 1
-panic = "abort"

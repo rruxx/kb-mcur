@@ -3,6 +3,7 @@
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Instant;
@@ -344,8 +345,19 @@ fn socket_thread(cmd_tx: mpsc::Sender<Cmd>, ack_rx: mpsc::Receiver<()>) {
     }
 }
 
+extern "C" fn shutdown_signal(_: libc::c_int) {
+    SHUTDOWN.store(true, Ordering::Relaxed);
+}
+
+static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
 pub fn run() -> Result<()> {
     info!("kp-nav — NumLock+KPEnter to toggle");
+
+    unsafe {
+        libc::signal(libc::SIGINT, shutdown_signal as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, shutdown_signal as *const () as libc::sighandler_t);
+    }
 
     let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
     let (ack_tx, ack_rx) = mpsc::channel::<()>();
@@ -374,6 +386,11 @@ pub fn run() -> Result<()> {
     let mut last_wd = Instant::now();
 
     loop {
+        if SHUTDOWN.load(Ordering::Relaxed) {
+            info!("shutting down");
+            break Ok(());
+        }
+
         // ── Watchdog: fix uinput device ownership every second ──
         let now = Instant::now();
         if now.duration_since(last_wd) >= std::time::Duration::from_secs(1) {
