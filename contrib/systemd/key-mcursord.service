@@ -1,13 +1,13 @@
 [Unit]
 Description=key-mcursord — NumPad mouse navigation (NumLock+KPEnter toggle)
-Documentation=https://github.com/rruxx/key-mcursor https://gitee.com/rruxx/key-mcursor
+Documentation=https://github.com/rruxx/key-mcursor https://gitee.com/rrux/key-mcursor
 After=multi-user.target
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/key-mcursor kp-nav
-Restart=always
-RestartSec=2
+Environment=RUST_LOG=warn
+RuntimeMaxSec=10
 User=root
 
 [Install]

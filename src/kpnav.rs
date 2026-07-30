@@ -405,6 +405,7 @@ pub fn run() -> Result<()> {
         } else {
             warn_is_done = false;
         }
+        let t_poll_start = Instant::now();
         match kbd.poll_event(32) {
             Ok(Some(ev)) => {
                 let code = ev.code;
@@ -439,6 +440,10 @@ pub fn run() -> Result<()> {
                 do_direction_tick(&mut kpd, &mut ptr_out)?;
             }
             Err(e) => return Err(e),
+        }
+        let t_poll = t_poll_start.elapsed();
+        if t_poll > std::time::Duration::from_millis(40) {
+            warn!("poll {t_poll:?}");
         }
     }
 }
