@@ -1,8 +1,8 @@
 # kursor — Keyboard-driven mouse-cursor control
 
-[中文](README-zh.md)
+[中文](README.d/README-zh.md)
 
-Grid-based cursor targeting, NumPad mouse navigation service, CLI macro shortcuts.
+Grid-based cursor targeting, NumPad glide navigation service, CLI macro shortcuts.
 X11 / wlroots / KDE / GNOME.
 
 ## Motivation
@@ -35,25 +35,26 @@ sudo install -m755 target/release/kursor /usr/bin/
 
 ## Usage
 
-### service — Dual-mode daemon (mouse + grid)
+### service — Dual-mode daemon (glide + grid)
 
-Start once as a systemd service. Two orthogonal input layers:
+Start once as a systemd service. Two orthogonal strategies:
 
-**mouse (NumPad):**
-NumLock+KPEnter toggles mouse mode. Non-NumPad keys forwarded to the compositor.
+**glide (NumPad):**
+Mouse emulation with acceleration. NumLock+KPEnter toggle.
 Hold direction keys to auto-accelerate (3→50 px).
-NumLock held + / 8 7 9 = scroll; * - = back/forward.
+/ * - = switch btn5 (L/M/R). NumLock + / 8 7 9 = scroll; * - = back/forward.
 
 **grid (meta+capslock):**
-Toggle overlay on/off with meta+capslock. Multi-monitor: type a letter (a, b, …) to
-select display, then navigate the 26×26 progressive grid. Tab switches monitors.
+Two-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°), 27×27 cells.
+Multi-monitor: type a letter (a, b, …) to select display; tab switches monitors.
+j/k/l click, Space/Enter warp. 0-9 prefix for repeat (e.g. 3j).
 After each click/warp, the filter resets — grid stays open.
 
 #### systemd
 
 ```bash
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
-sudo cp contrib/systemd/kursord.service /etc/systemd/system/
+sudo cp contrib/systemd/kursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now kursord
 ```
@@ -74,10 +75,10 @@ sudo systemctl enable --now kursord
 src/
 ├── main.rs      CLI entry
 ├── lib.rs       Grid orchestration + display selection
-├── service.rs   Unified service (gradual + jump)
+├── service.rs   Dual-mode service (glide + grid)
 ├── config.rs    Project identity, key mappings, grid config
 ├── debug.rs     Debug helpers (multi-monitor simulation)
-├── grid.rs      26×26 grid + region math
+├── grid.rs      27×27 grid + region math
 ├── render.rs    Overlay rendering + text drawing
 ├── overlay.rs   X11/Wayland overlay backends (enum dispatch)
 ├── overlay/

@@ -1,6 +1,6 @@
 # kursor — 键驱光标
 
-[English](README-en.md)
+[English](./README-en.md)
 
 渐进式网格光标定位、小键盘鼠标导航常驻服务、CLI 宏快捷键。
 支持 X11 / wlroots / KDE / GNOME。
@@ -40,19 +40,21 @@ sudo install -m755 target/release/kursor /usr/bin/
 通过 systemd 启动一次，两种正交策略：
 
 **渐动（小键盘）：**
-鼠标模拟 + 自动加速。NumLock+KPEnter 切换。
-按住方向键自动加速（3→50 px）。
+NumLock+KPEnter 切换 glide 模式。非小键盘按键转发至合成器。
+按住方向键自动加速（3→50 px）。/ * - 切换按键按钮（左/中/右键）。
 按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
 
 **跳转（meta+capslock）：**
-meta+capslock 开关网格叠加层。多屏时先输入字母（a, b, …）选屏，再进入 26×26 渐进网格。
-tab 键切换显示屏。点击/定位后 filter 复位，网格不退出。
+两层渐进网格（L1: 9×3，L2: 3×9 顺时针 90°），合计 27×27 格。
+多屏时先输入字母（a, b, …）选屏；tab 键切换显示屏。
+j/k/l 点击，空格/回车定位。0-9 前缀连击（如 3j）。
+点击/定位后 filter 复位，网格不退出。
 
 #### systemd
 
 ```bash
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
-sudo cp contrib/systemd/kursord.service /etc/systemd/system/
+sudo cp contrib/systemd/kursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now kursord
 ```
@@ -76,7 +78,7 @@ src/
 ├── service.rs   双模服务（渐动 + 跳转）
 ├── config.rs    项目标识、按键映射、网格配置
 ├── debug.rs     调试辅助（多屏模拟）
-├── grid.rs      26×26 网格 + 区域计算
+├── grid.rs      27×27 网格 + 区域计算
 ├── render.rs    叠加层渲染 + 文字绘制
 ├── overlay.rs   X11/Wayland 双后端（枚举分发）
 ├── overlay/
