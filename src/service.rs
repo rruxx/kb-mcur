@@ -361,9 +361,9 @@ fn do_direction_tick(kpd: &mut Kpd, ptr_out: &mut std::fs::File) -> Result<()> {
     Ok(())
 }
 
-// ── 统一服务 ────────────────────────────────────────────────────────
+// ── 双模服务 ────────────────────────────────────────────────────────
 
-extern "C" fn shutdown_signal(_: libc::c_int) {
+extern "C" fn shutdown_signal(_: i32) {
     SHUTDOWN.store(true, Ordering::Relaxed);
 }
 
@@ -373,13 +373,13 @@ pub fn run_service() -> Result<()> {
     info!("service — NumLock+KPEnter for mouse, Meta+CapsLock for grid");
 
     unsafe {
-        libc::signal(
-            libc::SIGINT,
-            shutdown_signal as *const () as libc::sighandler_t,
+        let _ = nix::sys::signal::signal(
+            nix::sys::signal::Signal::SIGINT,
+            nix::sys::signal::SigHandler::Handler(shutdown_signal),
         );
-        libc::signal(
-            libc::SIGTERM,
-            shutdown_signal as *const () as libc::sighandler_t,
+        let _ = nix::sys::signal::signal(
+            nix::sys::signal::Signal::SIGTERM,
+            nix::sys::signal::SigHandler::Handler(shutdown_signal),
         );
     }
 

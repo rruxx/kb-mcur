@@ -135,16 +135,13 @@ pub fn run() -> Result<()> {
 /// Convert index to a base-26 label (a=0, b=1, ..., z=25, aa=26, …),
 /// padded to `digits` characters.
 fn to_base26(mut idx: usize, digits: usize) -> String {
-    let mut s = String::with_capacity(digits);
+    let mut bytes: Vec<u8> = Vec::with_capacity(digits);
     for _ in 0..digits {
-        s.push((b'a' + (idx % 26) as u8) as char);
+        bytes.push(b'a' + (idx % 26) as u8);
         idx /= 26;
     }
-    // SAFETY: ASCII-only chars, reversing is valid.
-    unsafe {
-        s.as_mut_vec().reverse();
-    }
-    s
+    bytes.reverse();
+    String::from_utf8(bytes).unwrap()
 }
 
 /// Number of letters needed to uniquely label `count` monitors.

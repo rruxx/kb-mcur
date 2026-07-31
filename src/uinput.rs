@@ -8,14 +8,16 @@ use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::OpenOptionsExt;
 
+use nix::fcntl::OFlag;
+
 use crate::config::{
     BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, UINPUT_CREATE_WAIT_MS,
     UINPUT_NAME_MAXLEN, btn_code as button_hid,
 };
 use crate::uio::{
     ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN, InputAbsinfo, InputEvent, REL_X, REL_Y,
-    SYN_REPORT, UinputAbsSetup, UinputSetup, create_virt_device, ui_abs_setup, ui_dev_create,
-    ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit, ui_set_keybit,
+    SYN_REPORT, UinputAbsSetup, UinputSetup, ZERO_TIMEVAL, create_virt_device, ui_abs_setup,
+    ui_dev_create, ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit, ui_set_keybit,
 };
 
 pub struct Mouse {
@@ -29,7 +31,7 @@ impl Mouse {
     pub fn new(screen_w: u16, screen_h: u16) -> Result<Self> {
         let fd = std::fs::OpenOptions::new()
             .write(true)
-            .custom_flags(libc::O_NONBLOCK)
+            .custom_flags(OFlag::O_NONBLOCK.bits())
             .open("/dev/uinput")
             .context("open /dev/uinput")?;
 
@@ -100,10 +102,7 @@ impl Mouse {
 
     fn make_event(type_: u16, code: u16, value: i32) -> InputEvent {
         InputEvent {
-            time: libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            },
+            time: ZERO_TIMEVAL,
             type_,
             code,
             value,

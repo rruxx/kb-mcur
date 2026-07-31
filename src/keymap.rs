@@ -109,7 +109,7 @@ pub fn map(code: u16, mods: &ModState) -> Option<u8> {
     let upper = mods.shift;
     for &(k, v) in &LUT {
         if code == k {
-            return Some(if upper { v - 32 } else { v });
+            return Some(if upper { v.to_ascii_uppercase() } else { v });
         }
     }
 
@@ -119,6 +119,7 @@ pub fn map(code: u16, mods: &ModState) -> Option<u8> {
         KEY_BACKSPACE => Some(0x7f),
         KEY_ESC => Some(0x1b),
 
+        // evdev keycodes 2-11 = KEY_1 through KEY_0 (wrapping).
         2..=11 => {
             const SHIFT: &[u8] = b")!@#$%^&*(";
             let idx = ((code - 1) % 10) as usize;

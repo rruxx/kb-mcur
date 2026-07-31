@@ -10,6 +10,7 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::{Context, Result};
 use bytemuck::{Pod, Zeroable};
+use nix::fcntl::OFlag;
 
 use crate::config::{UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN};
 
@@ -83,12 +84,14 @@ pub const SYN_REPORT: u16 = 0;
 
 // ── Event writers ────────────────────────────────────────────────────
 
+pub const ZERO_TIMEVAL: libc::timeval = libc::timeval {
+    tv_sec: 0,
+    tv_usec: 0,
+};
+
 pub fn write_event(fd: &mut File, type_: u16, code: u16, value: i32) -> std::io::Result<()> {
     let ev = InputEvent {
-        time: libc::timeval {
-            tv_sec: 0,
-            tv_usec: 0,
-        },
+        time: ZERO_TIMEVAL,
         type_,
         code,
         value,
@@ -110,7 +113,7 @@ pub fn write_event_raw(fd: &mut File, ev: &InputEvent) -> std::io::Result<()> {
 pub fn create_virt_device(name: &str, key_bits: &[u16], rel: bool) -> Result<File> {
     let fd = File::options()
         .write(true)
-        .custom_flags(libc::O_NONBLOCK)
+        .custom_flags(OFlag::O_NONBLOCK.bits())
         .open("/dev/uinput")
         .context("open /dev/uinput")?;
 
