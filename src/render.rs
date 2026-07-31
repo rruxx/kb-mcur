@@ -8,9 +8,7 @@ use tiny_skia::{
     Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform,
 };
 
-use crate::config::{BISECT_LABELS, SUBGRID_LABELS};
 use crate::grid::{Grid, GridConfig, GridFilter};
-use tiny_skia::IntRect;
 
 pub struct TextCache {
     glyphs: HashMap<char, (Metrics, Vec<u8>)>,
@@ -23,13 +21,13 @@ impl TextCache {
         for ch in 'a'..='z' {
             glyphs.insert(ch, font.rasterize(ch, size));
         }
-        for ch in '0'..='9' {
+        for ch in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '.'] {
             glyphs.insert(ch, font.rasterize(ch, size));
         }
         Self { glyphs }
     }
 
-    fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
+    pub(crate) fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
         self.glyphs.get(&ch)
     }
 }
@@ -83,110 +81,10 @@ pub fn render_labels(
     }
 }
 
-pub fn render_subgrid(
-    pixmap: &mut Pixmap,
-    rect: IntRect,
-    cfg: &GridConfig,
-    cache: &TextCache,
-    font_size: f32,
-) {
-    let x = rect.x() as f32;
-    let y = rect.y() as f32;
-    let w = rect.width() as f32;
-    let h = rect.height() as f32;
-
-    draw_focus(pixmap, x, y, w, h, 2, 4, cfg);
-
-    let cell_w = w / 4.0;
-    let gap = font_size * 1.0;
-    let top_y = y - gap - font_size * 0.5;
-    let bot_y = y + h + gap + font_size * 0.5;
-    for col in 0..4u32 {
-        let cx = x + (col as f32 + 0.5) * cell_w;
-        draw_char(
-            pixmap,
-            SUBGRID_LABELS[0][col as usize],
-            cx,
-            top_y,
-            cache,
-            cfg.label_color,
-        );
-        draw_char(
-            pixmap,
-            SUBGRID_LABELS[1][col as usize],
-            cx,
-            bot_y,
-            cache,
-            cfg.label_color,
-        );
-    }
-}
-
-pub fn render_bisect(
-    pixmap: &mut Pixmap,
-    rect: (f32, f32, f32, f32),
-    cfg: &GridConfig,
-    cache: &TextCache,
-    font_size: f32,
-) {
-    let (x, y, w, h) = rect;
-    draw_focus(pixmap, x, y, w, h, 2, 2, cfg);
-
-    let gap = font_size * 1.0;
-    let top_y = y - gap - font_size * 0.5;
-    let bot_y = y + h + gap + font_size * 0.5;
-    let pad = 12.0;
-    let positions = [
-        (BISECT_LABELS[0][0], x - pad, top_y),
-        (BISECT_LABELS[0][1], x + w + pad, top_y),
-        (BISECT_LABELS[1][0], x - pad, bot_y),
-        (BISECT_LABELS[1][1], x + w + pad, bot_y),
-    ];
-    for &(ch, px, py) in &positions {
-        draw_char(pixmap, ch, px, py, cache, cfg.label_color);
-    }
-}
-
 // ── Low-level draw ─────────────────────────────────────────────────
 
 fn rgba(color: [u8; 4]) -> Color {
     Color::from_rgba8(color[0], color[1], color[2], color[3])
-}
-
-fn highlight_color(label: [u8; 4]) -> Color {
-    Color::from_rgba8(
-        (f32::from(label[0]) * 0.25) as u8,
-        (f32::from(label[1]) * 0.25) as u8,
-        (f32::from(label[2]) * 0.25) as u8,
-        32,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-fn draw_focus(
-    pixmap: &mut Pixmap,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    rows: u32,
-    cols: u32,
-    cfg: &GridConfig,
-) {
-    fill_rect(pixmap, x, y, w, h, highlight_color(cfg.label_color));
-    let line = rgba(cfg.line_color);
-    let stroke = Stroke {
-        width: cfg.line_width,
-        ..Default::default()
-    };
-    for row in 1..rows {
-        let ly = y + (row as f32 / rows as f32) * h;
-        draw_line(pixmap, x, ly, x + w, ly, &line, &stroke);
-    }
-    for col in 1..cols {
-        let lx = x + (col as f32 / cols as f32) * w;
-        draw_line(pixmap, lx, y, lx, y + h, &line, &stroke);
-    }
 }
 
 fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
@@ -223,6 +121,7 @@ fn draw_line(
     pixmap.stroke_path(&path, &paint, stroke, Transform::identity(), None);
 }
 
+#[allow(dead_code)]
 fn draw_char(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, cache: &TextCache, rgba: [u8; 4]) {
     let Some((m, bmp)) = cache.get(ch) else {
         return;

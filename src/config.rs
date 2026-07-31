@@ -32,8 +32,10 @@ pub const FALLBACK_HEIGHT: u16 = 1080;
 
 // ── Grid geometry ────────────────────────────────────────────────────
 
-pub const GRID_ROWS: u32 = 26;
-pub const GRID_COLS: u32 = 26;
+pub const GRID_ROWS: u32 = 27;
+pub const GRID_COLS: u32 = 27;
+
+// ── Two-layer grid key layouts ────────────────────────────────────────
 
 // ── Colours ──────────────────────────────────────────────────────────
 
@@ -48,16 +50,34 @@ pub const FONT_SIZE_MIN: f32 = 6.0;
 pub const FONT_SIZE_MAX: f32 = 14.0;
 pub const FONT_ROW_DIVISOR: f32 = 1.8;
 
-// ── Level 3  sub-grid keys (4×2) ─────────────────────────────────────
+// ── Two-layer grid key layouts ────────────────────────────────────────
 
-pub const SUBGRID_LABELS: [[char; 4]; 2] = [['q', 'w', 'e', 'r'], ['a', 's', 'd', 'f']];
+/// Layer 1: 9 columns × 3 rows (main keyboard physical layout).
+pub const L1_KEYS: [[char; 9]; 3] = [
+    ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o'],
+    ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+    ['z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.'],
+];
+
+/// Layer 2: 3 columns × 9 rows (clockwise‑90° rotation of L1).
+pub const L2_KEYS: [[char; 3]; 9] = [
+    ['z', 'a', 'q'],
+    ['x', 's', 'w'],
+    ['c', 'd', 'e'],
+    ['v', 'f', 'r'],
+    ['b', 'g', 't'],
+    ['n', 'h', 'y'],
+    ['m', 'j', 'u'],
+    [',', 'k', 'i'],
+    ['.', 'l', 'o'],
+];
 
 #[must_use]
-pub fn sub_key_index(ch: char) -> Option<usize> {
-    for (row, cols) in SUBGRID_LABELS.iter().enumerate() {
-        for (col, &label) in cols.iter().enumerate() {
-            if label == ch {
-                return Some(row * 4 + col);
+pub fn l1_key_pos(ch: char) -> Option<(usize, usize)> {
+    for (r, row) in L1_KEYS.iter().enumerate() {
+        for (c, &k) in row.iter().enumerate() {
+            if k == ch {
+                return Some((r, c));
             }
         }
     }
@@ -65,23 +85,33 @@ pub fn sub_key_index(ch: char) -> Option<usize> {
 }
 
 #[must_use]
-pub fn is_sub_key(ch: char) -> bool {
-    sub_key_index(ch).is_some()
+pub fn l2_key_pos(ch: char) -> Option<(usize, usize)> {
+    for (r, row) in L2_KEYS.iter().enumerate() {
+        for (c, &k) in row.iter().enumerate() {
+            if k == ch {
+                return Some((r, c));
+            }
+        }
+    }
+    None
 }
 
-// ── Level 3+  cursor movement keys ───────────────────────────────────
+/// Full label for cell at global (row, col) in the 27×27 grid.
+#[must_use]
+pub fn cell_label(row: u32, col: u32) -> String {
+    let l1 = &L1_KEYS[(row / 9) as usize][(col / 3) as usize];
+    let l2 = &L2_KEYS[(row % 9) as usize][(col % 3) as usize];
+    format!("{l1}{l2}")
+}
+
+// ── Cursor movement acceleration ─────────────────────────────────────
 
 pub const CURSOR_STEP: i32 = 3;
 pub const MAX_CURSOR_STEP: i32 = 50;
 
-/// Every N consecutive timer ticks, step doubles.
 pub const CURSOR_ACCEL_INTERVAL: u32 = 5;
-
-/// Maximum number of doubling shifts before the step cap takes over.
 pub const MAX_ACCEL_SHIFTS: u32 = 10;
 
-/// Accelerated step size: doubles every `CURSOR_ACCEL_INTERVAL` repeats,
-/// bounded by `MAX_ACCEL_SHIFTS` shifts and then `MAX_CURSOR_STEP`.
 #[must_use]
 pub fn cursor_speed(repeat_count: u32) -> i32 {
     let shifts = (repeat_count / CURSOR_ACCEL_INTERVAL).min(MAX_ACCEL_SHIFTS);
@@ -93,7 +123,6 @@ pub fn cursor_speed(repeat_count: u32) -> i32 {
 
 pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
 
-/// Returns button number (1=left, 2=middle, 3=right) if `ch` is a click key.
 #[must_use]
 pub fn action_key(ch: char) -> Option<u8> {
     for &(k, btn) in &CLICK_KEYS {
@@ -102,42 +131,6 @@ pub fn action_key(ch: char) -> Option<u8> {
         }
     }
     None
-}
-
-// ── Levels 4-7  bisect keys (2×2) ────────────────────────────────────
-
-pub const BISECT_LABELS: [[char; 2]; 2] = [['e', 'r'], ['d', 'f']];
-
-#[must_use]
-pub fn quad_key_index(ch: char) -> Option<usize> {
-    for (row, cols) in BISECT_LABELS.iter().enumerate() {
-        for (col, &label) in cols.iter().enumerate() {
-            if label == ch {
-                return Some(row * 2 + col);
-            }
-        }
-    }
-    None
-}
-
-#[must_use]
-pub fn is_quad_key(ch: char) -> bool {
-    quad_key_index(ch).is_some()
-}
-
-/// Shrink (x, y, w, h) to the selected quadrant.
-/// idx: 0=TL, 1=TR, 2=BL, 3=BR.
-#[must_use]
-pub fn quad_shrink((x, y, w, h): (f32, f32, f32, f32), idx: usize) -> (f32, f32, f32, f32) {
-    let hw = w * 0.5;
-    let hh = h * 0.5;
-    match idx {
-        0 => (x, y, hw, hh),
-        1 => (x + hw, y, hw, hh),
-        2 => (x, y + hh, hw, hh),
-        3 => (x + hw, y + hh, hw, hh),
-        _ => (x, y, w, h),
-    }
 }
 
 // ── Timing ───────────────────────────────────────────────────────────

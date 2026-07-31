@@ -107,12 +107,10 @@ impl Grid {
                         .round_out()
                         .expect("round_out")
                 });
-                let row_ch = (b'a' + row as u8) as char;
-                let col_ch = (b'a' + col as u8) as char;
                 cells.push(Cell {
                     rect,
                     center: (cx, cy),
-                    label: format!("{row_ch}{col_ch}"),
+                    label: config::cell_label(row, col),
                 });
             }
         }

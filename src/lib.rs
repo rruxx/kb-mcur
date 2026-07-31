@@ -36,7 +36,7 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader,
 
 use config::{
     BG_COLOR, FALLBACK_HEIGHT, FALLBACK_WIDTH, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN,
-    action_key, is_quad_key, is_sub_key, quad_key_index, quad_shrink, sub_key_index,
+    action_key, l1_key_pos, l2_key_pos,
 };
 use evdev::{KeyboardDev, KeyboardFilter};
 use grid::{Grid, GridConfig, GridFilter};
@@ -49,7 +49,7 @@ pub const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
 
 static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 
-/// Per-monitor state: the 26×26 grid, its base-layer RGBA bytes, and a
+/// Per-monitor state: the 27×27 grid, its base-layer RGBA bytes, and a
 /// persistent pixmap that is re-uploaded on every redraw.
 pub struct DrawState {
     grid: Grid,
@@ -486,7 +486,7 @@ pub fn process_byte(
         ch => {
             let c = ch as char;
 
-            if ctx.filter.len() >= 2 && c.is_ascii_digit() {
+            if !ctx.filter.is_empty() && c.is_ascii_digit() {
                 ctx.repeat = ctx
                     .repeat
                     .saturating_mul(10)
@@ -507,11 +507,13 @@ pub fn process_byte(
                 return Ok(false);
             }
 
-            match ctx.filter.len() {
-                0 | 1 if c.is_ascii_lowercase() => {}
-                2 if is_sub_key(c) => {}
-                3..=6 if is_quad_key(c) => {}
+            let valid = match ctx.filter.len() {
+                0 => l1_key_pos(c).is_some(),
+                1 => l2_key_pos(c).is_some(),
                 _ => return Ok(false),
+            };
+            if !valid {
+                return Ok(false);
             }
 
             ctx.filter.push(c);
@@ -573,33 +575,16 @@ fn display_update(
     font_size: f32,
     filter: &GridFilter,
 ) -> Result<()> {
-    let (region, parent_rect) = resolve_render_target(filter, states);
-
     for (idx, ds) in states.iter_mut().enumerate() {
         render::render_base(&mut ds.pixmap, &ds.grid, cfg);
-
-        if let Some(r) = region {
-            let f = (r.2.min(r.3) / 8.0).max(FONT_SIZE_MIN).round();
-            render::render_bisect(&mut ds.pixmap, r, cfg, cache, f);
-        } else if let Some(rect) = parent_rect {
-            let cw = rect.width() as f32 / 4.0;
-            let ch = rect.height() as f32 / 2.0;
-            let f = (cw / 3.0)
-                .min(ch / FONT_ROW_DIVISOR)
-                .max(FONT_SIZE_MIN)
-                .round();
-            render::render_subgrid(&mut ds.pixmap, rect, cfg, cache, f);
-        } else {
-            render::render_labels(
-                &mut ds.pixmap,
-                &ds.grid,
-                cfg,
-                cache,
-                font_size,
-                Some(filter),
-            );
-        }
-
+        render::render_labels(
+            &mut ds.pixmap,
+            &ds.grid,
+            cfg,
+            cache,
+            font_size,
+            Some(filter),
+        );
         overlay.upload(idx, &ds.pixmap)?;
     }
 
@@ -608,57 +593,23 @@ fn display_update(
     Ok(())
 }
 
-type RenderTarget = (Option<(f32, f32, f32, f32)>, Option<tiny_skia::IntRect>);
-
-fn resolve_render_target(filter: &GridFilter, states: &[DrawState]) -> RenderTarget {
-    if filter.len() < 2 {
-        return (None, None);
-    }
-    let parent = states
-        .iter()
-        .find_map(|ds| ds.grid.cell_by_label(&filter.input()[..2]))
-        .map(|c| c.rect);
-    if filter.len() >= 3 {
-        (region_rect(filter, states), parent)
-    } else {
-        (None, parent)
-    }
-}
-
 // ── Region geometry ─────────────────────────────────────────────────
 
-/// Replay the entire filter string to compute the currently-selected
-/// rectangle in monitor-pixel coordinates as (x, y, w, h).
+/// Get the currently-selected cell's rect from the 2‑character filter.
 fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f32, f32)> {
     let input = filter.input();
     if input.len() < 2 {
         return None;
     }
-    let parent = states
+    let cell = states
         .iter()
         .find_map(|ds| ds.grid.cell_by_label(&input[..2]))?;
-    let (px, py, pw, ph) = (
-        parent.rect.x() as f32,
-        parent.rect.y() as f32,
-        parent.rect.width() as f32,
-        parent.rect.height() as f32,
-    );
-    let mut r = (px, py, pw, ph);
-    // Level 3 — sub-cell inside the 4×2 partition
-    if let Some(ch) = input.chars().nth(2) {
-        let idx = sub_key_index(ch)?;
-        r = (
-            px + (idx % 4) as f32 * pw / 4.0,
-            py + (idx / 4) as f32 * ph / 2.0,
-            pw / 4.0,
-            ph / 2.0,
-        );
-    }
-    // Levels 4-7 — successive 2×2 bisection
-    for ch in input.chars().skip(3) {
-        r = quad_shrink(r, quad_key_index(ch)?);
-    }
-    Some(r)
+    Some((
+        cell.rect.x() as f32,
+        cell.rect.y() as f32,
+        cell.rect.width() as f32,
+        cell.rect.height() as f32,
+    ))
 }
 
 /// Centre pixel of the current region.
