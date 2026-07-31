@@ -1,6 +1,6 @@
 [package]
-name = "key-mcursor"
-version = "1.2.0"
+name = "kursor"
+version = "2.0.0"
 edition = "2024"
 
 [dependencies]
@@ -11,7 +11,7 @@ anyhow = "1"
 libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 const_format = "0.2"
-nix = { version = "0.31", features = ["fs", "inotify", "ioctl", "mman", "poll", "user"] }
+nix = { version = "0.31", features = ["fs", "inotify", "ioctl", "mman", "poll", "user", "signal"] }
 bytemuck = { version = "1", features = ["derive"] }
 log = "0.4"
 env_logger = "0.11"
