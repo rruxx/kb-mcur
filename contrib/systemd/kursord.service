@@ -1,5 +1,5 @@
 [Unit]
-Description=kursord — Keyboard mouse service (NumPad mouse + overlay grid)
+Description=kursord — Keyboard mouse service (NumPad glide + overlay grid)
 Documentation=https://github.com/rruxx/kursor https://gitee.com/rrux/kursor
 After=multi-user.target
 

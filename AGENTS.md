@@ -29,12 +29,12 @@ export PROJ="$(pwd)"  # path to this project
 cargo clean
 RUSTFLAGS="-Cprofile-generate=${PROJ}/tmp/pgo-data" cargo build --release
 
-sudo cp ${PROJ}/target/release/kursor           /usr/bin/
-sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/
+sudo cp ${PROJ}/target/release/kursor           /usr/bin/kursor
+sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/kursord.service
 sudo systemctl daemon-reload
 
 systemctl start kursord
-# grid + mouse
+# glide + grid
 systemctl stop kursord
 
 llvm-profdata merge -o ${PROJ}/tmp/merged.profdata ${PROJ}/tmp/pgo-data

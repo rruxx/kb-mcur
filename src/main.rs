@@ -48,10 +48,10 @@ Example:
         btn: String,
     },
 
-    /// Dual-mode daemon: mouse (NumPad) + grid (Main keypad).
+    /// Dual-mode daemon: glide (NumPad) + grid (Main keyboard).
     #[command(after_help = "\
-mouse (NumPad):
-  NumLock+KPEnter   Toggle mouse mode
+glide (NumPad):
+  NumLock+KPEnter   Toggle glide mode
   8/2/4/6           Move up/down/left/right
   7/9/1/3           Diagonal move
   5                 Click
@@ -62,13 +62,12 @@ mouse (NumPad):
   NumLock+/ 8 7 9   Scroll up/down/left/right
   NumLock+* -       Back/forward
 
-grid (Main keypad):
+grid (Main keyboard):
   meta+capslock     Toggle grid overlay
   a-z letter        Select monitor (multi-monitor)
   tab               Switch monitor
-  a-z (2 letters)   26×26 grid cell
-  q/w/e/r/a/s/d/f   4×2 sub-grid
-  e/r/d/f           2×2 quadrant
+  layer1 key        9×3 region (main keyboard layout)
+  layer2 key        3×9 sub-region (clockwise‑90°)
   Space/Enter        Warp & reset
   j/k/l              Click L/M/R & reset
   0-9 prefix         Repeat (e.g. 3j)

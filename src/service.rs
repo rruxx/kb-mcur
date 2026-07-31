@@ -49,7 +49,7 @@ bitflags::bitflags! {
 }
 
 impl Dir {
-    fn from_keypad(code: u16) -> Option<Self> {
+    fn from_numpad(code: u16) -> Option<Self> {
         use crate::keymap::{
             KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
         };
@@ -81,9 +81,9 @@ impl Dir {
     }
 }
 
-// ── mouse 状态 ─────────────────────────────────────────────────────
+// ── glide 状态 ─────────────────────────────────────────────────────
 
-struct Kpd {
+struct Glide {
     toggle: bool,
     btn_5: u8,
     btn_held: bool,
@@ -93,7 +93,7 @@ struct Kpd {
     dir_count: u32,
 }
 
-impl Kpd {
+impl Glide {
     fn new() -> Self {
         Self {
             toggle: false,
@@ -199,16 +199,16 @@ fn watchdog() {
     }
 }
 
-// ── mouse 事件处理 ─────────────────────────────────────────────────
+// ── glide 事件处理 ─────────────────────────────────────────────────
 
 fn handle_key_event(
-    kpd: &mut Kpd,
+    glide: &mut Glide,
     ptr_out: &mut std::fs::File,
     code: u16,
     value: i32,
     is_press: bool,
 ) -> Result<bool> {
-    if kpd.numlock_held {
+    if glide.numlock_held {
         match code {
             KEY_KPSLASH => {
                 if is_press {
@@ -261,74 +261,74 @@ fn handle_key_event(
     }
 
     match code {
-        c if Dir::from_keypad(c).is_some() => {
-            let flag = Dir::from_keypad(c).unwrap();
+        c if Dir::from_numpad(c).is_some() => {
+            let flag = Dir::from_numpad(c).unwrap();
             if value == 0 {
-                kpd.dir_mask.remove(flag);
-                kpd.dir_held = kpd.dir_held.saturating_sub(1);
-                if kpd.dir_held == 0 {
-                    kpd.dir_count = 0;
+                glide.dir_mask.remove(flag);
+                glide.dir_held = glide.dir_held.saturating_sub(1);
+                if glide.dir_held == 0 {
+                    glide.dir_count = 0;
                 }
             } else if value == 1 {
-                kpd.dir_mask.insert(flag);
-                kpd.dir_held = kpd.dir_held.saturating_add(1);
+                glide.dir_mask.insert(flag);
+                glide.dir_held = glide.dir_held.saturating_add(1);
             }
             Ok(true)
         }
         KEY_KP5 => {
             if value > 0 {
-                write_event(ptr_out, EV_KEY, kpd.btn_code(), 1)?;
+                write_event(ptr_out, EV_KEY, glide.btn_code(), 1)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                kpd.btn_held = true;
-            } else if value == 0 && kpd.btn_held {
-                write_event(ptr_out, EV_KEY, kpd.btn_code(), 0)?;
+                glide.btn_held = true;
+            } else if value == 0 && glide.btn_held {
+                write_event(ptr_out, EV_KEY, glide.btn_code(), 0)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                kpd.btn_held = false;
+                glide.btn_held = false;
             }
             Ok(true)
         }
         KEY_KPDOT => {
             if is_press {
-                write_event(ptr_out, EV_KEY, kpd.btn_code(), 0)?;
+                write_event(ptr_out, EV_KEY, glide.btn_code(), 0)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                kpd.btn_held = false;
+                glide.btn_held = false;
                 info!("[release]");
             }
             Ok(true)
         }
         KEY_KP0 => {
-            if value == 1 && !kpd.btn_held {
-                write_event(ptr_out, EV_KEY, kpd.btn_code(), 1)?;
+            if value == 1 && !glide.btn_held {
+                write_event(ptr_out, EV_KEY, glide.btn_code(), 1)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                kpd.btn_held = true;
+                glide.btn_held = true;
                 info!("[hold]");
             }
             Ok(true)
         }
         KEY_KPASTERISK => {
             if is_press {
-                kpd.btn_5 = 2;
+                glide.btn_5 = 2;
                 info!("[btn5=M]");
             }
             Ok(true)
         }
         KEY_KPSLASH => {
             if is_press {
-                kpd.btn_5 = 1;
+                glide.btn_5 = 1;
                 info!("[btn5=L]");
             }
             Ok(true)
         }
         KEY_KPMINUS => {
             if is_press {
-                kpd.btn_5 = 3;
+                glide.btn_5 = 3;
                 info!("[btn5=R]");
             }
             Ok(true)
         }
         KEY_KPPLUS => {
             if value == 1 {
-                let code = kpd.btn_code();
+                let code = glide.btn_code();
                 let half = std::time::Duration::from_millis(50);
                 for _ in 0..2 {
                     write_event(ptr_out, EV_KEY, code, 1)?;
@@ -346,13 +346,13 @@ fn handle_key_event(
     }
 }
 
-fn do_direction_tick(kpd: &mut Kpd, ptr_out: &mut std::fs::File) -> Result<()> {
-    if kpd.dir_held != 1 {
+fn do_direction_tick(glide: &mut Glide, ptr_out: &mut std::fs::File) -> Result<()> {
+    if glide.dir_held != 1 {
         return Ok(());
     }
-    let (dx, dy) = kpd.dir_mask.to_vector();
-    kpd.dir_count = kpd.dir_count.saturating_add(1);
-    let step = config::cursor_speed(kpd.dir_count) as f32;
+    let (dx, dy) = glide.dir_mask.to_vector();
+    glide.dir_count = glide.dir_count.saturating_add(1);
+    let step = config::cursor_speed(glide.dir_count) as f32;
     let mx = (dx as f32 * step) as i32;
     let my = (dy as f32 * step) as i32;
     write_event(ptr_out, EV_REL, REL_X, mx)?;
@@ -370,7 +370,7 @@ extern "C" fn shutdown_signal(_: i32) {
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 pub fn run_service() -> Result<()> {
-    info!("service — NumLock+KPEnter for mouse, Meta+CapsLock for grid");
+    info!("service — NumLock+KPEnter for glide, Meta+CapsLock for grid");
 
     unsafe {
         let _ = nix::sys::signal::signal(
@@ -393,7 +393,7 @@ pub fn run_service() -> Result<()> {
         true,
     )?;
 
-    let mut kpd = Kpd::new();
+    let mut glide = Glide::new();
 
     for code in 1u16..=255 {
         write_event(&mut kbd_out, EV_KEY, code, 0)?;
@@ -614,17 +614,17 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                // ── mouse ──
+                // ── glide ──
                 if code == KEY_NUMLOCK {
-                    kpd.numlock_held = value != 0;
+                    glide.numlock_held = value != 0;
                 }
 
-                if code == KEY_KPENTER && is_press && kpd.numlock_held {
-                    kpd.toggle = !kpd.toggle;
+                if code == KEY_KPENTER && is_press && glide.numlock_held {
+                    glide.toggle = !glide.toggle;
                     info!(
                         "{}",
-                        if kpd.active() {
-                            "[mouse mode ON]"
+                        if glide.active() {
+                            "[glide ON]"
                         } else {
                             "[pass-through]"
                         }
@@ -632,7 +632,8 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if kpd.active() && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
+                if glide.active()
+                    && handle_key_event(&mut glide, &mut ptr_out, code, value, is_press)?
                 {
                     continue;
                 }
@@ -640,7 +641,7 @@ pub fn run_service() -> Result<()> {
                 write_event_raw(&mut kbd_out, &ev)?;
             }
             Ok(None) => {
-                do_direction_tick(&mut kpd, &mut ptr_out)?;
+                do_direction_tick(&mut glide, &mut ptr_out)?;
             }
             Err(e) => return Err(e),
         }

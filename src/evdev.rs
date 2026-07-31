@@ -34,9 +34,9 @@ fn is_own_device(fd: &OwnedFd) -> bool {
 pub enum KeyboardFilter {
     /// Grid mode: a-z, space, enter, backspace, esc; ≥30 total keys.
     Grid,
-    /// `NumPad` mode: keypad 0-9, /*-+., numlock, keypad enter; ≥17 total keys.
+    /// `NumPad` mode: numpad 0-9, /*-+., numlock, numpad enter; ≥17 total keys.
     NumPad,
-    /// Dual-mode service: matches keypads or main keyboards.
+    /// Dual-mode service: matches numpads or main keyboards.
     Service,
 }
 
@@ -53,8 +53,8 @@ const GRID_REQUIRED: &[u16] = &[
 ];
 const GRID_MIN_KEYS: u32 = 40;
 
-/// keypad 0-9, /*-+., numlock, keypad enter
-const KPNAV_REQUIRED: &[u16] = &[
+/// numpad 0-9, /*-+., numlock, numpad enter
+const PAD_REQUIRED: &[u16] = &[
     55, // KEY_KPASTERISK
     69, // KEY_NUMLOCK
     71, 72, 73, // KP7-KP9
@@ -67,7 +67,7 @@ const KPNAV_REQUIRED: &[u16] = &[
     96, // KEY_KPENTER
     98, // KEY_KPSLASH
 ];
-const KPNAV_MIN_KEYS: u32 = 17;
+const PAD_MIN_KEYS: u32 = 17;
 
 fn read_key_bits(fd: &OwnedFd) -> Option<[u8; 96]> {
     let mut bits = [0u8; 96];
@@ -95,14 +95,14 @@ fn matches_filter(fd: &OwnedFd, filter: KeyboardFilter) -> bool {
             count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
         KeyboardFilter::NumPad => {
-            count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
+            count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
         KeyboardFilter::Service => {
             let grid_ok = count_keys(&bits) >= GRID_MIN_KEYS
                 && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
-            let kp_ok = count_keys(&bits) >= KPNAV_MIN_KEYS
-                && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c));
-            grid_ok || kp_ok
+            let pad_ok = count_keys(&bits) >= PAD_MIN_KEYS
+                && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
+            grid_ok || pad_ok
         }
     }
 }
