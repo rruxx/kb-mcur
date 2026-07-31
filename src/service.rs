@@ -155,8 +155,13 @@ fn setup_display_env(uid: u32) {
         }
     }
 
+    let home = nix::unistd::User::from_uid(nix::unistd::Uid::from_raw(uid))
+        .ok()
+        .flatten()
+        .map_or_else(|| format!("/home/{uid}"), |u| u.dir.to_string_lossy().into_owned());
     unsafe {
         std::env::set_var("DISPLAY", ":0");
+        std::env::set_var("HOME", &home);
     }
 }
 
@@ -363,6 +368,14 @@ fn do_direction_tick(glide: &mut Glide, ptr_out: &mut std::fs::File) -> Result<(
 
 // ── 双模服务 ────────────────────────────────────────────────────────
 
+fn is_grid_key(code: u16) -> bool {
+    key_map(code, &ModState::default()).is_some()
+        || code == KEY_TAB
+        || code == KEY_CAPSLOCK
+        || code == KEY_LEFTMETA
+        || code == KEY_RIGHTMETA
+}
+
 extern "C" fn shutdown_signal(_: i32) {
     SHUTDOWN.store(true, Ordering::Relaxed);
 }
@@ -487,7 +500,6 @@ pub fn run_service() -> Result<()> {
                                 } else {
                                     overlay = Some(init_overlay_conn);
                                     mouse = init_mouse;
-                                    // Single monitor: init grid overlay.
                                     if let Ok(state) = init_grid_monitor(0, &grid_monitors) {
                                         overlay = Some(state.overlay);
                                         mouse = state.mouse;
@@ -506,7 +518,6 @@ pub fn run_service() -> Result<()> {
                             }
                         }
                     }
-                    // Flush held modifier keys
                     for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_CAPSLOCK] {
                         write_event(&mut kbd_out, EV_KEY, key, 0)?;
                     }
@@ -515,127 +526,51 @@ pub fn run_service() -> Result<()> {
                 }
 
                 // ── grid 模式 ──
-                if grid_active {
-                    if ev.type_ != EV_KEY {
-                        continue;
-                    }
-                    if value == 0 {
-                        continue;
-                    }
-
-                    // ── Selecting phase: letter → pick monitor ──
-                    if grid_phase == GridPhase::Selecting {
-                        let byte = key_map(code, &mods);
-                        if let Some(b) = byte
-                            && b.is_ascii_lowercase()
-                        {
-                            let idx = (b - b'a') as usize;
-                            if idx < grid_monitors.len() {
-                                grid_monitor_idx = idx;
-                                // Drop selection overlay, init grid for selected monitor.
-                                overlay = None;
-                                if let Ok(state) =
-                                    init_grid_monitor(grid_monitor_idx, &grid_monitors)
-                                {
-                                    overlay = Some(state.overlay);
-                                    mouse = state.mouse;
-                                    grid_cfg = Some(state.cfg);
-                                    grid_cache = Some(state.cache);
-                                    grid_font_size = state.font_size;
-                                    grid_states_all = Some(state.draw_states);
-                                    grid_ctx = Some(GridCtx::new());
-                                    grid_phase = GridPhase::Navigating;
-                                    info!("[grid] selected monitor {}", grid_monitor_idx + 1);
-                                }
-                            } else {
-                                // Re-render with hint if partial match
-                                select_hint = format!("{}", b as char);
-                                if let Some(ref mut o) = overlay {
-                                    let _ = redraw_select_hint(o, &grid_monitors, &select_hint);
-                                }
-                            }
-                        }
-                        if let Some(ref mut o) = overlay
-                            && b'\x1b' == byte.unwrap_or(0)
-                        {
-                            // Esc clears hint
-                            select_hint.clear();
-                            let _ = redraw_select_hint(o, &grid_monitors, "");
-                        }
-                        continue;
-                    }
-
-                    // ── Navigating phase: tab → 切换显示器 ──
-                    if code == KEY_TAB && grid_monitors.len() > 1 {
-                        grid_monitor_idx = (grid_monitor_idx + 1) % grid_monitors.len();
-                        overlay = None;
-                        if let Ok(state) = init_grid_monitor(grid_monitor_idx, &grid_monitors) {
-                            overlay = Some(state.overlay);
-                            mouse = state.mouse;
-                            grid_cfg = Some(state.cfg);
-                            grid_cache = Some(state.cache);
-                            grid_font_size = state.font_size;
-                            grid_states_all = Some(state.draw_states);
-                            grid_ctx = Some(GridCtx::new());
-                            info!(
-                                "[grid] monitor {}/{}",
-                                grid_monitor_idx + 1,
-                                grid_monitors.len()
-                            );
-                        }
-                        continue;
-                    }
-
-                    // ── 网格输入 ──
-                    if grid_phase == GridPhase::Navigating {
-                        let byte = key_map(code, &mods);
-                        if let Some(b) = byte
-                            && let (Some(o), Some(gcfg), Some(gcache), Some(gstates), Some(gctx)) = (
-                                &mut overlay,
-                                grid_cfg.as_mut(),
-                                grid_cache.as_mut(),
-                                grid_states_all.as_mut(),
-                                grid_ctx.as_mut(),
-                            )
-                            && let Err(e) = process_byte(
-                                b,
-                                o,
-                                &mut mouse,
-                                gcfg,
-                                gcache,
-                                grid_font_size,
-                                gstates,
-                                gctx,
-                            )
-                        {
-                            warn!("[grid] error: {e}");
+                if grid_active && ev.type_ == EV_KEY && is_grid_key(code) {
+                    if value != 0 {
+                        let state = GridStateMut {
+                            overlay: &mut overlay,
+                            cfg: &mut grid_cfg,
+                            cache: &mut grid_cache,
+                            font_size: &mut grid_font_size,
+                            states: &mut grid_states_all,
+                            ctx: &mut grid_ctx,
+                            mouse: &mut mouse,
+                        };
+                        if grid_phase == GridPhase::Selecting {
+                            let monitors = grid_monitors.clone();
+                            handle_selecting(code, state, &mut grid_monitor_idx, &mut grid_phase, &monitors, &mods, &mut select_hint);
+                        } else {
+                            handle_navigating(code, state, &grid_monitors, &mut grid_monitor_idx, &mods, grid_phase);
                         }
                     }
                     continue;
                 }
 
                 // ── glide ──
-                if code == KEY_NUMLOCK {
-                    glide.numlock_held = value != 0;
-                }
+                if ev.type_ == EV_KEY {
+                    if code == KEY_NUMLOCK {
+                        glide.numlock_held = value != 0;
+                    }
 
-                if code == KEY_KPENTER && is_press && glide.numlock_held {
-                    glide.toggle = !glide.toggle;
-                    info!(
-                        "{}",
-                        if glide.active() {
-                            "[glide ON]"
-                        } else {
-                            "[pass-through]"
-                        }
-                    );
-                    continue;
-                }
+                    if code == KEY_KPENTER && is_press && glide.numlock_held {
+                        glide.toggle = !glide.toggle;
+                        info!(
+                            "{}",
+                            if glide.active() {
+                                "[glide ON]"
+                            } else {
+                                "[pass-through]"
+                            }
+                        );
+                        continue;
+                    }
 
-                if glide.active()
-                    && handle_key_event(&mut glide, &mut ptr_out, code, value, is_press)?
-                {
-                    continue;
+                    if glide.active()
+                        && handle_key_event(&mut glide, &mut ptr_out, code, value, is_press)?
+                    {
+                        continue;
+                    }
                 }
 
                 write_event_raw(&mut kbd_out, &ev)?;
@@ -652,6 +587,115 @@ pub fn run_service() -> Result<()> {
     }
 }
 
+// ── Grid 事件处理 ─────────────────────────────────────────────────
+
+struct GridStateMut<'a> {
+    overlay: &'a mut Option<Overlay>,
+    cfg: &'a mut Option<crate::grid::GridConfig>,
+    cache: &'a mut Option<crate::render::TextCache>,
+    font_size: &'a mut f32,
+    states: &'a mut Option<Vec<DrawState>>,
+    ctx: &'a mut Option<GridCtx>,
+    mouse: &'a mut Option<Mouse>,
+}
+
+fn handle_selecting(
+    code: u16,
+    state: GridStateMut<'_>,
+    grid_monitor_idx: &mut usize,
+    grid_phase: &mut GridPhase,
+    monitors: &MonitorList,
+    mods: &ModState,
+    select_hint: &mut String,
+) {
+    let byte = key_map(code, mods);
+    if let Some(b) = byte
+        && b.is_ascii_lowercase()
+    {
+        let idx = (b - b'a') as usize;
+        if idx < monitors.len() {
+            *grid_monitor_idx = idx;
+            *state.overlay = None;
+            if let Ok(s) = init_grid_monitor(*grid_monitor_idx, monitors) {
+                *state.overlay = Some(s.overlay);
+                *state.mouse = s.mouse;
+                *state.cfg = Some(s.cfg);
+                *state.cache = Some(s.cache);
+                *state.font_size = s.font_size;
+                *state.states = Some(s.draw_states);
+                *state.ctx = Some(GridCtx::new());
+                *grid_phase = GridPhase::Navigating;
+                info!("[grid] selected monitor {}", *grid_monitor_idx + 1);
+            }
+        } else {
+            *select_hint = format!("{}", b as char);
+            if let Some(o) = state.overlay.as_mut() {
+                let _ = redraw_select_hint(o, monitors, select_hint);
+            }
+        }
+    }
+    if let Some(o) = state.overlay.as_mut()
+        && b'\x1b' == byte.unwrap_or(0)
+    {
+        select_hint.clear();
+        let _ = redraw_select_hint(o, monitors, "");
+    }
+}
+
+fn handle_navigating(
+    code: u16,
+    state: GridStateMut<'_>,
+    monitors: &MonitorList,
+    grid_monitor_idx: &mut usize,
+    mods: &ModState,
+    grid_phase: GridPhase,
+) {
+    if code == KEY_TAB && monitors.len() > 1 {
+        *grid_monitor_idx = (*grid_monitor_idx + 1) % monitors.len();
+        *state.overlay = None;
+        if let Ok(s) = init_grid_monitor(*grid_monitor_idx, monitors) {
+            *state.overlay = Some(s.overlay);
+            *state.mouse = s.mouse;
+            *state.cfg = Some(s.cfg);
+            *state.cache = Some(s.cache);
+            *state.font_size = s.font_size;
+            *state.states = Some(s.draw_states);
+            *state.ctx = Some(GridCtx::new());
+            info!(
+                "[grid] monitor {}/{}",
+                *grid_monitor_idx + 1,
+                monitors.len()
+            );
+        }
+        return;
+    }
+
+    if grid_phase == GridPhase::Navigating {
+        let byte = key_map(code, mods);
+        if let Some(b) = byte
+            && let (Some(o), Some(gcfg), Some(gcache), Some(gstates), Some(gctx)) = (
+                state.overlay.as_mut(),
+                state.cfg.as_mut(),
+                state.cache.as_mut(),
+                state.states.as_mut(),
+                state.ctx.as_mut(),
+            )
+            && let Err(e) = process_byte(
+                b,
+                o,
+                state.mouse,
+                gcfg,
+                gcache,
+                *state.font_size,
+                gstates,
+                gctx,
+            )
+        {
+            warn!("[grid] error: {e}");
+        }
+    }
+}
+
 // ── Grid 初始化 ────────────────────────────────────────────────────
 
 struct GridState {
@@ -663,6 +707,8 @@ struct GridState {
     draw_states: Vec<DrawState>,
 }
 
+type MonitorList = Vec<(i32, i32, u16, u16)>;
+
 fn connect_as_user() -> Result<Overlay> {
     let Some(session_uid) = display_session_uid() else {
         anyhow::bail!("no display session detected");
@@ -670,7 +716,8 @@ fn connect_as_user() -> Result<Overlay> {
     setup_display_env(session_uid);
 
     let saved = nix::unistd::geteuid();
-    nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid)).context("seteuid")?;
+    nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid))
+        .context("seteuid")?;
     let result = Overlay::connect();
     let _ = nix::unistd::seteuid(saved);
     result
@@ -691,8 +738,6 @@ fn mouse_for_monitors(monitors: &[(i32, i32, u16, u16)]) -> Option<Mouse> {
     Mouse::new(max_w, max_h).ok()
 }
 
-type MonitorList = Vec<(i32, i32, u16, u16)>;
-
 fn enter_grid() -> Result<(Overlay, MonitorList, Option<Mouse>)> {
     let overlay = connect_as_user()?;
     let named = overlay
@@ -702,19 +747,25 @@ fn enter_grid() -> Result<(Overlay, MonitorList, Option<Mouse>)> {
         anyhow::bail!("no active monitors detected");
     }
     let monitors: Vec<(i32, i32, u16, u16)> =
-        crate::debug::clone_monitors(named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect());
+        crate::debug::clone_monitors(
+            named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect(),
+        );
 
     let m = mouse_for_monitors(&monitors);
     Ok((overlay, monitors, m))
 }
 
-fn init_grid_monitor(idx: usize, monitors: &[(i32, i32, u16, u16)]) -> Result<GridState> {
+fn init_grid_monitor(
+    idx: usize,
+    monitors: &[(i32, i32, u16, u16)],
+) -> Result<GridState> {
     let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
     let single = vec![monitors[idx]];
     let mut overlay = connect_as_user()?;
-    let (cfg, font_size, cache, draw_states) = init_overlay(&mut overlay, &font, &single)?;
+    let (cfg, font_size, cache, draw_states) =
+        init_overlay(&mut overlay, &font, &single)?;
 
     Ok(GridState {
         overlay,
@@ -728,7 +779,10 @@ fn init_grid_monitor(idx: usize, monitors: &[(i32, i32, u16, u16)]) -> Result<Gr
 
 // ── 多屏选屏 ──────────────────────────────────────────────────────
 
-fn show_selection(overlay: &mut Option<Overlay>, monitors: &[(i32, i32, u16, u16)]) -> Result<()> {
+fn show_selection(
+    overlay: &mut Option<Overlay>,
+    monitors: &[(i32, i32, u16, u16)],
+) -> Result<()> {
     let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
     let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
     let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
