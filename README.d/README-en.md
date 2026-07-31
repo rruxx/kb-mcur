@@ -1,4 +1,4 @@
-# key-mcursor — Keyboard-driven mouse-cursor control
+# kursor — Keyboard-driven mouse-cursor control
 
 [中文](README-zh.md)
 
@@ -12,16 +12,16 @@ X11 / wlroots / KDE / GNOME.
 - KDE 5 had a toggle shortcut similar to Windows; it was removed in KDE 6.
 - GNOME has never offered one.
 
-key-mcursor is a single binary that runs everywhere.
+kursor is a single binary that runs everywhere.
 
 ## Install
 
 ```bash
-git clone https://github.com/rruxx/key-mcursor.git    # GitHub
-git clone https://gitee.com/rruxx/key-mcursor.git     # Gitee
-cd key-mcursor
+git clone https://github.com/rruxx/kursor.git    # GitHub
+git clone https://gitee.com/rruxx/kursor.git     # Gitee
+cd kursor
 cargo build --release
-sudo install -m755 target/release/key-mcursor /usr/bin/
+sudo install -m755 target/release/kursor /usr/bin/
 ```
 
 ## Dependencies
@@ -35,35 +35,36 @@ sudo install -m755 target/release/key-mcursor /usr/bin/
 
 ## Usage
 
-### grid — Interactive progressive grid
+### service — Dual-mode daemon (gradual + jump)
 
-1. 26×26 cell (a–z, 2 letters)
-2. 4×2 sub-grid (q/w/e/r/a/s/d/f)
-3. Multi-level 2×2 quadrant (e/r/d/f)
-4. j/k/l click, Space/Enter warp and exit
+Start once as a systemd service. Two orthogonal strategies:
 
-### kp-nav — NumPad mouse navigation
-
-NumLock+KPEnter toggle. Non-NumPad keys forwarded to the compositor.
-Grid mode auto-handoff via Unix socket. Hot-plug via inotify.
+**gradual (NumPad):**
+Mouse emulation with acceleration. NumLock+KPEnter toggle.
+Hold direction keys to auto-accelerate (3→50 px).
 NumLock held + / 8 7 9 = scroll; * - = back/forward.
+
+**jump (meta+capslock):**
+Toggle grid overlay on/off with meta+capslock. Multi-monitor: type a letter (a, b, …) to
+select display, then navigate the 26×26 progressive grid. Tab switches monitors.
+After each click/warp, the filter resets — grid stays open.
 
 #### systemd
 
 ```bash
-sudo setcap cap_sys_admin+ep /usr/bin/key-mcursor
-sudo cp contrib/systemd/key-mcursord.service /etc/systemd/system/
+sudo setcap cap_sys_admin+ep /usr/bin/kursor
+sudo cp contrib/systemd/kursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now key-mcursord
+sudo systemctl enable --now kursord
 ```
 
 ### CLI
 
 | Command | Description |
 | --- | --- |
-| `key-mcursor move -- 10 -5` | Relative move |
-| `key-mcursor moveto 500 300` | Absolute warp |
-| `key-mcursor click -r 3 M` | Click with repeat |
+| `kursor move -- 10 -5` | Relative move |
+| `kursor moveto 500 300` | Absolute warp |
+| `kursor click -r 3 M` | Click with repeat |
 
 `--help` prints full key maps for every command.
 
@@ -73,7 +74,7 @@ sudo systemctl enable --now key-mcursord
 src/
 ├── main.rs      CLI entry
 ├── lib.rs       Grid orchestration + display selection
-├── kpnav.rs     NumPad mouse navigation service
+├── service.rs   Dual-mode service (gradual + jump)
 ├── config.rs    Project identity, key mappings, grid config
 ├── debug.rs     Debug helpers (multi-monitor simulation)
 ├── grid.rs      26×26 grid + region math

@@ -2,7 +2,7 @@
 
 ## Project
 
-key-mcursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots).
+kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots).
 
 ## Conventions
 
@@ -29,14 +29,13 @@ export PROJ="$(pwd)"  # path to this project
 cargo clean
 RUSTFLAGS="-Cprofile-generate=${PROJ}/tmp/pgo-data" cargo build --release
 
-sudo cp ${PROJ}/target/release/key-mcursor           /usr/bin/
-sudo cp ${PROJ}/contrib/systemd/key-mcursord.service /lib/systemd/system/
+sudo cp ${PROJ}/target/release/kursor           /usr/bin/
+sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
 
-key-mcursor grid
-
-systemctl start key-mcursord    # NumLock+KPEnter, do sth, NumLock+KPEnter
-systemctl stop key-mcursord
+systemctl start kursord
+# grid + mouse
+systemctl stop kursord
 
 llvm-profdata merge -o ${PROJ}/tmp/merged.profdata ${PROJ}/tmp/pgo-data
 
@@ -50,7 +49,7 @@ RUSTFLAGS="-Cprofile-use=${PROJ}/tmp/merged.profdata" cargo build --release
 export PROJ_V="$(cargo pkgid | cut -d\# -f2)"
 
 tar -I zstd \
-    -cf $PWD/target/key-mcursor-v${PROJ_V}-x86_64-unknown-linux-gnu.tar.zst \
-    -C $PWD/target/release key-mcursor \
-    -C $PWD/contrib/systemd key-mcursord.service
+    -cf $PWD/target/kursor-v${PROJ_V}-x86_64-unknown-linux-gnu.tar.zst \
+    -C $PWD/target/release kursor \
+    -C $PWD/contrib/systemd kursord.service
 ```

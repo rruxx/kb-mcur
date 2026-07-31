@@ -33,8 +33,8 @@ fn is_own_device(fd: RawFd) -> bool {
 pub enum KeyboardFilter {
     /// Grid mode: a-z, space, enter, backspace, esc; ≥30 total keys.
     Grid,
-    /// kp-nav mode: keypad 0-9, /*-+., numlock, keypad enter; ≥17 total keys.
-    KpNav,
+    /// NumPad mode: keypad 0-9, /*-+., numlock, keypad enter; ≥17 total keys.
+    NumPad,
     /// Unified service: matches keypads or main keyboards.
     Service,
 }
@@ -99,7 +99,7 @@ fn matches_filter(fd: RawFd, filter: KeyboardFilter) -> bool {
         KeyboardFilter::Grid => {
             count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
-        KeyboardFilter::KpNav => {
+        KeyboardFilter::NumPad => {
             count_keys(&bits) >= KPNAV_MIN_KEYS && KPNAV_REQUIRED.iter().all(|&c| has_key(&bits, c))
         }
         KeyboardFilter::Service => {

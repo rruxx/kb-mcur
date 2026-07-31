@@ -21,9 +21,9 @@ pub mod debug;
 pub mod evdev;
 pub mod grid;
 pub mod keymap;
-pub mod kpnav;
 pub mod overlay;
 pub mod render;
+pub mod service;
 pub mod uinput;
 pub mod uio;
 
@@ -384,11 +384,18 @@ pub struct GridCtx {
 }
 
 impl GridCtx {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             filter: GridFilter::new(),
             repeat: 0,
         }
+    }
+}
+
+impl Default for GridCtx {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -8,9 +8,9 @@ use crate::{
     config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     evdev::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_CAPSLOCK, KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK,
-        KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_LEFTMETA,
-        KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, ModState, map as key_map,
+        KEY_CAPSLOCK, KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT,
+        KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_LEFTMETA, KEY_NUMLOCK,
+        KEY_RIGHTMETA, KEY_TAB, ModState, map as key_map,
     },
     uio::{
         EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT,
@@ -21,9 +21,7 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 
 use crate::{
-    DrawState, FONT_DATA, GridCtx, init_overlay, process_byte,
-    overlay::Overlay,
-    uinput::Mouse,
+    DrawState, FONT_DATA, GridCtx, init_overlay, overlay::Overlay, process_byte, uinput::Mouse,
 };
 
 // ── Grid 状态阶段 ──────────────────────────────────────────────────
@@ -83,7 +81,7 @@ impl Dir {
     }
 }
 
-// ── kp-nav 状态 ─────────────────────────────────────────────────────
+// ── mouse 状态 ─────────────────────────────────────────────────────
 
 struct Kpd {
     toggle: bool,
@@ -201,7 +199,7 @@ fn watchdog() {
     }
 }
 
-// ── kp-nav 事件处理 ─────────────────────────────────────────────────
+// ── mouse 事件处理 ─────────────────────────────────────────────────
 
 fn handle_key_event(
     kpd: &mut Kpd,
@@ -412,7 +410,7 @@ pub fn run_service() -> Result<()> {
     let mut grid_font_size: f32 = 0.0;
     let mut grid_states_all: Option<Vec<DrawState>> = None;
     let mut grid_ctx: Option<GridCtx> = None;
-    let mut grid_monitors: Vec<(i32, i32, u16, u16)> = Vec::new();
+    let mut grid_monitors: MonitorList = Vec::new();
     let mut grid_monitor_idx: usize = 0;
     let mut select_hint: String = String::new();
     let mut mods = ModState::default();
@@ -476,24 +474,21 @@ pub fn run_service() -> Result<()> {
                                 if grid_monitors.len() > 1 {
                                     overlay = None;
                                     select_hint.clear();
-                                    if let Err(e) = show_selection(
-                                        &mut overlay,
-                                        &grid_monitors,
-                                    ) {
+                                    if let Err(e) = show_selection(&mut overlay, &grid_monitors) {
                                         warn!("[grid] selection: {e}");
                                         grid_active = false;
                                     } else {
                                         grid_phase = GridPhase::Selecting;
-                                        info!("[grid] select monitor (a-{})",
-                                            (b'a' + (grid_monitors.len() - 1) as u8) as char);
+                                        info!(
+                                            "[grid] select monitor (a-{})",
+                                            (b'a' + (grid_monitors.len() - 1) as u8) as char
+                                        );
                                     }
                                 } else {
                                     overlay = Some(init_overlay_conn);
                                     mouse = init_mouse;
                                     // Single monitor: init grid overlay.
-                                    if let Ok(state) =
-                                        init_grid_monitor(0, &grid_monitors)
-                                    {
+                                    if let Ok(state) = init_grid_monitor(0, &grid_monitors) {
                                         overlay = Some(state.overlay);
                                         mouse = state.mouse;
                                         grid_cfg = Some(state.cfg);
@@ -556,11 +551,7 @@ pub fn run_service() -> Result<()> {
                                 // Re-render with hint if partial match
                                 select_hint = format!("{}", b as char);
                                 if let Some(ref mut o) = overlay {
-                                    let _ = redraw_select_hint(
-                                        o,
-                                        &grid_monitors,
-                                        &select_hint,
-                                    );
+                                    let _ = redraw_select_hint(o, &grid_monitors, &select_hint);
                                 }
                             }
                         }
@@ -578,9 +569,7 @@ pub fn run_service() -> Result<()> {
                     if code == KEY_TAB && grid_monitors.len() > 1 {
                         grid_monitor_idx = (grid_monitor_idx + 1) % grid_monitors.len();
                         overlay = None;
-                        if let Ok(state) =
-                            init_grid_monitor(grid_monitor_idx, &grid_monitors)
-                        {
+                        if let Ok(state) = init_grid_monitor(grid_monitor_idx, &grid_monitors) {
                             overlay = Some(state.overlay);
                             mouse = state.mouse;
                             grid_cfg = Some(state.cfg);
@@ -600,39 +589,32 @@ pub fn run_service() -> Result<()> {
                     // ── 网格输入 ──
                     if grid_phase == GridPhase::Navigating {
                         let byte = key_map(code, &mods);
-                        if let Some(b) = byte {
-                            if let (
-                                Some(o),
-                                Some(gcfg),
-                                Some(gcache),
-                                Some(gstates),
-                                Some(gctx),
-                            ) = (
+                        if let Some(b) = byte
+                            && let (Some(o), Some(gcfg), Some(gcache), Some(gstates), Some(gctx)) = (
                                 &mut overlay,
                                 grid_cfg.as_mut(),
                                 grid_cache.as_mut(),
                                 grid_states_all.as_mut(),
                                 grid_ctx.as_mut(),
-                            ) {
-                                if let Err(e) = process_byte(
-                                    b,
-                                    o,
-                                    &mut mouse,
-                                    gcfg,
-                                    gcache,
-                                    grid_font_size,
-                                    gstates,
-                                    gctx,
-                                ) {
-                                    warn!("[grid] error: {e}");
-                                }
-                            }
+                            )
+                            && let Err(e) = process_byte(
+                                b,
+                                o,
+                                &mut mouse,
+                                gcfg,
+                                gcache,
+                                grid_font_size,
+                                gstates,
+                                gctx,
+                            )
+                        {
+                            warn!("[grid] error: {e}");
                         }
                     }
                     continue;
                 }
 
-                // ── kp-nav ──
+                // ── mouse ──
                 if code == KEY_NUMLOCK {
                     kpd.numlock_held = value != 0;
                 }
@@ -650,8 +632,7 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if kpd.active()
-                    && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
+                if kpd.active() && handle_key_event(&mut kpd, &mut ptr_out, code, value, is_press)?
                 {
                     continue;
                 }
@@ -688,8 +669,7 @@ fn connect_as_user() -> Result<Overlay> {
     setup_display_env(session_uid);
 
     let saved = nix::unistd::geteuid();
-    nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid))
-        .context("seteuid")?;
+    nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid)).context("seteuid")?;
     let result = Overlay::connect();
     let _ = nix::unistd::seteuid(saved);
     result
@@ -710,7 +690,9 @@ fn mouse_for_monitors(monitors: &[(i32, i32, u16, u16)]) -> Option<Mouse> {
     Mouse::new(max_w, max_h).ok()
 }
 
-fn enter_grid() -> Result<(Overlay, Vec<(i32, i32, u16, u16)>, Option<Mouse>)> {
+type MonitorList = Vec<(i32, i32, u16, u16)>;
+
+fn enter_grid() -> Result<(Overlay, MonitorList, Option<Mouse>)> {
     let overlay = connect_as_user()?;
     let named = overlay
         .named_monitors()
@@ -719,25 +701,19 @@ fn enter_grid() -> Result<(Overlay, Vec<(i32, i32, u16, u16)>, Option<Mouse>)> {
         anyhow::bail!("no active monitors detected");
     }
     let monitors: Vec<(i32, i32, u16, u16)> =
-        crate::debug::clone_monitors(
-            named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect(),
-        );
+        crate::debug::clone_monitors(named.iter().map(|n| (n.1, n.2, n.3, n.4)).collect());
 
     let m = mouse_for_monitors(&monitors);
     Ok((overlay, monitors, m))
 }
 
-fn init_grid_monitor(
-    idx: usize,
-    monitors: &[(i32, i32, u16, u16)],
-) -> Result<GridState> {
+fn init_grid_monitor(idx: usize, monitors: &[(i32, i32, u16, u16)]) -> Result<GridState> {
     let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
     let single = vec![monitors[idx]];
     let mut overlay = connect_as_user()?;
-    let (cfg, font_size, cache, draw_states) =
-        init_overlay(&mut overlay, &font, &single)?;
+    let (cfg, font_size, cache, draw_states) = init_overlay(&mut overlay, &font, &single)?;
 
     Ok(GridState {
         overlay,
@@ -751,10 +727,7 @@ fn init_grid_monitor(
 
 // ── 多屏选屏 ──────────────────────────────────────────────────────
 
-fn show_selection(
-    overlay: &mut Option<Overlay>,
-    monitors: &[(i32, i32, u16, u16)],
-) -> Result<()> {
+fn show_selection(overlay: &mut Option<Overlay>, monitors: &[(i32, i32, u16, u16)]) -> Result<()> {
     let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
     let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
     let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;

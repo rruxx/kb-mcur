@@ -5,12 +5,12 @@
 
 use log::info;
 
-/// When `KEY_MCURSOR_DEBUG_MONITORS=N` (N > 1) and a single real monitor
+/// When `KURSOR_DEBUG_MONITORS=N` (N > 1) and a single real monitor
 /// is detected, clone it N times so multi-display logic can be tested.
 ///
 /// Usage:
 /// ```sh
-/// KEY_MCURSOR_DEBUG_MONITORS=3 cargo run -- grid
+/// KURSOR_DEBUG_MONITORS=3 cargo run -- service
 /// ```
 #[must_use]
 pub fn clone_monitors(monitors: Vec<(i32, i32, u16, u16)>) -> Vec<(i32, i32, u16, u16)> {
@@ -37,7 +37,7 @@ pub fn monitor_name(debug_n: usize, monitor_idx: usize, real_name: &str) -> Stri
 
 #[must_use]
 pub fn debug_monitor_count() -> usize {
-    std::env::var("KEY_MCURSOR_DEBUG_MONITORS")
+    std::env::var("KURSOR_DEBUG_MONITORS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(0)

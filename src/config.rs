@@ -7,7 +7,7 @@
 
 use const_format::concatcp;
 
-pub const PROJECT_NAME: &str = "key-mcursor";
+pub const PROJECT_NAME: &str = "kursor";
 pub const SERVICE: &str = concatcp!(PROJECT_NAME, "d");
 
 /// Kernel `UINPUT_MAX_NAME_SIZE` — struct layout must match this.

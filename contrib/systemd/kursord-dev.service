@@ -1,0 +1,14 @@
+[Unit]
+Description=kursord-dev — Keyboard mouse service (NumPad mouse + overlay grid)
+Documentation=https://github.com/rruxx/kursor https://gitee.com/rrux/kursor
+After=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=env KURSOR_DEBUG_MONITORS=3 /usr/bin/kursor service
+RuntimeMaxSec=16
+Environment=RUST_LOG=warn
+User=root
+
+[Install]
+WantedBy=multi-user.target

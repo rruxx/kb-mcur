@@ -1,4 +1,4 @@
-# key-mcursor — 键驱光标
+# kursor — 键驱光标
 
 [English](README-en.md)
 
@@ -12,16 +12,16 @@
 - KDE 5 原本有类似 Windows 的开关快捷键，但 KDE 6 已不可用。
 - GNOME 从未提供此功能。
 
-key-mcursor 一个二进制适配全部。
+kursor 一个二进制适配全部。
 
 ## 安装
 
 ```bash
-git clone https://github.com/rruxx/key-mcursor.git    # GitHub
-git clone https://gitee.com/rruxx/key-mcursor.git     # Gitee
-cd key-mcursor
+git clone https://github.com/rruxx/kursor.git    # GitHub
+git clone https://gitee.com/rruxx/kursor.git     # Gitee
+cd kursor
 cargo build --release
-sudo install -m755 target/release/key-mcursor /usr/bin/
+sudo install -m755 target/release/kursor /usr/bin/
 ```
 
 ## 依赖
@@ -35,35 +35,35 @@ sudo install -m755 target/release/key-mcursor /usr/bin/
 
 ## 用法
 
-### grid — 交互式渐进网格
+### service — 双模常驻服务（渐动 + 跳转）
 
-1. 26×26 网格（a–z，2 个字母）
-2. 4×2 子格（q/w/e/r/a/s/d/f）
-3. 多层次 2×2 象限（e/r/d/f）
-4. j/k/l 单击，空格/回车 定位并退出
+通过 systemd 启动一次，两种正交策略：
 
-### kp-nav — 小键盘鼠标导航
-
-NumLock+KPEnter 切换开关。非小键盘按键转发至合成器。
-Grid 模式通过 Unix socket 自动请求键盘接管，热插拔通过 inotify 事件驱动。
+**渐动（小键盘）：**
+鼠标模拟 + 自动加速。NumLock+KPEnter 切换。
+按住方向键自动加速（3→50 px）。
 按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
+
+**跳转（meta+capslock）：**
+meta+capslock 开关网格叠加层。多屏时先输入字母（a, b, …）选屏，再进入 26×26 渐进网格。
+tab 键切换显示屏。点击/定位后 filter 复位，网格不退出。
 
 #### systemd
 
 ```bash
-sudo setcap cap_sys_admin+ep /usr/bin/key-mcursor
-sudo cp contrib/systemd/key-mcursord.service /etc/systemd/system/
+sudo setcap cap_sys_admin+ep /usr/bin/kursor
+sudo cp contrib/systemd/kursord.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now key-mcursord
+sudo systemctl enable --now kursord
 ```
 
 ### CLI
 
 | 命令 | 说明 |
 | --- | --- |
-| `key-mcursor move -- 10 -5` | 相对移动 |
-| `key-mcursor moveto 500 300` | 绝对定位 |
-| `key-mcursor click -r 3 M` | 连击 |
+| `kursor move -- 10 -5` | 相对移动 |
+| `kursor moveto 500 300` | 绝对定位 |
+| `kursor click -r 3 M` | 连击 |
 
 各命令加 `--help` 查看完整键表。
 
@@ -73,7 +73,7 @@ sudo systemctl enable --now key-mcursord
 src/
 ├── main.rs      CLI 入口
 ├── lib.rs       交互式网格编排 + 多屏选屏
-├── kpnav.rs     小键盘鼠标导航常驻服务
+├── service.rs   双模服务（渐动 + 跳转）
 ├── config.rs    项目标识、按键映射、网格配置
 ├── debug.rs     调试辅助（多屏模拟）
 ├── grid.rs      26×26 网格 + 区域计算
