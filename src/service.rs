@@ -222,10 +222,7 @@ fn toggle_glide_num(
     }
     if code == KEY_KPENTER && is_press && glide_num.numlock_held {
         glide_num.active = !glide_num.active;
-        info!(
-            "{}",
-            if glide_num.active() { "[glide-num ON]" } else { "[pass-through]" }
-        );
+        warn!("{}", if glide_num.active() { "[glide-num ON]" } else { "[glide-num OFF]" });
         return true;
     }
     false
@@ -269,7 +266,7 @@ fn toggle_grid(
         grid.cache = None;
         grid.states = None;
         grid.ctx = None;
-        info!("[grid] off");
+        warn!("[grid OFF]");
     } else {
         match enter_grid() {
             Ok((init_overlay_conn, monitors_list, init_mouse)) => {
@@ -303,7 +300,7 @@ fn toggle_grid(
                     }
                     grid.ctx = Some(GridCtx::new());
                     grid.phase = GridPhase::Navigating;
-                    info!("[grid] on");
+                    warn!("[grid ON]");
                 }
             }
             Err(e) => warn!("[grid] init failed: {e}"),
