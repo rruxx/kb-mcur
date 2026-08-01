@@ -12,12 +12,12 @@ use crate::config::{
     FALLBACK_HEIGHT, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, action_key, l1_key_pos,
     l2_key_pos, l3_key_pos,
 };
-use crate::grid::{Grid, GridConfig, GridFilter};
+use super::{Grid, GridConfig, GridFilter};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 use crate::uinput::Mouse;
 
-pub const FONT_DATA: &[u8] = include_bytes!("../../assets/font.ttf");
+pub const FONT_DATA: &[u8] = include_bytes!("../../../assets/font.ttf");
 
 static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 

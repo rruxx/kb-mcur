@@ -81,12 +81,13 @@ src/
 ├── main.rs        CLI 入口
 ├── lib.rs         模块声明
 ├── service.rs     主事件循环 + 派发
-├── glide_num.rs   小键盘 glide-num（方向 + 加速）
-├── glide_alpha.rs 主键盘 glide-alpha
-├── grid.rs        网格数据模型 + re-export
-├── grid/
-│   ├── init.rs    网格服务初始化 + watchdog
-│   └── input.rs   网格输入处理 + 渲染
+├── service/
+│   ├── glide_num.rs   小键盘 glide-num（方向 + 加速）
+│   ├── glide_alpha.rs 主键盘 glide-alpha
+│   ├── grid.rs        网格数据模型 + re-export
+│   └── grid/
+│       ├── init.rs    网格服务初始化 + watchdog
+│       └── input.rs   网格输入处理 + 渲染
 ├── config.rs      项目标识、按键映射、网格配置
 ├── debug.rs       调试辅助（多屏模拟）
 ├── render.rs      叠加层渲染 + 文字绘制
@@ -94,10 +95,12 @@ src/
 ├── overlay/
 │   ├── x11.rs     X11 RandR + SHAPE 叠加层
 │   └── wlr.rs     wlr-layer-shell Wayland 叠加层
-├── uio.rs         共享 uinput：结构体、ioctl 定义、设备创建
-├── uinput.rs      /dev/uinput 虚拟键鼠（Mouse）
-├── evdev.rs       EVIOCGRAB 键盘接管 + inotify 热插拔
-└── keymap.rs      US-QWERTY 键码映射
+├── keyboard.rs    EVIOCGRAB 键盘接管 + inotify 热插拔
+├── uinput.rs      虚拟设备层（re-export）
+├── uinput/
+│   ├── raw.rs     Uinput 结构体、ioctl 定义、设备创建
+│   └── mouse.rs   /dev/uinput 虚拟指针（Mouse）
+├── keymap.rs      US-QWERTY 键码映射
 ```
 
 ## 许可证

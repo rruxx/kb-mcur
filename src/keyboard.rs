@@ -10,7 +10,7 @@ use log::info;
 use nix::fcntl::OFlag;
 use nix::sys::inotify::{AddWatchFlags, InitFlags, Inotify};
 
-use crate::uio::InputEvent;
+use crate::uinput::raw::InputEvent;
 use bytemuck::Zeroable;
 
 // ── evdev ioctl definitions (generated via nix) ─────────────────────
@@ -182,7 +182,7 @@ impl KeyboardDev {
                 anyhow::bail!("all keyboards disconnected");
             }
             if let Some(ev) = self.poll_event(16)?
-                && ev.type_ == crate::uio::EV_KEY
+                && ev.type_ == crate::uinput::EV_KEY
             {
                 return Ok((ev.code, ev.value));
             }

@@ -16,15 +16,11 @@
 
 pub mod config;
 pub mod debug;
-pub mod evdev;
-pub mod glide_alpha;
-pub mod glide_num;
-pub mod grid;
+pub mod keyboard;
 pub mod keymap;
 pub mod overlay;
 pub mod render;
 pub mod service;
 pub mod uinput;
-pub mod uio;
 
-pub use grid::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};
+pub use service::grid::input::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};

@@ -8,7 +8,7 @@ use tiny_skia::{
     Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform,
 };
 
-use crate::grid::{Grid, GridConfig, GridFilter};
+use crate::service::grid::{Grid, GridConfig, GridFilter};
 
 pub struct TextCache {
     glyphs: HashMap<char, (Metrics, Vec<u8>)>,

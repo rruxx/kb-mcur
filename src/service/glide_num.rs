@@ -11,7 +11,7 @@ use crate::keymap::{
     KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
     KEY_KPASTERISK, KEY_KPDOT, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH,
 };
-use crate::uio::{
+use crate::uinput::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, write_event,
 };
 

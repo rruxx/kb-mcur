@@ -1,15 +1,19 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub mod glide_alpha;
+pub mod glide_num;
+pub mod grid;
+
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use anyhow::Result;
 use log::{info, warn};
 
-use crate::glide_alpha::{GlideAlpha, do_direction_alpha_tick, handle_alpha_event};
-use crate::glide_num::{GlideNum, do_direction_num_tick, handle_key_event};
-use crate::grid::{
+use crate::service::glide_alpha::{GlideAlpha, do_direction_alpha_tick, handle_alpha_event};
+use crate::service::glide_num::{GlideNum, do_direction_num_tick, handle_key_event};
+use crate::service::grid::{
     GridPhase, GridStateMut, MonitorList, enter_grid, handle_navigating, handle_selecting,
     init_grid_monitor, show_selection, watchdog,
 };
@@ -17,14 +21,14 @@ use crate::grid::{
 use crate::{
     DrawState, GridCtx,
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
-    evdev::{KeyboardDev, KeyboardFilter},
+    keyboard::{KeyboardDev, KeyboardFilter},
     keymap::{
         KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK, KEY_RIGHTMETA,
         KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
     },
     overlay::Overlay,
     uinput::Mouse,
-    uio::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
+    uinput::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
 };
 
 // ── Grid state ───────────────────────────────────────────────────────
@@ -34,7 +38,7 @@ struct GridEnv {
     phase: GridPhase,
     overlay: Option<Overlay>,
     mouse: Option<Mouse>,
-    cfg: Option<crate::grid::GridConfig>,
+    cfg: Option<crate::service::grid::GridConfig>,
     cache: Option<crate::render::TextCache>,
     font_size: f32,
     states: Option<Vec<DrawState>>,

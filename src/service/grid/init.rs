@@ -8,12 +8,12 @@ use log::{info, warn};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
 use crate::debug;
-use crate::grid::GridConfig;
+use super::GridConfig;
 use crate::keymap::{KEY_TAB, ModState, map as key_map};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 use crate::uinput::Mouse;
-use crate::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};
+use super::input::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};
 
 // ── Grid 状态阶段 ──────────────────────────────────────────────────
 

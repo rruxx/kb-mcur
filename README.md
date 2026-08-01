@@ -81,12 +81,13 @@ src/
 ├── main.rs        CLI entry
 ├── lib.rs         Module declarations
 ├── service.rs     Main event loop + dispatch
-├── glide_num.rs   NumPad glide-num (direction + acceleration)
-├── glide_alpha.rs Main-keyboard glide-alpha
-├── grid.rs        Grid data model + re-exports
-├── grid/
-│   ├── init.rs     Grid service init + watchdog
-│   └── input.rs    Grid input processing + rendering
+├── service/
+│   ├── glide_num.rs   NumPad glide-num (direction + acceleration)
+│   ├── glide_alpha.rs Main-keyboard glide-alpha
+│   ├── grid.rs        Grid data model + re-exports
+│   └── grid/
+│       ├── init.rs     Grid service init + watchdog
+│       └── input.rs    Grid input processing + rendering
 ├── config.rs      Project identity, key mappings, grid config
 ├── debug.rs       Debug helpers (multi-monitor simulation)
 ├── render.rs      Overlay rendering + text drawing
@@ -94,10 +95,12 @@ src/
 ├── overlay/
 │   ├── x11.rs     X11 RandR + SHAPE overlay
 │   └── wlr.rs     wlr-layer-shell Wayland overlay
-├── uio.rs         Shared uinput: structs, ioctl definitions, device creation
-├── uinput.rs      /dev/uinput virtual pointer (Mouse)
-├── evdev.rs       EVIOCGRAB keyboard grab + inotify hot-plug
-└── keymap.rs      US-QWERTY keycode → ASCII map
+├── keyboard.rs    EVIOCGRAB keyboard grab + inotify hot-plug
+├── uinput.rs      Virtual device layer (re-exports)
+├── uinput/
+│   ├── raw.rs     Uinput structs, ioctl definitions, device creation
+│   └── mouse.rs   /dev/uinput virtual pointer (Mouse)
+├── keymap.rs      US-QWERTY keycode → ASCII map
 ```
 
 ## License
