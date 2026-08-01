@@ -77,21 +77,53 @@ pub fn render_labels(
     cache: &TextCache,
     font_size: f32,
     filter: Option<&GridFilter>,
+    phase: usize,
 ) {
+    let highlight = cfg.label_color;
+    let dim = [192, 255, 192, 64];
+
     for cell in &grid.cells {
         if filter.is_some_and(|f| !f.matches(&cell.label)) {
             continue;
         }
-        draw_text(
-            pixmap,
-            &cell.label,
-            cell.center.0,
-            cell.center.1,
-            cache,
-            font_size,
-            cfg.label_color,
-        );
+        let chars: Vec<char> = cell.label.chars().collect();
+        if chars.len() == 2 {
+            let (col0, col1) = match phase {
+                0 => (highlight, dim),
+                1 => (dim, highlight),
+                _ => (dim, dim),
+            };
+            let gap = font_size * 0.10;
+            let w0 = char_width(cache, chars[0]);
+            let w1 = char_width(cache, chars[1]);
+            let total = w0 + gap + w1;
+            let cx0 = cell.center.0 - total * 0.5 + w0 * 0.5;
+            let cx1 = cx0 + w0 * 0.5 + gap + w1 * 0.5;
+            draw_char_glyph(pixmap, chars[0], cx0, cell.center.1, cache, col0);
+            draw_char_glyph(pixmap, chars[1], cx1, cell.center.1, cache, col1);
+        } else {
+            draw_text(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, highlight);
+        }
     }
+}
+
+fn char_width(cache: &TextCache, ch: char) -> f32 {
+    cache.get(ch).map_or(0.0, |(m, _)| m.advance_width)
+}
+
+fn draw_char_glyph(
+    pixmap: &mut Pixmap,
+    ch: char,
+    cx: f32,
+    cy: f32,
+    cache: &TextCache,
+    rgba: [u8; 4],
+) {
+    let Some((m, bmp)) = cache.get(ch) else { return };
+    if bmp.is_empty() { return; }
+    let gx = cx + m.xmin as f32 - m.advance_width * 0.5;
+    let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
+    blit_glyph(pixmap, bmp, m, gx, gy, rgba);
 }
 
 // ── Low-level draw ─────────────────────────────────────────────────

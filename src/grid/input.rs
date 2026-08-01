@@ -66,7 +66,7 @@ pub fn init_overlay(
             }
         }
 
-        crate::render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
+        crate::render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None, 0);
         overlay.add_window(x, y, w, h)?;
         overlay.upload(idx, &pixmap)?;
         draw_states.push(DrawState {
@@ -285,12 +285,13 @@ fn display_update(
             cache,
             font_size,
             Some(filter),
+            filter.len().min(2),
         );
         if let Some((x, y, w, h)) = l2_rect {
             render_l2_grid(&mut ds.pixmap, (x, y, w, h), cfg);
         }
         if let Some((x, y, w, h)) = l3_rect {
-            render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, cache, font_size, l3_sel);
+            render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, font_size * 0.75, l3_sel);
         }
         overlay.upload(idx, &ds.pixmap)?;
     }
@@ -342,14 +343,17 @@ fn render_l3_overlay(
     pixmap: &mut tiny_skia::Pixmap,
     rect: (f32, f32, f32, f32),
     cfg: &GridConfig,
-    cache: &TextCache,
     font_size: f32,
     sel: Option<(usize, usize)>,
 ) {
     use crate::config::L3_KEYS;
+    use crate::render::TextCache;
     use tiny_skia::{Color, Paint, PathBuilder, Shader, Stroke, Transform};
 
     let (x, y, w, h) = rect;
+
+    let font = fontdue::Font::from_bytes(crate::FONT_DATA, fontdue::FontSettings::default()).unwrap();
+    let cache = TextCache::new(&font, font_size);
 
     // Clear L3 region to transparent (remove L2 content, keep desktop visible).
     let pw = pixmap.width() as usize;
@@ -446,7 +450,7 @@ fn render_l3_overlay(
                 &ch.to_string(),
                 cx,
                 cy,
-                cache,
+                &cache,
                 font_size,
                 label_color,
             );
