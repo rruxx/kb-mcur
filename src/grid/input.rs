@@ -150,13 +150,16 @@ pub fn process_byte(
             let valid = match ctx.filter.len() {
                 0 => l1_key_pos(c).is_some(),
                 1 => l2_key_pos(c).is_some(),
-                2 => l3_key_pos(c).is_some(),
+                2 | 3 => l3_key_pos(c).is_some(),
                 _ => return Ok(false),
             };
             if !valid {
                 return Ok(false);
             }
 
+            if ctx.filter.len() >= 3 {
+                ctx.filter.pop();
+            }
             ctx.filter.push(c);
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
@@ -348,9 +351,12 @@ fn render_l3_overlay(
         pixmap.stroke_path(&pb.finish().unwrap(), &line_paint, &stroke, Transform::identity(), None);
     }
 
-    // Labels
+    // Labels (skip selected cell)
     for (row, krow) in L3_KEYS.iter().enumerate() {
         for (col, &ch) in krow.iter().enumerate() {
+            if sel == Some((row, col)) {
+                continue;
+            }
             let cx = x + (col as f32 + 0.5) * w / 5.0;
             let cy = y + (row as f32 + 0.5) * h / 3.0;
             crate::render::draw_text(
