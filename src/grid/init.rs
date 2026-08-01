@@ -113,7 +113,7 @@ pub fn watchdog() {
 
 // ── Grid 状态 ────────────────────────────────────────────────────
 
-pub struct GridState {
+pub(crate) struct GridState {
     pub(crate) overlay: Overlay,
     pub(crate) mouse: Option<Mouse>,
     pub(crate) cfg: GridConfig,
@@ -124,7 +124,7 @@ pub struct GridState {
 
 pub type MonitorList = Vec<(i32, i32, u16, u16)>;
 
-pub struct GridStateMut<'a> {
+pub(crate) struct GridStateMut<'a> {
     pub(crate) overlay: &'a mut Option<Overlay>,
     pub(crate) cfg: &'a mut Option<GridConfig>,
     pub(crate) cache: &'a mut Option<TextCache>,
@@ -179,7 +179,10 @@ pub fn enter_grid() -> Result<(Overlay, MonitorList, Option<Mouse>)> {
     Ok((overlay, monitors, m))
 }
 
-pub fn init_grid_monitor(idx: usize, monitors: &[(i32, i32, u16, u16)]) -> Result<GridState> {
+pub(crate) fn init_grid_monitor(
+    idx: usize,
+    monitors: &[(i32, i32, u16, u16)],
+) -> Result<GridState> {
     let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
         .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
 
@@ -284,7 +287,7 @@ fn redraw_select_hint(
 
 // ── Grid 事件处理 ─────────────────────────────────────────────────
 
-pub fn handle_selecting(
+pub(crate) fn handle_selecting(
     code: u16,
     state: GridStateMut<'_>,
     grid_monitor_idx: &mut usize,
@@ -327,7 +330,7 @@ pub fn handle_selecting(
     }
 }
 
-pub fn handle_navigating(
+pub(crate) fn handle_navigating(
     code: u16,
     state: GridStateMut<'_>,
     monitors: &MonitorList,

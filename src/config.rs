@@ -157,7 +157,6 @@ pub fn action_key(ch: char) -> Option<u8> {
 pub const CLICK_INTERVAL_MS: u64 = 100;
 pub const UINPUT_CREATE_WAIT_MS: u64 = 50;
 pub const MOVE_WAIT_MS: u64 = 20;
-pub const POLL_INTERVAL_MS: u64 = 16;
 
 // ── USB HID buttons ───────────────────────────────────────────────────
 

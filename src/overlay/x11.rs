@@ -48,25 +48,6 @@ impl X11Backend {
         })
     }
 
-    pub fn monitors(&self) -> Result<Vec<(i32, i32, u16, u16)>> {
-        let screen = &self.conn.setup().roots[self.screen_num];
-        let resources = randr::get_screen_resources(&self.conn, screen.root)?.reply()?;
-        let mut out = Vec::new();
-        for &crtc in &resources.crtcs {
-            let info = randr::get_crtc_info(&self.conn, crtc, x11rb::CURRENT_TIME)?.reply()?;
-            if info.width == 0 || info.height == 0 {
-                continue;
-            }
-            out.push((
-                i32::from(info.x),
-                i32::from(info.y),
-                info.width,
-                info.height,
-            ));
-        }
-        Ok(out)
-    }
-
     pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let resources = randr::get_screen_resources(&self.conn, screen.root)?.reply()?;
@@ -173,35 +154,6 @@ impl X11Backend {
                 .copy_area(ws.pixmap, ws.window, ws.gc, 0, 0, 0, 0, ws.width, ws.height)?;
         }
         self.conn.flush()?;
-        Ok(())
-    }
-
-    pub fn wait_or_timeout(&self, timeout_secs: u64) -> Result<()> {
-        use std::time::Instant;
-        let deadline = (timeout_secs > 0)
-            .then(|| Instant::now() + std::time::Duration::from_secs(timeout_secs));
-        loop {
-            if let Some(dl) = deadline
-                && Instant::now() >= dl
-            {
-                return Ok(());
-            }
-            match self.conn.poll_for_event()? {
-                Some(x11rb::protocol::Event::Expose(_)) => {
-                    for ws in &self.windows {
-                        self.conn.copy_area(
-                            ws.pixmap, ws.window, ws.gc, 0, 0, 0, 0, ws.width, ws.height,
-                        )?;
-                    }
-                    self.conn.flush()?;
-                }
-                Some(x11rb::protocol::Event::KeyPress(_)) => break,
-                Some(_) => {}
-                None => std::thread::sleep(std::time::Duration::from_millis(
-                    crate::config::POLL_INTERVAL_MS,
-                )),
-            }
-        }
         Ok(())
     }
 }

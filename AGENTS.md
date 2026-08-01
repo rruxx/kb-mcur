@@ -33,9 +33,9 @@ sudo cp ${PROJ}/target/release/kursor           /usr/bin/kursor
 sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/kursord.service
 sudo systemctl daemon-reload
 
-systemctl start kursord
+sudo systemctl start kursord
 # glide + grid
-systemctl stop kursord
+sudo systemctl stop kursord
 
 llvm-profdata merge -o ${PROJ}/tmp/merged.profdata ${PROJ}/tmp/pgo-data
 

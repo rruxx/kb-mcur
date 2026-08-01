@@ -132,8 +132,8 @@ impl Grid {
 pub mod init;
 pub mod input;
 
-pub use init::{
-    GridPhase, GridState, GridStateMut, MonitorList, enter_grid, handle_navigating,
-    handle_selecting, init_grid_monitor, show_selection, watchdog,
+pub(crate) use init::{
+    GridPhase, GridStateMut, MonitorList, enter_grid, handle_navigating, handle_selecting,
+    init_grid_monitor, show_selection, watchdog,
 };
 pub use input::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};

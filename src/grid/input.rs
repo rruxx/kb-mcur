@@ -54,7 +54,7 @@ pub fn init_overlay(
         let grid = Grid::new(u32::from(w), u32::from(h), &cfg);
         let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
         let bg_pixel = crate::render::render_bg(&mut pixmap, &cfg);
-        crate::render::render_l1(&mut pixmap, &cfg, bg_pixel);
+        crate::render::render_l1(&mut pixmap, &cfg);
 
         let all_px = pixmap.pixels();
         let mut mask_idx = Vec::new();
@@ -246,13 +246,18 @@ fn display_update(
     let l2_rect = if filter.is_empty() {
         None
     } else {
-        filter.input().chars().next().and_then(l1_key_pos).map(|(r, c)| {
-            let w = states[0].pixmap.width() as f32;
-            let h = states[0].pixmap.height() as f32;
-            let cw = w / 9.0;
-            let ch = h / 3.0;
-            (c as f32 * cw, r as f32 * ch, cw, ch)
-        })
+        filter
+            .input()
+            .chars()
+            .next()
+            .and_then(l1_key_pos)
+            .map(|(r, c)| {
+                let w = states[0].pixmap.width() as f32;
+                let h = states[0].pixmap.height() as f32;
+                let cw = w / 9.0;
+                let ch = h / 3.0;
+                (c as f32 * cw, r as f32 * ch, cw, ch)
+            })
     };
     let l3_rect = if filter.len() >= 2 {
         let input = filter.input();
@@ -331,14 +336,26 @@ fn render_l2_grid(
         let mut pb = PathBuilder::new();
         pb.move_to(lx, y);
         pb.line_to(lx, y + h);
-        pixmap.stroke_path(&pb.finish().unwrap(), &paint, &stroke, Transform::identity(), None);
+        pixmap.stroke_path(
+            &pb.finish().unwrap(),
+            &paint,
+            &stroke,
+            Transform::identity(),
+            None,
+        );
     }
     for row in 1..9 {
         let ly = y + row as f32 * h / 9.0;
         let mut pb = PathBuilder::new();
         pb.move_to(x, ly);
         pb.line_to(x + w, ly);
-        pixmap.stroke_path(&pb.finish().unwrap(), &paint, &stroke, Transform::identity(), None);
+        pixmap.stroke_path(
+            &pb.finish().unwrap(),
+            &paint,
+            &stroke,
+            Transform::identity(),
+            None,
+        );
     }
 }
 
@@ -355,7 +372,7 @@ fn render_l3_overlay(
 
     let (x, y, w, h) = rect;
 
-    let font = fontdue::Font::from_bytes(crate::FONT_DATA, fontdue::FontSettings::default()).unwrap();
+    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default()).unwrap();
     let cache = TextCache::new(&font, font_size);
 
     // Clear L3 region to transparent (remove L2 content, keep desktop visible).
@@ -376,7 +393,7 @@ fn render_l3_overlay(
         }
     }
 
-    // Fill with background (same as render_base)
+    // Fill with background
     let bg = Color::from_rgba8(
         cfg.bg_color[0],
         cfg.bg_color[1],

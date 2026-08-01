@@ -26,7 +26,7 @@ use crate::{
     uio::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
 };
 
-// ── 双模服务 ────────────────────────────────────────────────────────
+// ── Dual-mode service dispatch ────────────────────────────────────
 
 fn is_grid_key(code: u16) -> bool {
     key_map(code, &ModState::default()).is_some()

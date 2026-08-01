@@ -12,8 +12,8 @@ type MonitorInfo = (String, i32, i32, u16, u16);
 
 /// Runtime polypick between X11 and wlr-layer-shell backends.
 pub enum Overlay {
-    X11(x11::X11Backend),
-    Wlr(wlr::WlrBackend),
+    X11(Box<x11::X11Backend>),
+    Wlr(Box<wlr::WlrBackend>),
 }
 
 macro_rules! delegate {
@@ -29,12 +29,12 @@ impl Overlay {
     pub fn connect() -> Result<Self> {
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
             match wlr::WlrBackend::connect() {
-                Ok(b) => return Ok(Overlay::Wlr(b)),
+                Ok(b) => return Ok(Overlay::Wlr(Box::new(b))),
                 Err(e) => warn!("Wayland connection failed: {e:#}"),
             }
         }
         if std::env::var("DISPLAY").is_ok() {
-            return Ok(Overlay::X11(x11::X11Backend::connect()?));
+            return Ok(Overlay::X11(Box::new(x11::X11Backend::connect()?)));
         }
         anyhow::bail!(
             "no display server detected.\n\

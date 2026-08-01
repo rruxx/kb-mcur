@@ -3,10 +3,11 @@
 
 //! wlr-layer-shell overlay backend for wlroots-based Wayland compositors.
 
-use std::os::fd::{AsFd, AsRawFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsFd, FromRawFd, OwnedFd};
 use std::ptr::NonNull;
 
 use anyhow::{Context, Result};
+use nix::fcntl::OFlag;
 use tiny_skia::Pixmap as SkiaPixmap;
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
@@ -14,7 +15,6 @@ use wayland_client::{
     protocol::{
         wl_compositor::WlCompositor,
         wl_output::WlOutput,
-        wl_pointer,
         wl_registry::WlRegistry,
         wl_shm::{self, WlShm},
         wl_shm_pool::WlShmPool,
@@ -140,9 +140,6 @@ impl WlrBackend {
         })
     }
 
-    pub fn monitors(&self) -> Result<Vec<(i32, i32, u16, u16)>> {
-        Ok(self.monitors.iter().map(|m| (m.1, m.2, m.3, m.4)).collect())
-    }
     pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
         Ok(self.monitors.clone())
     }
@@ -236,18 +233,6 @@ impl WlrBackend {
     pub fn redraw_all(&self) -> Result<()> {
         Ok(())
     }
-    pub fn wait_or_timeout(&self, s: u64) -> Result<()> {
-        std::thread::sleep(std::time::Duration::from_secs(s));
-        Ok(())
-    }
-    #[must_use]
-    pub fn poll_fd(&self) -> Option<i32> {
-        Some(self.conn.backend().poll_fd().as_raw_fd())
-    }
-    pub fn dispatch_pending(&self) -> Result<()> {
-        Ok(())
-    }
-
     pub fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
         let Some(ref v) = self.vptr else {
             return Ok(());
@@ -255,35 +240,6 @@ impl WlrBackend {
         let sx = u32::from(self.monitors[0].3);
         let sy = u32::from(self.monitors[0].4);
         v.motion_absolute(0, x as u32, y as u32, sx, sy);
-        v.frame();
-        self.conn.flush()?;
-        Ok(())
-    }
-
-    pub fn pointer_click(&self, button: u8, count: u32) -> Result<()> {
-        let Some(ref v) = self.vptr else {
-            return Ok(());
-        };
-        let code = crate::config::btn_code(button);
-        for _ in 0..count {
-            v.button(0, code.into(), wl_pointer::ButtonState::Pressed);
-            v.frame();
-            self.conn.flush()?;
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            v.button(0, code.into(), wl_pointer::ButtonState::Released);
-            v.frame();
-            self.conn.flush()?;
-            std::thread::sleep(std::time::Duration::from_millis(50));
-        }
-        Ok(())
-    }
-
-    pub fn pointer_toggle(&self, button: u8) -> Result<()> {
-        let Some(ref v) = self.vptr else {
-            return Ok(());
-        };
-        let code = crate::config::btn_code(button);
-        v.button(0, code.into(), wl_pointer::ButtonState::Pressed);
         v.frame();
         self.conn.flush()?;
         Ok(())
@@ -354,7 +310,7 @@ fn shm_fd(size: u32) -> Result<OwnedFd> {
         .read(true)
         .write(true)
         .create_new(true)
-        .custom_flags(libc::O_CLOEXEC | libc::O_RDWR)
+        .custom_flags((OFlag::O_CLOEXEC | OFlag::O_RDWR).bits())
         .open(&path)
         .context("shm temp file")?;
     file.set_len(u64::from(size))?;

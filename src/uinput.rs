@@ -126,28 +126,19 @@ impl Mouse {
         };
         let events = &[
             InputEvent {
-                time: libc::timeval {
-                    tv_sec: 0,
-                    tv_usec: 0,
-                },
+                time: ZERO_TIMEVAL,
                 type_: EV_REL,
                 code: REL_X,
                 value: dx,
             },
             InputEvent {
-                time: libc::timeval {
-                    tv_sec: 0,
-                    tv_usec: 0,
-                },
+                time: ZERO_TIMEVAL,
                 type_: EV_REL,
                 code: REL_Y,
                 value: dy,
             },
             InputEvent {
-                time: libc::timeval {
-                    tv_sec: 0,
-                    tv_usec: 0,
-                },
+                time: ZERO_TIMEVAL,
                 type_: EV_SYN,
                 code: SYN_REPORT,
                 value: 0,
@@ -157,12 +148,8 @@ impl Mouse {
         Ok(())
     }
 
-    fn button_code(button: u8) -> u16 {
-        button_hid(button)
-    }
-
     pub fn button_press(&mut self, button: u8) -> Result<()> {
-        let code = Self::button_code(button);
+        let code = button_hid(button);
         self.write_events(&[
             Self::make_event(EV_KEY, code, 1),
             Self::make_event(EV_SYN, SYN_REPORT, 0),
@@ -171,7 +158,7 @@ impl Mouse {
     }
 
     pub fn button_release(&mut self, button: u8) -> Result<()> {
-        let code = Self::button_code(button);
+        let code = button_hid(button);
         self.write_events(&[
             Self::make_event(EV_KEY, code, 0),
             Self::make_event(EV_SYN, SYN_REPORT, 0),

@@ -34,11 +34,6 @@ impl TextCache {
 
 // ── Base layer (background + grid lines) ────────────────────────────
 
-pub fn render_base(pixmap: &mut Pixmap, _grid: &Grid, cfg: &GridConfig) {
-    let bg = render_bg(pixmap, cfg);
-    render_l1(pixmap, cfg, bg);
-}
-
 /// Fill pixmap with `BG_COLOR`, return the premultiplied pixel value.
 pub fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 {
     pixmap
@@ -51,8 +46,8 @@ pub fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 
     pixmap.pixels()[0]
 }
 
-/// Draw L1 grid lines (9×3) onto a pixmap pre-filled with `bg_pixel`.
-pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig, _bg: PremultipliedColorU8) {
+/// Draw L1 grid lines (9×3) onto a pixmap pre-filled with `BG_COLOR`.
+pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
     let line = rgba(cfg.line_color);
@@ -102,7 +97,15 @@ pub fn render_labels(
             draw_char_glyph(pixmap, chars[0], cx0, cell.center.1, cache, col0);
             draw_char_glyph(pixmap, chars[1], cx1, cell.center.1, cache, col1);
         } else {
-            draw_text(pixmap, &cell.label, cell.center.0, cell.center.1, cache, font_size, highlight);
+            draw_text(
+                pixmap,
+                &cell.label,
+                cell.center.0,
+                cell.center.1,
+                cache,
+                font_size,
+                highlight,
+            );
         }
     }
 }
@@ -119,8 +122,12 @@ fn draw_char_glyph(
     cache: &TextCache,
     rgba: [u8; 4],
 ) {
-    let Some((m, bmp)) = cache.get(ch) else { return };
-    if bmp.is_empty() { return; }
+    let Some((m, bmp)) = cache.get(ch) else {
+        return;
+    };
+    if bmp.is_empty() {
+        return;
+    }
     let gx = cx + m.xmin as f32 - m.advance_width * 0.5;
     let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
     blit_glyph(pixmap, bmp, m, gx, gy, rgba);
@@ -164,19 +171,6 @@ fn draw_line(
         ..Default::default()
     };
     pixmap.stroke_path(&path, &paint, stroke, Transform::identity(), None);
-}
-
-#[allow(dead_code)]
-fn draw_char(pixmap: &mut Pixmap, ch: char, cx: f32, cy: f32, cache: &TextCache, rgba: [u8; 4]) {
-    let Some((m, bmp)) = cache.get(ch) else {
-        return;
-    };
-    if bmp.is_empty() {
-        return;
-    }
-    let gx = cx + m.xmin as f32 - m.advance_width * 0.5;
-    let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
-    blit_glyph(pixmap, bmp, m, gx, gy, rgba);
 }
 
 fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rgba: [u8; 4]) {

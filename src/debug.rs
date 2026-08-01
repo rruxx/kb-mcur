@@ -25,16 +25,6 @@ pub fn clone_monitors(monitors: Vec<(i32, i32, u16, u16)>) -> Vec<(i32, i32, u16
     }
 }
 
-/// Select a monitor name for debug vs. real.
-#[must_use]
-pub fn monitor_name(debug_n: usize, monitor_idx: usize, real_name: &str) -> String {
-    if debug_n > 1 {
-        format!("debug-{}", monitor_idx + 1)
-    } else {
-        real_name.to_owned()
-    }
-}
-
 #[must_use]
 pub fn debug_monitor_count() -> usize {
     std::env::var("KURSOR_DEBUG_MONITORS")
