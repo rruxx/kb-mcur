@@ -7,13 +7,13 @@ use anyhow::{Context, Result};
 use log::{info, warn};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
-use crate::debug;
 use super::GridConfig;
+use super::input::{DrawState, FONT_DATA, GridCtx, display_update, init_overlay, process_byte};
+use crate::debug;
 use crate::keymap::{KEY_H, KEY_J, KEY_K, KEY_L, KEY_TAB, ModState, map as key_map};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 use crate::uinput::Mouse;
-use super::input::{DrawState, FONT_DATA, GridCtx, display_update, init_overlay, process_byte};
 
 // ── Grid 状态阶段 ──────────────────────────────────────────────────
 
@@ -346,8 +346,7 @@ pub(crate) fn handle_navigating(
             state.cache.as_ref(),
             state.states.as_mut(),
             state.ctx.as_mut(),
-        )
-            && gctx.filter.len() >= 3
+        ) && gctx.filter.len() >= 3
         {
             match code {
                 KEY_H => gctx.l4_dx = (gctx.l4_dx - 1).max(-3),

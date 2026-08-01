@@ -23,8 +23,8 @@ use crate::{
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     keyboard::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
-        KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
+        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTALT, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
+        KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
     },
     overlay::Overlay,
     uinput::Mouse,
@@ -75,6 +75,8 @@ fn is_grid_key(code: u16) -> bool {
         || code == KEY_CAPSLOCK
         || code == KEY_LEFTMETA
         || code == KEY_RIGHTMETA
+        || code == KEY_LEFTALT
+        || code == KEY_RIGHTALT
 }
 
 // ── Signal ───────────────────────────────────────────────────────────
@@ -167,32 +169,37 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if toggle_glide_num(
-                    code, value, is_press,
-                    &mut glide_num,
-                ) { continue; }
+                if toggle_glide_num(code, value, is_press, &mut glide_num) {
+                    continue;
+                }
 
                 if toggle_glide_alpha(
-                    code, is_press, meta_held, shift_held,
-                    &mut glide_alpha, &mut kbd_out,
-                )? { continue; }
+                    code,
+                    is_press,
+                    meta_held,
+                    shift_held,
+                    &mut glide_alpha,
+                    &mut kbd_out,
+                )? {
+                    continue;
+                }
 
-                if toggle_grid(
-                    code, is_press, meta_held,
-                    &mut grid, &mut kbd_out,
-                )? { continue; }
+                if toggle_grid(code, is_press, meta_held, &mut grid, &mut kbd_out)? {
+                    continue;
+                }
 
-                if handle_glide_num_input(
-                    code, value, is_press, &mut glide_num, &mut ptr_out,
-                )? { continue; }
+                if handle_glide_num_input(code, value, is_press, &mut glide_num, &mut ptr_out)? {
+                    continue;
+                }
 
-                if handle_glide_alpha_input(
-                    code, value, is_press, &mut glide_alpha, &mut ptr_out,
-                )? { continue; }
+                if handle_glide_alpha_input(code, value, is_press, &mut glide_alpha, &mut ptr_out)?
+                {
+                    continue;
+                }
 
-                if handle_grid_input(
-                    code, value, &mut grid, &mods,
-                ) { continue; }
+                if handle_grid_input(code, value, &mut grid, &mods) {
+                    continue;
+                }
 
                 write_event_raw(&mut kbd_out, &ev)?;
             }
@@ -211,18 +218,20 @@ pub fn run_service() -> Result<()> {
 
 // ── Toggles ──────────────────────────────────────────────────────────
 
-fn toggle_glide_num(
-    code: u16,
-    value: i32,
-    is_press: bool,
-    glide_num: &mut GlideNum,
-) -> bool {
+fn toggle_glide_num(code: u16, value: i32, is_press: bool, glide_num: &mut GlideNum) -> bool {
     if code == KEY_NUMLOCK {
         glide_num.numlock_held = value != 0;
     }
     if code == KEY_KPENTER && is_press && glide_num.numlock_held {
         glide_num.active = !glide_num.active;
-        warn!("{}", if glide_num.active() { "[glide-num ON]" } else { "[glide-num OFF]" });
+        warn!(
+            "{}",
+            if glide_num.active() {
+                "[glide-num ON]"
+            } else {
+                "[glide-num OFF]"
+            }
+        );
         return true;
     }
     false
@@ -240,8 +249,21 @@ fn toggle_glide_alpha(
         return Ok(false);
     }
     glide_alpha.active = !glide_alpha.active;
-    warn!("{}", if glide_alpha.active() { "[glide-alpha ON]" } else { "[glide-alpha OFF]" });
-    for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_CAPSLOCK] {
+    warn!(
+        "{}",
+        if glide_alpha.active() {
+            "[glide-alpha ON]"
+        } else {
+            "[glide-alpha OFF]"
+        }
+    );
+    for key in [
+        KEY_LEFTMETA,
+        KEY_RIGHTMETA,
+        KEY_LEFTSHIFT,
+        KEY_RIGHTSHIFT,
+        KEY_CAPSLOCK,
+    ] {
         write_event(kbd_out, EV_KEY, key, 0)?;
     }
     write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
@@ -341,12 +363,7 @@ fn handle_glide_alpha_input(
     handle_alpha_event(glide_alpha, ptr_out, code, value, is_press)
 }
 
-fn handle_grid_input(
-    code: u16,
-    value: i32,
-    grid: &mut GridEnv,
-    mods: &ModState,
-) -> bool {
+fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
     if !grid.active || !is_grid_key(code) || value == 0 {
         return false;
     }
@@ -361,9 +378,24 @@ fn handle_grid_input(
     };
     if grid.phase == GridPhase::Selecting {
         let monitors = grid.monitors.clone();
-        handle_selecting(code, state, &mut grid.monitor_idx, &mut grid.phase, &monitors, mods, &mut grid.select_hint);
+        handle_selecting(
+            code,
+            state,
+            &mut grid.monitor_idx,
+            &mut grid.phase,
+            &monitors,
+            mods,
+            &mut grid.select_hint,
+        );
     } else {
-        handle_navigating(code, state, &grid.monitors, &mut grid.monitor_idx, mods, grid.phase);
+        handle_navigating(
+            code,
+            state,
+            &grid.monitors,
+            &mut grid.monitor_idx,
+            mods,
+            grid.phase,
+        );
     }
     true
 }

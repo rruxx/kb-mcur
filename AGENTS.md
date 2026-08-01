@@ -37,7 +37,7 @@ sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/kursord.serv
 sudo systemctl daemon-reload
 
 sudo systemctl start kursord
-# glide + grid
+# glide-* + grid
 sudo systemctl stop kursord
 
 llvm-profdata merge -o ${PROJ}/tmp/merged.profdata ${PROJ}/tmp/pgo-data

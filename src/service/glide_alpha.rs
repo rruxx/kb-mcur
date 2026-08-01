@@ -9,8 +9,8 @@ use anyhow::Result;
 
 use crate::config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
 use crate::keymap::{
-    KEY_APOSTROPHE, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTSHIFT,
-    KEY_RIGHTCTRL, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
+    KEY_APOSTROPHE, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_RIGHTCTRL,
+    KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
 };
 use crate::uinput::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, write_event,
@@ -106,7 +106,13 @@ pub(crate) fn handle_alpha_event(
     if c && !s
         && let Some(flag) = Dir::from_alpha(code)
     {
-        update_dir(&mut glide_alpha.dir_held, &mut glide_alpha.dir_mask, &mut glide_alpha.dir_count, flag, value);
+        update_dir(
+            &mut glide_alpha.dir_held,
+            &mut glide_alpha.dir_mask,
+            &mut glide_alpha.dir_count,
+            flag,
+            value,
+        );
         return Ok(true);
     }
 

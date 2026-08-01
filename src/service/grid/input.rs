@@ -8,11 +8,11 @@ use fontdue::Font;
 use log::info;
 use tiny_skia::Pixmap;
 
+use super::{Grid, GridConfig, GridFilter};
 use crate::config::{
     FALLBACK_HEIGHT, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, action_key, l1_key_pos,
     l2_key_pos, l3_key_pos,
 };
-use super::{Grid, GridConfig, GridFilter};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 use crate::uinput::Mouse;
@@ -132,14 +132,30 @@ pub fn process_byte(
             }
             ctx.filter.clear();
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
+            display_update(
+                overlay,
+                draw_states,
+                cfg,
+                cache,
+                font_size,
+                &ctx.filter,
+                Some(ctx),
+            )?;
             return Ok(false);
         }
 
         0x1b => {
             ctx.filter.clear();
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
+            display_update(
+                overlay,
+                draw_states,
+                cfg,
+                cache,
+                font_size,
+                &ctx.filter,
+                Some(ctx),
+            )?;
         }
 
         0x7f | b'\x08' => {
@@ -148,7 +164,15 @@ pub fn process_byte(
                 ctx.filter.pop();
             }
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
+            display_update(
+                overlay,
+                draw_states,
+                cfg,
+                cache,
+                font_size,
+                &ctx.filter,
+                Some(ctx),
+            )?;
         }
 
         ch => {
@@ -171,7 +195,15 @@ pub fn process_byte(
                 }
                 ctx.filter.clear();
                 ctx.repeat = 0;
-                display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
+                display_update(
+                    overlay,
+                    draw_states,
+                    cfg,
+                    cache,
+                    font_size,
+                    &ctx.filter,
+                    Some(ctx),
+                )?;
                 return Ok(false);
             }
 
@@ -190,7 +222,15 @@ pub fn process_byte(
             }
             ctx.filter.push(c);
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
+            display_update(
+                overlay,
+                draw_states,
+                cfg,
+                cache,
+                font_size,
+                &ctx.filter,
+                Some(ctx),
+            )?;
         }
     }
     Ok(false)
@@ -199,7 +239,12 @@ pub fn process_byte(
 // ── Cursor & button actions ────────────────────────────────────────
 
 /// Move the cursor to the centre of the currently-selected region.
-fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Result<()> {
+fn cursor_warp(
+    mouse: &mut Option<Mouse>,
+    filter: &GridFilter,
+    states: &[DrawState],
+    ctx: &GridCtx,
+) -> Result<()> {
     let Some(m) = mouse else {
         return Ok(());
     };
@@ -547,7 +592,11 @@ fn render_l3_overlay(
 // ── Region geometry ─────────────────────────────────────────────────
 
 /// Get the currently-selected rect from the filter.
-fn region_rect(filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Option<(f32, f32, f32, f32)> {
+fn region_rect(
+    filter: &GridFilter,
+    states: &[DrawState],
+    ctx: &GridCtx,
+) -> Option<(f32, f32, f32, f32)> {
     let input = filter.input();
     if input.len() < 2 {
         return None;
