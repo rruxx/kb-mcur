@@ -333,7 +333,13 @@ fn render_l3_overlay(
     pb.line_to(x + w, y + h);
     pb.line_to(x, y + h);
     pb.close();
-    pixmap.stroke_path(&pb.finish().unwrap(), &line_paint, &stroke, Transform::identity(), None);
+    pixmap.stroke_path(
+        &pb.finish().unwrap(),
+        &line_paint,
+        &stroke,
+        Transform::identity(),
+        None,
+    );
 
     // Internal grid lines: 5 cols, 3 rows
     for col in 1..5 {
@@ -341,14 +347,26 @@ fn render_l3_overlay(
         let mut pb = PathBuilder::new();
         pb.move_to(lx, y);
         pb.line_to(lx, y + h);
-        pixmap.stroke_path(&pb.finish().unwrap(), &line_paint, &stroke, Transform::identity(), None);
+        pixmap.stroke_path(
+            &pb.finish().unwrap(),
+            &line_paint,
+            &stroke,
+            Transform::identity(),
+            None,
+        );
     }
     for row in 1..3 {
         let ly = y + row as f32 * h / 3.0;
         let mut pb = PathBuilder::new();
         pb.move_to(x, ly);
         pb.line_to(x + w, ly);
-        pixmap.stroke_path(&pb.finish().unwrap(), &line_paint, &stroke, Transform::identity(), None);
+        pixmap.stroke_path(
+            &pb.finish().unwrap(),
+            &line_paint,
+            &stroke,
+            Transform::identity(),
+            None,
+        );
     }
 
     // Labels (skip selected cell)
@@ -393,7 +411,13 @@ fn render_l3_overlay(
         hl_pb.line_to(sx + sw, sy + sh);
         hl_pb.line_to(sx, sy + sh);
         hl_pb.close();
-        pixmap.stroke_path(&hl_pb.finish().unwrap(), &hl_paint, &hl_stroke, Transform::identity(), None);
+        pixmap.stroke_path(
+            &hl_pb.finish().unwrap(),
+            &hl_paint,
+            &hl_stroke,
+            Transform::identity(),
+            None,
+        );
     }
 }
 
