@@ -51,6 +51,7 @@ Space/;/' = left/right/middle click.
 
 **grid (meta+capslock):**
 Three-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°, L3: 5×3 left-half keyboard).
+L4: subdivide the selected L3 cell 7×7; alt+h/j/k/l nudge from center.
 Multi-monitor: type a letter (a, b, …) to select display; tab switches monitors.
 j/k/l click, Enter warp. 0-9 prefix for repeat (e.g. 3j).
 Backspace: L3 → L2, L2 → L1.

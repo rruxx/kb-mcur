@@ -88,6 +88,8 @@ pub fn init_overlay(
 pub struct GridCtx {
     pub(crate) filter: GridFilter,
     pub(crate) repeat: u32,
+    pub(crate) l4_dx: i32,
+    pub(crate) l4_dy: i32,
 }
 
 impl GridCtx {
@@ -96,6 +98,8 @@ impl GridCtx {
         Self {
             filter: GridFilter::new(),
             repeat: 0,
+            l4_dx: 0,
+            l4_dy: 0,
         }
     }
 }
@@ -122,20 +126,20 @@ pub fn process_byte(
 ) -> Result<bool> {
     match byte {
         b'\r' | b'\n' => {
-            cursor_warp(mouse, &ctx.filter, draw_states)?;
-            if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
+            cursor_warp(mouse, &ctx.filter, draw_states, ctx)?;
+            if let Some((cx, cy)) = region_center(&ctx.filter, draw_states, ctx) {
                 overlay.pointer_warp(cx as i16, cy as i16)?;
             }
             ctx.filter.clear();
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
             return Ok(false);
         }
 
         0x1b => {
             ctx.filter.clear();
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
         }
 
         0x7f | b'\x08' => {
@@ -144,7 +148,7 @@ pub fn process_byte(
                 ctx.filter.pop();
             }
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
         }
 
         ch => {
@@ -161,13 +165,13 @@ pub fn process_byte(
             if ctx.filter.len() >= 2
                 && let Some(btn) = action_key(c)
             {
-                cursor_action(mouse, &ctx.filter, draw_states, btn, ctx.repeat)?;
-                if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
+                cursor_action(mouse, &ctx.filter, draw_states, btn, ctx.repeat, ctx)?;
+                if let Some((cx, cy)) = region_center(&ctx.filter, draw_states, ctx) {
                     overlay.pointer_warp(cx as i16, cy as i16)?;
                 }
                 ctx.filter.clear();
                 ctx.repeat = 0;
-                display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+                display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
                 return Ok(false);
             }
 
@@ -186,7 +190,7 @@ pub fn process_byte(
             }
             ctx.filter.push(c);
             ctx.repeat = 0;
-            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
+            display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter, Some(ctx))?;
         }
     }
     Ok(false)
@@ -195,11 +199,11 @@ pub fn process_byte(
 // ── Cursor & button actions ────────────────────────────────────────
 
 /// Move the cursor to the centre of the currently-selected region.
-fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawState]) -> Result<()> {
+fn cursor_warp(mouse: &mut Option<Mouse>, filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Result<()> {
     let Some(m) = mouse else {
         return Ok(());
     };
-    if let Some((cx, cy)) = region_center(filter, states) {
+    if let Some((cx, cy)) = region_center(filter, states, ctx) {
         m.warp(cx as i16, cy as i16)?;
         info!(
             "=> {} ({cx:.0}, {cy:.0})",
@@ -216,11 +220,12 @@ fn cursor_action(
     states: &[DrawState],
     button: u8,
     repeat: u32,
+    ctx: &GridCtx,
 ) -> Result<()> {
     let Some(m) = mouse else {
         return Ok(());
     };
-    let center = region_center(filter, states);
+    let center = region_center(filter, states, ctx);
     if let Some((cx, cy)) = center {
         m.warp(cx as i16, cy as i16)?;
     }
@@ -235,13 +240,14 @@ fn cursor_action(
 
 // ── Display update ──────────────────────────────────────────────────
 
-fn display_update(
+pub(crate) fn display_update(
     overlay: &Overlay,
     states: &mut [DrawState],
     cfg: &GridConfig,
     cache: &TextCache,
     font_size: f32,
     filter: &GridFilter,
+    l4_ctx: Option<&GridCtx>,
 ) -> Result<()> {
     let l2_rect = if filter.is_empty() {
         None
@@ -300,6 +306,17 @@ fn display_update(
         }
         if let Some((x, y, w, h)) = l3_rect {
             render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, font_size * 0.75, l3_sel);
+            if let Some(ctx) = l4_ctx
+                && let Some((r, c)) = l3_sel
+                && (ctx.l4_dx != 0 || ctx.l4_dy != 0)
+            {
+                let sub_w = w / 5.0;
+                let sub_h = h / 3.0;
+                let cx = x + (c as f32 + 0.5) * sub_w + ctx.l4_dx as f32 * sub_w / 7.0;
+                let cy = y + (r as f32 + 0.5) * sub_h + ctx.l4_dy as f32 * sub_h / 7.0;
+                let r = font_size * 0.15;
+                render_l4_dot(&mut ds.pixmap, (cx, cy, r));
+            }
         }
         overlay.upload(idx, &ds.pixmap)?;
     }
@@ -307,6 +324,24 @@ fn display_update(
     overlay.show_all()?;
     overlay.redraw_all()?;
     Ok(())
+}
+
+fn render_l4_dot(pixmap: &mut tiny_skia::Pixmap, (cx, cy, r): (f32, f32, f32)) {
+    use tiny_skia::{Color, Paint, PathBuilder, Shader, Transform};
+    let c = Color::from_rgba8(0, 255, 0, 200);
+    let mut pb = PathBuilder::new();
+    pb.push_circle(cx, cy, r);
+    pixmap.fill_path(
+        &pb.finish().unwrap(),
+        &Paint {
+            shader: Shader::SolidColor(c),
+            anti_alias: true,
+            ..Default::default()
+        },
+        tiny_skia::FillRule::Winding,
+        Transform::identity(),
+        None,
+    );
 }
 
 fn render_l2_grid(
@@ -512,7 +547,7 @@ fn render_l3_overlay(
 // ── Region geometry ─────────────────────────────────────────────────
 
 /// Get the currently-selected rect from the filter.
-fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f32, f32)> {
+fn region_rect(filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Option<(f32, f32, f32, f32)> {
     let input = filter.input();
     if input.len() < 2 {
         return None;
@@ -528,19 +563,20 @@ fn region_rect(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32, f
     );
     if let Some(ch) = input.chars().nth(2) {
         let (r, c) = l3_key_pos(ch)?;
-        Some((
-            px + c as f32 * pw / 5.0,
-            py + r as f32 * ph / 3.0,
-            pw / 5.0,
-            ph / 3.0,
-        ))
+        let sx = px + c as f32 * pw / 5.0;
+        let sy = py + r as f32 * ph / 3.0;
+        let sw = pw / 5.0;
+        let sh = ph / 3.0;
+        // L4 micro-adjust: 7 subdivisions
+        let dx = ctx.l4_dx as f32 * sw / 7.0;
+        let dy = ctx.l4_dy as f32 * sh / 7.0;
+        Some((sx + dx, sy + dy, sw, sh))
     } else {
         Some((px, py, pw, ph))
     }
 }
 
-/// Centre pixel of the current region.
-fn region_center(filter: &GridFilter, states: &[DrawState]) -> Option<(f32, f32)> {
-    let (x, y, w, h) = region_rect(filter, states)?;
+fn region_center(filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Option<(f32, f32)> {
+    let (x, y, w, h) = region_rect(filter, states, ctx)?;
     Some((x + w * 0.5, y + h * 0.5))
 }

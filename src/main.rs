@@ -78,6 +78,7 @@ grid (Main keyboard):
   layer1 key        9×3 region (main keyboard layout)
   layer2 key        3×9 sub-region (clockwise‑90°)
   layer3 key        5×3 fine (left-half keyboard, q-t/a-g/z-b)
+  alt+h/j/k/l        L4: subdivide L3 cell 7×7, nudge from center
   Backspace     L3 → L2, L2 → L1
   Enter              Warp & reset
   j/k/l              Click L/M/R & reset
