@@ -196,7 +196,6 @@ pub fn map(code: u16, mods: &ModState) -> Option<u8> {
 
     match code {
         KEY_ENTER => Some(b'\n'),
-        KEY_SPACE => Some(b' '),
         KEY_BACKSPACE => Some(0x7f),
         KEY_ESC => Some(0x1b),
         KEY_COMMA => Some(b','),

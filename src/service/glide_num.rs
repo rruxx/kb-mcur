@@ -64,7 +64,7 @@ impl Dir {
 // ── glide-num 状态 ─────────────────────────────────────────────────
 
 pub(crate) struct GlideNum {
-    pub(crate) toggle: bool,
+    pub(crate) active: bool,
     pub(crate) numlock_held: bool,
     btn_5: u8,
     btn_held: bool,
@@ -76,7 +76,7 @@ pub(crate) struct GlideNum {
 impl GlideNum {
     pub(crate) fn new() -> Self {
         Self {
-            toggle: false,
+            active: false,
             btn_5: 1,
             btn_held: false,
             numlock_held: false,
@@ -87,7 +87,7 @@ impl GlideNum {
     }
 
     pub(crate) fn active(&self) -> bool {
-        self.toggle
+        self.active
     }
 
     fn btn_code(&self) -> u16 {

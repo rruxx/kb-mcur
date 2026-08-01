@@ -45,8 +45,9 @@ Hold direction keys to auto-accelerate (3→50 px).
 / * - = switch btn5 (L/M/R). NumLock + / 8 7 9 = scroll; * - = back/forward.
 
 **glide-alpha (Main keyboard):**
-meta+shift+capslock toggle. h/j/k/l = move, Space = left click,
-; = right click, ' = middle click.
+meta+shift+capslock toggle. ctrl+h/j/k/l = move,
+shift+h/j/k/l = scroll, ctrl+u/i = back/forward,
+Space/;/' = left/right/middle click.
 
 **grid (meta+capslock):**
 Three-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°, L3: 5×3 left-half keyboard).

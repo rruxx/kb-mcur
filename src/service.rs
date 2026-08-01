@@ -23,8 +23,8 @@ use crate::{
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     keyboard::{KeyboardDev, KeyboardFilter},
     keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK, KEY_RIGHTMETA,
-        KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
+        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
+        KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
     },
     overlay::Overlay,
     uinput::Mouse,
@@ -113,14 +113,13 @@ pub fn run_service() -> Result<()> {
 
     let mut glide_num = GlideNum::new();
     let mut glide_alpha = GlideAlpha::new();
-    let mut glide_alpha_active = false;
 
     for code in 1u16..=255 {
         write_event(&mut kbd_out, EV_KEY, code, 0)?;
     }
     write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
 
-    let mut env = GridEnv::new();
+    let mut grid = GridEnv::new();
     let mut mods = ModState::default();
     let mut meta_held = false;
     let mut shift_held = false;
@@ -175,12 +174,12 @@ pub fn run_service() -> Result<()> {
 
                 if toggle_glide_alpha(
                     code, is_press, meta_held, shift_held,
-                    &mut glide_alpha_active, &mut kbd_out,
+                    &mut glide_alpha, &mut kbd_out,
                 )? { continue; }
 
                 if toggle_grid(
                     code, is_press, meta_held,
-                    &mut env, &mut kbd_out,
+                    &mut grid, &mut kbd_out,
                 )? { continue; }
 
                 if handle_glide_num_input(
@@ -192,7 +191,7 @@ pub fn run_service() -> Result<()> {
                 )? { continue; }
 
                 if handle_grid_input(
-                    code, value, &mut env, &mods,
+                    code, value, &mut grid, &mods,
                 ) { continue; }
 
                 write_event_raw(&mut kbd_out, &ev)?;
@@ -222,7 +221,7 @@ fn toggle_glide_num(
         glide_num.numlock_held = value != 0;
     }
     if code == KEY_KPENTER && is_press && glide_num.numlock_held {
-        glide_num.toggle = !glide_num.toggle;
+        glide_num.active = !glide_num.active;
         info!(
             "{}",
             if glide_num.active() { "[glide-num ON]" } else { "[pass-through]" }
@@ -237,14 +236,14 @@ fn toggle_glide_alpha(
     is_press: bool,
     meta_held: bool,
     shift_held: bool,
-    active: &mut bool,
+    glide_alpha: &mut GlideAlpha,
     kbd_out: &mut std::fs::File,
 ) -> Result<bool> {
     if code != KEY_CAPSLOCK || !is_press || !meta_held || !shift_held {
         return Ok(false);
     }
-    *active = !*active;
-    info!("{}", if *active { "[glide-alpha ON]" } else { "[glide-alpha OFF]" });
+    glide_alpha.active = !glide_alpha.active;
+    warn!("{}", if glide_alpha.active() { "[glide-alpha ON]" } else { "[glide-alpha OFF]" });
     for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_LEFTSHIFT, KEY_RIGHTSHIFT, KEY_CAPSLOCK] {
         write_event(kbd_out, EV_KEY, key, 0)?;
     }
@@ -256,54 +255,54 @@ fn toggle_grid(
     code: u16,
     is_press: bool,
     meta_held: bool,
-    env: &mut GridEnv,
+    grid: &mut GridEnv,
     kbd_out: &mut std::fs::File,
 ) -> Result<bool> {
     if code != KEY_CAPSLOCK || !is_press || !meta_held {
         return Ok(false);
     }
-    if env.active {
-        env.active = false;
-        env.overlay = None;
-        env.mouse = None;
-        env.cfg = None;
-        env.cache = None;
-        env.states = None;
-        env.ctx = None;
+    if grid.active {
+        grid.active = false;
+        grid.overlay = None;
+        grid.mouse = None;
+        grid.cfg = None;
+        grid.cache = None;
+        grid.states = None;
+        grid.ctx = None;
         info!("[grid] off");
     } else {
         match enter_grid() {
             Ok((init_overlay_conn, monitors_list, init_mouse)) => {
-                env.monitors = monitors_list;
-                env.monitor_idx = 0;
-                env.active = true;
+                grid.monitors = monitors_list;
+                grid.monitor_idx = 0;
+                grid.active = true;
 
-                if env.monitors.len() > 1 {
-                    env.overlay = None;
-                    env.select_hint.clear();
-                    if let Err(e) = show_selection(&mut env.overlay, &env.monitors) {
+                if grid.monitors.len() > 1 {
+                    grid.overlay = None;
+                    grid.select_hint.clear();
+                    if let Err(e) = show_selection(&mut grid.overlay, &grid.monitors) {
                         warn!("[grid] selection: {e}");
-                        env.active = false;
+                        grid.active = false;
                     } else {
-                        env.phase = GridPhase::Selecting;
+                        grid.phase = GridPhase::Selecting;
                         info!(
                             "[grid] select monitor (a-{})",
-                            (b'a' + (env.monitors.len() - 1) as u8) as char
+                            (b'a' + (grid.monitors.len() - 1) as u8) as char
                         );
                     }
                 } else {
-                    env.overlay = Some(init_overlay_conn);
-                    env.mouse = init_mouse;
-                    if let Ok(state) = init_grid_monitor(0, &env.monitors) {
-                        env.overlay = Some(state.overlay);
-                        env.mouse = state.mouse;
-                        env.cfg = Some(state.cfg);
-                        env.cache = Some(state.cache);
-                        env.font_size = state.font_size;
-                        env.states = Some(state.draw_states);
+                    grid.overlay = Some(init_overlay_conn);
+                    grid.mouse = init_mouse;
+                    if let Ok(state) = init_grid_monitor(0, &grid.monitors) {
+                        grid.overlay = Some(state.overlay);
+                        grid.mouse = state.mouse;
+                        grid.cfg = Some(state.cfg);
+                        grid.cache = Some(state.cache);
+                        grid.font_size = state.font_size;
+                        grid.states = Some(state.draw_states);
                     }
-                    env.ctx = Some(GridCtx::new());
-                    env.phase = GridPhase::Navigating;
+                    grid.ctx = Some(GridCtx::new());
+                    grid.phase = GridPhase::Navigating;
                     info!("[grid] on");
                 }
             }
@@ -348,26 +347,26 @@ fn handle_glide_alpha_input(
 fn handle_grid_input(
     code: u16,
     value: i32,
-    env: &mut GridEnv,
+    grid: &mut GridEnv,
     mods: &ModState,
 ) -> bool {
-    if !env.active || !is_grid_key(code) || value == 0 {
+    if !grid.active || !is_grid_key(code) || value == 0 {
         return false;
     }
     let state = GridStateMut {
-        overlay: &mut env.overlay,
-        cfg: &mut env.cfg,
-        cache: &mut env.cache,
-        font_size: &mut env.font_size,
-        states: &mut env.states,
-        ctx: &mut env.ctx,
-        mouse: &mut env.mouse,
+        overlay: &mut grid.overlay,
+        cfg: &mut grid.cfg,
+        cache: &mut grid.cache,
+        font_size: &mut grid.font_size,
+        states: &mut grid.states,
+        ctx: &mut grid.ctx,
+        mouse: &mut grid.mouse,
     };
-    if env.phase == GridPhase::Selecting {
-        let monitors = env.monitors.clone();
-        handle_selecting(code, state, &mut env.monitor_idx, &mut env.phase, &monitors, mods, &mut env.select_hint);
+    if grid.phase == GridPhase::Selecting {
+        let monitors = grid.monitors.clone();
+        handle_selecting(code, state, &mut grid.monitor_idx, &mut grid.phase, &monitors, mods, &mut grid.select_hint);
     } else {
-        handle_navigating(code, state, &env.monitors, &mut env.monitor_idx, mods, env.phase);
+        handle_navigating(code, state, &grid.monitors, &mut grid.monitor_idx, mods, grid.phase);
     }
     true
 }

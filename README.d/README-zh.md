@@ -45,8 +45,9 @@ NumLock+KPEnter 切换。非小键盘按键转发至合成器。
 按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
 
 **glide-alpha（主键盘）：**
-meta+shift+capslock 切换。h/j/k/l = 移动，空格 = 左键，
-; = 右键，' = 中键。
+meta+shift+capslock 切换。ctrl+h/j/k/l = 移动，
+shift+h/j/k/l = 滚动，ctrl+u/i = 后退/前进，
+Space/;/' = 左/右/中键。
 
 **grid（meta+capslock）：**
 三层渐进网格（L1: 9×3，L2: 3×9 顺时针 90°，L3: 5×3 左半键区）。

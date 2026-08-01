@@ -64,10 +64,12 @@ glide-num (NumPad):
 
 glide-alpha (Main keyboard):
   meta+shift+capslock  Toggle glide-alpha
-  h/j/k/l              Move left/down/up/right
-  Space                Left click (press=down, release=up)
-  ;                    Right click (press=down, release=up)
-  '                    Middle click (press=down, release=up)
+  ctrl+h/j/k/l         Move left/down/up/right
+  shift+h/j/k/l        Scroll left/down/up/right
+  ctrl+u/i             Back/forward
+  Space                Left button (press=down, release=up)
+  ;                    Right button (press=down, release=up)
+  '                    Middle button (press=down, release=up)
 
 grid (Main keyboard):
   meta+capslock     Toggle grid overlay
