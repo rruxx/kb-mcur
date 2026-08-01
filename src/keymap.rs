@@ -34,6 +34,8 @@ pub const KEY_V: u16 = 47;
 pub const KEY_B: u16 = 48;
 pub const KEY_N: u16 = 49;
 pub const KEY_M: u16 = 50;
+pub const KEY_COMMA: u16 = 51;
+pub const KEY_DOT: u16 = 52;
 pub const KEY_RIGHTSHIFT: u16 = 54;
 pub const KEY_SPACE: u16 = 57;
 pub const KEY_NUMLOCK: u16 = 69;
@@ -118,6 +120,8 @@ pub fn map(code: u16, mods: &ModState) -> Option<u8> {
         KEY_SPACE => Some(b' '),
         KEY_BACKSPACE => Some(0x7f),
         KEY_ESC => Some(0x1b),
+        KEY_COMMA => Some(b','),
+        KEY_DOT => Some(b'.'),
 
         // evdev keycodes 2-11 = KEY_1 through KEY_0 (wrapping).
         2..=11 => {
