@@ -73,21 +73,25 @@ sudo systemctl enable --now kursord
 
 ```
 src/
-├── main.rs      CLI entry
-├── lib.rs       Grid orchestration + display selection
-├── service.rs   Dual-mode service (glide + grid)
-├── config.rs    Project identity, key mappings, grid config
-├── debug.rs     Debug helpers (multi-monitor simulation)
-├── grid.rs      27×27 grid + region math
-├── render.rs    Overlay rendering + text drawing
-├── overlay.rs   X11/Wayland overlay backends (enum dispatch)
+├── main.rs        CLI entry
+├── lib.rs         Module declarations
+├── service.rs     Main event loop + dispatch
+├── glide.rs       NumPad glide mode (direction + acceleration)
+├── grid.rs        Grid data model + re-exports
+├── grid/
+│   ├── init.rs     Grid service init + watchdog
+│   ├── input.rs    Grid input processing + rendering
+├── config.rs      Project identity, key mappings, grid config
+├── debug.rs       Debug helpers (multi-monitor simulation)
+├── render.rs      Overlay rendering + text drawing
+├── overlay.rs     X11/Wayland overlay backends (enum dispatch)
 ├── overlay/
-│   ├── x11.rs   X11 RandR + SHAPE overlay
-│   └── wlr.rs   wlr-layer-shell Wayland overlay
-├── uio.rs       Shared uinput: structs, ioctl definitions, device creation
-├── uinput.rs    /dev/uinput virtual pointer (Mouse)
-├── evdev.rs     EVIOCGRAB keyboard grab + inotify hot-plug
-└── keymap.rs    US-QWERTY keycode → ASCII map
+│   ├── x11.rs     X11 RandR + SHAPE overlay
+│   └── wlr.rs     wlr-layer-shell Wayland overlay
+├── uio.rs         Shared uinput: structs, ioctl definitions, device creation
+├── uinput.rs      /dev/uinput virtual pointer (Mouse)
+├── evdev.rs       EVIOCGRAB keyboard grab + inotify hot-plug
+└── keymap.rs      US-QWERTY keycode → ASCII map
 ```
 
 ## License
