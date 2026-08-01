@@ -1,6 +1,6 @@
 # kursor — 键驱光标
 
-[English](./README-en.md)
+[English](../README.md)
 
 渐进式网格光标定位、小键盘鼠标导航常驻服务、CLI 宏快捷键。
 支持 X11 / wlroots / KDE / GNOME。
@@ -45,9 +45,10 @@ NumLock+KPEnter 切换 glide 模式。非小键盘按键转发至合成器。
 按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
 
 **跳转（meta+capslock）：**
-两层渐进网格（L1: 9×3，L2: 3×9 顺时针 90°），合计 27×27 格。
+三层渐进网格（L1: 9×3，L2: 3×9 顺时针 90°，L3: 5×3 左半键区）。
 多屏时先输入字母（a, b, …）选屏；tab 键切换显示屏。
 j/k/l 点击，空格/回车定位。0-9 前缀连击（如 3j）。
+Backspace：L3 → L2，L2 → L1。
 点击/定位后 filter 复位，网格不退出。
 
 #### systemd
@@ -80,7 +81,7 @@ src/
 ├── grid.rs        网格数据模型 + re-export
 ├── grid/
 │   ├── init.rs    网格服务初始化 + watchdog
-│   ├── input.rs   网格输入处理 + 渲染
+│   └── input.rs   网格输入处理 + 渲染
 ├── config.rs      项目标识、按键映射、网格配置
 ├── debug.rs       调试辅助（多屏模拟）
 ├── render.rs      叠加层渲染 + 文字绘制

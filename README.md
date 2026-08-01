@@ -45,9 +45,10 @@ Hold direction keys to auto-accelerate (3→50 px).
 / * - = switch btn5 (L/M/R). NumLock + / 8 7 9 = scroll; * - = back/forward.
 
 **grid (meta+capslock):**
-Two-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°), 27×27 cells.
+Three-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°, L3: 5×3 left-half keyboard).
 Multi-monitor: type a letter (a, b, …) to select display; tab switches monitors.
 j/k/l click, Space/Enter warp. 0-9 prefix for repeat (e.g. 3j).
+Backspace: L3 → L2, L2 → L1.
 After each click/warp, the filter resets — grid stays open.
 
 #### systemd
@@ -80,7 +81,7 @@ src/
 ├── grid.rs        Grid data model + re-exports
 ├── grid/
 │   ├── init.rs     Grid service init + watchdog
-│   ├── input.rs    Grid input processing + rendering
+│   └── input.rs    Grid input processing + rendering
 ├── config.rs      Project identity, key mappings, grid config
 ├── debug.rs       Debug helpers (multi-monitor simulation)
 ├── render.rs      Overlay rendering + text drawing
