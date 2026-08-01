@@ -26,9 +26,12 @@ cargo build --release
 ```sh
 export PROJ="$(pwd)"  # path to this project
 
+sudo rm -r ${PROJ}/tmp/pgo-data
+
 cargo clean
 RUSTFLAGS="-Cprofile-generate=${PROJ}/tmp/pgo-data" cargo build --release
 
+sudo systemctl stop kursord
 sudo cp ${PROJ}/target/release/kursor           /usr/bin/kursor
 sudo cp ${PROJ}/contrib/systemd/kursord.service /lib/systemd/system/kursord.service
 sudo systemctl daemon-reload
