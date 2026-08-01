@@ -140,6 +140,9 @@ pub fn process_byte(
 
         0x7f | b'\x08' => {
             ctx.filter.pop();
+            if ctx.filter.len() >= 2 {
+                ctx.filter.pop();
+            }
             ctx.repeat = 0;
             display_update(overlay, draw_states, cfg, cache, font_size, &ctx.filter)?;
         }
