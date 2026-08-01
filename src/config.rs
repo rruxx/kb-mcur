@@ -72,6 +72,25 @@ pub const L2_KEYS: [[char; 3]; 9] = [
     ['.', 'l', 'o'],
 ];
 
+/// Layer 3: 5 columns × 3 rows (left half of main keypad).
+pub const L3_KEYS: [[char; 5]; 3] = [
+    ['q', 'w', 'e', 'r', 't'],
+    ['a', 's', 'd', 'f', 'g'],
+    ['z', 'x', 'c', 'v', 'b'],
+];
+
+#[must_use]
+pub fn l3_key_pos(ch: char) -> Option<(usize, usize)> {
+    for (r, row) in L3_KEYS.iter().enumerate() {
+        for (c, &k) in row.iter().enumerate() {
+            if k == ch {
+                return Some((r, c));
+            }
+        }
+    }
+    None
+}
+
 #[must_use]
 pub fn l1_key_pos(ch: char) -> Option<(usize, usize)> {
     for (r, row) in L1_KEYS.iter().enumerate() {

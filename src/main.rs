@@ -68,6 +68,7 @@ grid (Main keyboard):
   tab               Switch monitor
   layer1 key        9×3 region (main keyboard layout)
   layer2 key        3×9 sub-region (clockwise‑90°)
+  layer3 key        5×3 fine (left-half keyboard, q-t/a-g/z-b)
   Space/Enter        Warp & reset
   j/k/l              Click L/M/R & reset
   0-9 prefix         Repeat (e.g. 3j)
