@@ -35,18 +35,31 @@ impl TextCache {
 // ── Base layer (background + grid lines) ────────────────────────────
 
 pub fn render_base(pixmap: &mut Pixmap, _grid: &Grid, cfg: &GridConfig) {
+    let bg = render_bg(pixmap, cfg);
+    render_l1(pixmap, cfg, bg);
+}
+
+/// Fill pixmap with `BG_COLOR`, return the premultiplied pixel value.
+pub fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 {
     pixmap
         .pixels_mut()
         .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
-    fill_rect(pixmap, 0.0, 0.0, w, h, rgba(cfg.bg_color));
+    let bg = rgba(cfg.bg_color);
+    fill_rect(pixmap, 0.0, 0.0, w, h, bg);
+    pixmap.pixels()[0]
+}
+
+/// Draw L1 grid lines (9×3) onto a pixmap pre-filled with `bg_pixel`.
+pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig, _bg: PremultipliedColorU8) {
+    let w = pixmap.width() as f32;
+    let h = pixmap.height() as f32;
     let line = rgba(cfg.line_color);
     let stroke = Stroke {
-        width: cfg.line_width * 2.0,
+        width: 3.0,
         ..Default::default()
     };
-    // L1: 9 columns × 3 rows
     for col in 1..9 {
         let x = (col as f32 / 9.0) * w;
         draw_line(pixmap, x, 0.0, x, h, &line, &stroke);

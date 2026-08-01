@@ -26,6 +26,9 @@ static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 pub struct DrawState {
     grid: Grid,
     pixmap: Pixmap,
+    bg_pixel: tiny_skia::PremultipliedColorU8,
+    mask_idx: Vec<usize>,
+    mask_px: Vec<tiny_skia::PremultipliedColorU8>,
 }
 
 pub fn init_overlay(
@@ -50,11 +53,29 @@ pub fn init_overlay(
     for (idx, &(x, y, w, h)) in monitors.iter().enumerate() {
         let grid = Grid::new(u32::from(w), u32::from(h), &cfg);
         let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
-        crate::render::render_base(&mut pixmap, &grid, &cfg);
+        let bg_pixel = crate::render::render_bg(&mut pixmap, &cfg);
+        crate::render::render_l1(&mut pixmap, &cfg, bg_pixel);
+
+        let all_px = pixmap.pixels();
+        let mut mask_idx = Vec::new();
+        let mut mask_px = Vec::new();
+        for (i, &p) in all_px.iter().enumerate() {
+            if p != bg_pixel {
+                mask_idx.push(i);
+                mask_px.push(p);
+            }
+        }
+
         crate::render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None);
         overlay.add_window(x, y, w, h)?;
         overlay.upload(idx, &pixmap)?;
-        draw_states.push(DrawState { grid, pixmap });
+        draw_states.push(DrawState {
+            grid,
+            pixmap,
+            bg_pixel,
+            mask_idx,
+            mask_px,
+        });
     }
     overlay.show_all()?;
     overlay.redraw_all()?;
@@ -253,7 +274,10 @@ fn display_update(
     };
 
     for (idx, ds) in states.iter_mut().enumerate() {
-        crate::render::render_base(&mut ds.pixmap, &ds.grid, cfg);
+        ds.pixmap.pixels_mut().fill(ds.bg_pixel);
+        for i in 0..ds.mask_idx.len() {
+            ds.pixmap.pixels_mut()[ds.mask_idx[i]] = ds.mask_px[i];
+        }
         crate::render::render_labels(
             &mut ds.pixmap,
             &ds.grid,
