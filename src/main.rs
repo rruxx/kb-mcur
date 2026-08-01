@@ -77,7 +77,7 @@ grid (Main keyboard):
   layer2 key        3×9 sub-region (clockwise‑90°)
   layer3 key        5×3 fine (left-half keyboard, q-t/a-g/z-b)
   Backspace     L3 → L2, L2 → L1
-  Space/Enter        Warp & reset
+  Enter              Warp & reset
   j/k/l              Click L/M/R & reset
   0-9 prefix         Repeat (e.g. 3j)
   Esc                Reset filter")]

@@ -121,7 +121,7 @@ pub fn process_byte(
     ctx: &mut GridCtx,
 ) -> Result<bool> {
     match byte {
-        b'\r' | b'\n' | b' ' => {
+        b'\r' | b'\n' => {
             cursor_warp(mouse, &ctx.filter, draw_states)?;
             if let Some((cx, cy)) = region_center(&ctx.filter, draw_states) {
                 overlay.pointer_warp(cx as i16, cy as i16)?;
