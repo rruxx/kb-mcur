@@ -216,8 +216,24 @@ fn display_update(
     font_size: f32,
     filter: &GridFilter,
 ) -> Result<()> {
-    let l3_rect = if filter.len() == 2 {
-        region_rect(filter, states)
+    let l3_rect = if filter.len() >= 2 {
+        let input = filter.input();
+        states
+            .iter()
+            .find_map(|ds| ds.grid.cell_by_label(&input[..2]))
+            .map(|c| {
+                (
+                    c.rect.x() as f32,
+                    c.rect.y() as f32,
+                    c.rect.width() as f32,
+                    c.rect.height() as f32,
+                )
+            })
+    } else {
+        None
+    };
+    let l3_sel = if filter.len() >= 3 {
+        filter.input().chars().nth(2).and_then(l3_key_pos)
     } else {
         None
     };
@@ -233,7 +249,7 @@ fn display_update(
             Some(filter),
         );
         if let Some((x, y, w, h)) = l3_rect {
-            render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, cache, font_size);
+            render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, cache, font_size, l3_sel);
         }
         overlay.upload(idx, &ds.pixmap)?;
     }
@@ -249,6 +265,7 @@ fn render_l3_overlay(
     cfg: &GridConfig,
     cache: &TextCache,
     font_size: f32,
+    sel: Option<(usize, usize)>,
 ) {
     use crate::config::L3_KEYS;
     use tiny_skia::{Color, Paint, PathBuilder, Shader, Stroke, Transform};
@@ -346,6 +363,31 @@ fn render_l3_overlay(
                 label_color,
             );
         }
+    }
+
+    // Highlight selected L3 sub-cell
+    if let Some((sr, sc)) = sel {
+        let sx = x + sc as f32 * w / 5.0;
+        let sy = y + sr as f32 * h / 3.0;
+        let sw = w / 5.0;
+        let sh = h / 3.0;
+        let hl_color = Color::from_rgba8(192, 255, 192, 128);
+        let hl_stroke = Stroke {
+            width: 2.0,
+            ..Default::default()
+        };
+        let hl_paint = Paint {
+            shader: Shader::SolidColor(hl_color),
+            anti_alias: true,
+            ..Default::default()
+        };
+        let mut hl_pb = PathBuilder::new();
+        hl_pb.move_to(sx, sy);
+        hl_pb.line_to(sx + sw, sy);
+        hl_pb.line_to(sx + sw, sy + sh);
+        hl_pb.line_to(sx, sy + sh);
+        hl_pb.close();
+        pixmap.stroke_path(&hl_pb.finish().unwrap(), &hl_paint, &hl_stroke, Transform::identity(), None);
     }
 }
 
