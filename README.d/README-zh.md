@@ -2,7 +2,7 @@
 
 [English](../README.md)
 
-渐进式网格光标定位、小键盘鼠标导航常驻服务、CLI 宏快捷键。
+三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）、CLI 宏快捷键。
 支持 X11 / wlroots / KDE / GNOME。
 
 ## 初衷
@@ -16,7 +16,7 @@ kursor 一个二进制适配全部。
 
 ## 安装
 
-```bash
+```sh
 git clone https://github.com/rruxx/kursor.git    # GitHub
 git clone https://gitee.com/rruxx/kursor.git     # Gitee
 cd kursor
@@ -35,16 +35,20 @@ sudo install -m755 target/release/kursor /usr/bin/
 
 ## 用法
 
-### service — 双模常驻服务（渐动 + 跳转）
+### service — 三模常驻服务（glide-num + glide-alpha + grid）
 
-通过 systemd 启动一次，两种正交策略：
+通过 systemd 启动一次，三种正交模式：
 
-**渐动（小键盘）：**
-NumLock+KPEnter 切换 glide 模式。非小键盘按键转发至合成器。
+**glide-num（小键盘）：**
+NumLock+KPEnter 切换。非小键盘按键转发至合成器。
 按住方向键自动加速（3→50 px）。/ * - 切换按键按钮（左/中/右键）。
 按住 NumLock 再按 / 8 7 9 为滚动；* - 为后退/前进。
 
-**跳转（meta+capslock）：**
+**glide-alpha（主键盘）：**
+meta+shift+capslock 切换。h/j/k/l = 移动，空格 = 左键，
+; = 右键，' = 中键。
+
+**grid（meta+capslock）：**
 三层渐进网格（L1: 9×3，L2: 3×9 顺时针 90°，L3: 5×3 左半键区）。
 多屏时先输入字母（a, b, …）选屏；tab 键切换显示屏。
 j/k/l 点击，空格/回车定位。0-9 前缀连击（如 3j）。
@@ -53,7 +57,7 @@ Backspace：L3 → L2，L2 → L1。
 
 #### systemd
 
-```bash
+```sh
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
 sudo cp contrib/systemd/kursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
@@ -77,7 +81,8 @@ src/
 ├── main.rs        CLI 入口
 ├── lib.rs         模块声明
 ├── service.rs     主事件循环 + 派发
-├── glide.rs       小键盘渐动模式（方向 + 加速）
+├── glide_num.rs   小键盘 glide-num（方向 + 加速）
+├── glide_alpha.rs 主键盘 glide-alpha
 ├── grid.rs        网格数据模型 + re-export
 ├── grid/
 │   ├── init.rs    网格服务初始化 + watchdog

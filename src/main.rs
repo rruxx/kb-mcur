@@ -48,10 +48,10 @@ Example:
         btn: String,
     },
 
-    /// Dual-mode daemon: glide (NumPad) + grid (Main keyboard).
+    /// Triple-mode daemon: glide-num (NumPad) + glide-alpha (Main keyboard) + grid.
     #[command(after_help = "\
-glide (NumPad):
-  NumLock+KPEnter   Toggle glide mode
+glide-num (NumPad):
+  NumLock+KPEnter   Toggle glide-num
   8/2/4/6           Move up/down/left/right
   7/9/1/3           Diagonal move
   5                 Click
@@ -61,6 +61,13 @@ glide (NumPad):
   / * -             Switch btn5 to L/M/R
   NumLock+/ 8 7 9   Scroll up/down/left/right
   NumLock+* -       Back/forward
+
+glide-alpha (Main keyboard):
+  meta+shift+capslock  Toggle glide-alpha
+  h/j/k/l              Move left/down/up/right
+  Space                Left click (press=down, release=up)
+  ;                    Right click (press=down, release=up)
+  '                    Middle click (press=down, release=up)
 
 grid (Main keyboard):
   meta+capslock     Toggle grid overlay

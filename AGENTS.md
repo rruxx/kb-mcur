@@ -53,6 +53,6 @@ export PROJ_V="$(cargo pkgid | cut -d\# -f2)"
 
 tar -I zstd \
     -cf $PWD/target/kursor-v${PROJ_V}-x86_64-unknown-linux-gnu.tar.zst \
-    -C $PWD/target/release kursor \
-    -C $PWD/contrib/systemd kursord.service
+    -C  $PWD/target/release kursor \
+    -C  $PWD/contrib/systemd kursord.service
 ```

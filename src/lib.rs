@@ -17,7 +17,8 @@
 pub mod config;
 pub mod debug;
 pub mod evdev;
-pub mod glide;
+pub mod glide_alpha;
+pub mod glide_num;
 pub mod grid;
 pub mod keymap;
 pub mod overlay;

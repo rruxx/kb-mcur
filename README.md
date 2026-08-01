@@ -2,7 +2,7 @@
 
 [中文](README.d/README-zh.md)
 
-Grid-based cursor targeting, NumPad glide navigation service, CLI macro shortcuts.
+Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), CLI macros.
 X11 / wlroots / KDE / GNOME.
 
 ## Motivation
@@ -16,7 +16,7 @@ kursor is a single binary that runs everywhere.
 
 ## Install
 
-```bash
+```sh
 git clone https://github.com/rruxx/kursor.git    # GitHub
 git clone https://gitee.com/rruxx/kursor.git     # Gitee
 cd kursor
@@ -35,14 +35,18 @@ sudo install -m755 target/release/kursor /usr/bin/
 
 ## Usage
 
-### service — Dual-mode daemon (glide + grid)
+### service — Triple-mode daemon (glide-num + glide-alpha + grid)
 
-Start once as a systemd service. Two orthogonal strategies:
+Start once as a systemd service. Three orthogonal modes:
 
-**glide (NumPad):**
+**glide-num (NumPad):**
 Mouse emulation with acceleration. NumLock+KPEnter toggle.
 Hold direction keys to auto-accelerate (3→50 px).
 / * - = switch btn5 (L/M/R). NumLock + / 8 7 9 = scroll; * - = back/forward.
+
+**glide-alpha (Main keyboard):**
+meta+shift+capslock toggle. h/j/k/l = move, Space = left click,
+; = right click, ' = middle click.
 
 **grid (meta+capslock):**
 Three-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°, L3: 5×3 left-half keyboard).
@@ -53,7 +57,7 @@ After each click/warp, the filter resets — grid stays open.
 
 #### systemd
 
-```bash
+```sh
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
 sudo cp contrib/systemd/kursord.service /lib/systemd/system/
 sudo systemctl daemon-reload
@@ -77,7 +81,8 @@ src/
 ├── main.rs        CLI entry
 ├── lib.rs         Module declarations
 ├── service.rs     Main event loop + dispatch
-├── glide.rs       NumPad glide mode (direction + acceleration)
+├── glide_num.rs   NumPad glide-num (direction + acceleration)
+├── glide_alpha.rs Main-keyboard glide-alpha
 ├── grid.rs        Grid data model + re-exports
 ├── grid/
 │   ├── init.rs     Grid service init + watchdog

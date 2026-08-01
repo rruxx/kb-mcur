@@ -60,6 +60,11 @@ pub const KEY_CAPSLOCK: u16 = 58;
 pub const KEY_LEFTMETA: u16 = 125;
 pub const KEY_RIGHTMETA: u16 = 126;
 
+pub const KEY_LEFTCTRL: u16 = 29;
+pub const KEY_RIGHTCTRL: u16 = 97;
+pub const KEY_SEMICOLON: u16 = 39;
+pub const KEY_APOSTROPHE: u16 = 40;
+
 #[derive(Default)]
 pub struct ModState {
     pub shift: bool,

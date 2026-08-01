@@ -61,9 +61,9 @@ impl Dir {
     }
 }
 
-// ── glide 状态 ─────────────────────────────────────────────────────
+// ── glide-num 状态 ─────────────────────────────────────────────────
 
-pub(crate) struct Glide {
+pub(crate) struct GlideNum {
     pub(crate) toggle: bool,
     pub(crate) numlock_held: bool,
     btn_5: u8,
@@ -73,7 +73,7 @@ pub(crate) struct Glide {
     dir_count: u32,
 }
 
-impl Glide {
+impl GlideNum {
     pub(crate) fn new() -> Self {
         Self {
             toggle: false,
@@ -99,16 +99,16 @@ impl Glide {
     }
 }
 
-// ── glide 事件处理 ─────────────────────────────────────────────────
+// ── glide-num 事件处理 ─────────────────────────────────────────────────
 
 pub(crate) fn handle_key_event(
-    glide: &mut Glide,
+    glide_num: &mut GlideNum,
     ptr_out: &mut File,
     code: u16,
     value: i32,
     is_press: bool,
 ) -> Result<bool> {
-    if glide.numlock_held {
+    if glide_num.numlock_held {
         match code {
             KEY_KPSLASH => {
                 if is_press {
@@ -164,71 +164,71 @@ pub(crate) fn handle_key_event(
         c if Dir::from_numpad(c).is_some() => {
             let flag = Dir::from_numpad(c).unwrap();
             if value == 0 {
-                glide.dir_mask.remove(flag);
-                glide.dir_held = glide.dir_held.saturating_sub(1);
-                if glide.dir_held == 0 {
-                    glide.dir_count = 0;
+                glide_num.dir_mask.remove(flag);
+                glide_num.dir_held = glide_num.dir_held.saturating_sub(1);
+                if glide_num.dir_held == 0 {
+                    glide_num.dir_count = 0;
                 }
             } else if value == 1 {
-                glide.dir_mask.insert(flag);
-                glide.dir_held = glide.dir_held.saturating_add(1);
+                glide_num.dir_mask.insert(flag);
+                glide_num.dir_held = glide_num.dir_held.saturating_add(1);
             }
             Ok(true)
         }
         KEY_KP5 => {
             if value > 0 {
-                write_event(ptr_out, EV_KEY, glide.btn_code(), 1)?;
+                write_event(ptr_out, EV_KEY, glide_num.btn_code(), 1)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                glide.btn_held = true;
-            } else if value == 0 && glide.btn_held {
-                write_event(ptr_out, EV_KEY, glide.btn_code(), 0)?;
+                glide_num.btn_held = true;
+            } else if value == 0 && glide_num.btn_held {
+                write_event(ptr_out, EV_KEY, glide_num.btn_code(), 0)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                glide.btn_held = false;
+                glide_num.btn_held = false;
             }
             Ok(true)
         }
         KEY_KPDOT => {
             if is_press {
-                write_event(ptr_out, EV_KEY, glide.btn_code(), 0)?;
+                write_event(ptr_out, EV_KEY, glide_num.btn_code(), 0)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                glide.btn_held = false;
+                glide_num.btn_held = false;
                 info!("[release]");
             }
             Ok(true)
         }
         KEY_KP0 => {
-            if value == 1 && !glide.btn_held {
-                write_event(ptr_out, EV_KEY, glide.btn_code(), 1)?;
+            if value == 1 && !glide_num.btn_held {
+                write_event(ptr_out, EV_KEY, glide_num.btn_code(), 1)?;
                 write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                glide.btn_held = true;
+                glide_num.btn_held = true;
                 info!("[hold]");
             }
             Ok(true)
         }
         KEY_KPASTERISK => {
             if is_press {
-                glide.btn_5 = 2;
+                glide_num.btn_5 = 2;
                 info!("[btn5=M]");
             }
             Ok(true)
         }
         KEY_KPSLASH => {
             if is_press {
-                glide.btn_5 = 1;
+                glide_num.btn_5 = 1;
                 info!("[btn5=L]");
             }
             Ok(true)
         }
         KEY_KPMINUS => {
             if is_press {
-                glide.btn_5 = 3;
+                glide_num.btn_5 = 3;
                 info!("[btn5=R]");
             }
             Ok(true)
         }
         KEY_KPPLUS => {
             if value == 1 {
-                let code = glide.btn_code();
+                let code = glide_num.btn_code();
                 let half = std::time::Duration::from_millis(50);
                 for _ in 0..2 {
                     write_event(ptr_out, EV_KEY, code, 1)?;
@@ -246,13 +246,13 @@ pub(crate) fn handle_key_event(
     }
 }
 
-pub(crate) fn do_direction_tick(glide: &mut Glide, ptr_out: &mut File) -> Result<()> {
-    if glide.dir_held != 1 {
+pub(crate) fn do_direction_num_tick(glide_num: &mut GlideNum, ptr_out: &mut File) -> Result<()> {
+    if glide_num.dir_held != 1 {
         return Ok(());
     }
-    let (dx, dy) = glide.dir_mask.to_vector();
-    glide.dir_count = glide.dir_count.saturating_add(1);
-    let step = config::cursor_speed(glide.dir_count) as f32;
+    let (dx, dy) = glide_num.dir_mask.to_vector();
+    glide_num.dir_count = glide_num.dir_count.saturating_add(1);
+    let step = config::cursor_speed(glide_num.dir_count) as f32;
     let mx = (dx as f32 * step) as i32;
     let my = (dy as f32 * step) as i32;
     write_event(ptr_out, EV_REL, REL_X, mx)?;
