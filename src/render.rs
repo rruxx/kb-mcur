@@ -34,8 +34,7 @@ impl TextCache {
 
 // ── Base layer (background + grid lines) ────────────────────────────
 
-pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
-    // Clear so repeated calls don't accumulate
+pub fn render_base(pixmap: &mut Pixmap, _grid: &Grid, cfg: &GridConfig) {
     pixmap
         .pixels_mut()
         .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
@@ -44,16 +43,17 @@ pub fn render_base(pixmap: &mut Pixmap, grid: &Grid, cfg: &GridConfig) {
     fill_rect(pixmap, 0.0, 0.0, w, h, rgba(cfg.bg_color));
     let line = rgba(cfg.line_color);
     let stroke = Stroke {
-        width: cfg.line_width,
+        width: cfg.line_width * 2.0,
         ..Default::default()
     };
-    for row in 1..grid.rows {
-        let y = (row as f32 / grid.rows as f32) * h;
-        draw_line(pixmap, 0.0, y, w, y, &line, &stroke);
-    }
-    for col in 1..grid.cols {
-        let x = (col as f32 / grid.cols as f32) * w;
+    // L1: 9 columns × 3 rows
+    for col in 1..9 {
+        let x = (col as f32 / 9.0) * w;
         draw_line(pixmap, x, 0.0, x, h, &line, &stroke);
+    }
+    for row in 1..3 {
+        let y = (row as f32 / 3.0) * h;
+        draw_line(pixmap, 0.0, y, w, y, &line, &stroke);
     }
 }
 

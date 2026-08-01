@@ -219,6 +219,17 @@ fn display_update(
     font_size: f32,
     filter: &GridFilter,
 ) -> Result<()> {
+    let l2_rect = if filter.is_empty() {
+        None
+    } else {
+        filter.input().chars().next().and_then(l1_key_pos).map(|(r, c)| {
+            let w = states[0].pixmap.width() as f32;
+            let h = states[0].pixmap.height() as f32;
+            let cw = w / 9.0;
+            let ch = h / 3.0;
+            (c as f32 * cw, r as f32 * ch, cw, ch)
+        })
+    };
     let l3_rect = if filter.len() >= 2 {
         let input = filter.input();
         states
@@ -251,6 +262,9 @@ fn display_update(
             font_size,
             Some(filter),
         );
+        if let Some((x, y, w, h)) = l2_rect {
+            render_l2_grid(&mut ds.pixmap, (x, y, w, h), cfg);
+        }
         if let Some((x, y, w, h)) = l3_rect {
             render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, cache, font_size, l3_sel);
         }
@@ -260,6 +274,44 @@ fn display_update(
     overlay.show_all()?;
     overlay.redraw_all()?;
     Ok(())
+}
+
+fn render_l2_grid(
+    pixmap: &mut tiny_skia::Pixmap,
+    (x, y, w, h): (f32, f32, f32, f32),
+    cfg: &GridConfig,
+) {
+    use tiny_skia::{Color, Paint, PathBuilder, Shader, Stroke, Transform};
+    let line = Color::from_rgba8(
+        cfg.line_color[0],
+        cfg.line_color[1],
+        cfg.line_color[2],
+        cfg.line_color[3],
+    );
+    let stroke = Stroke {
+        width: cfg.line_width,
+        ..Default::default()
+    };
+    let paint = Paint {
+        shader: Shader::SolidColor(line),
+        anti_alias: true,
+        ..Default::default()
+    };
+    // L2: 3 cols × 9 rows within the L1 cell
+    for col in 1..3 {
+        let lx = x + col as f32 * w / 3.0;
+        let mut pb = PathBuilder::new();
+        pb.move_to(lx, y);
+        pb.line_to(lx, y + h);
+        pixmap.stroke_path(&pb.finish().unwrap(), &paint, &stroke, Transform::identity(), None);
+    }
+    for row in 1..9 {
+        let ly = y + row as f32 * h / 9.0;
+        let mut pb = PathBuilder::new();
+        pb.move_to(x, ly);
+        pb.line_to(x + w, ly);
+        pixmap.stroke_path(&pb.finish().unwrap(), &paint, &stroke, Transform::identity(), None);
+    }
 }
 
 fn render_l3_overlay(
@@ -275,37 +327,31 @@ fn render_l3_overlay(
 
     let (x, y, w, h) = rect;
 
-    // Clear L3 region to transparent, then redraw from scratch.
+    // Clear L3 region to transparent (remove L2 content, keep desktop visible).
     let pw = pixmap.width() as usize;
     let ph = pixmap.height() as usize;
-    let pixels = pixmap.pixels_mut();
-    let transparent = tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap();
-    let y0 = (y.max(0.0) as usize).min(ph);
-    let y1 = ((y + h).max(0.0) as usize).min(ph);
-    let x0 = (x.max(0.0) as usize).min(pw);
-    let x1 = ((x + w).max(0.0) as usize).min(pw);
-    for py in y0..y1 {
-        let off = py * pw;
-        for px in x0..x1 {
-            pixels[off + px] = transparent;
+    {
+        let pixels = pixmap.pixels_mut();
+        let transparent = tiny_skia::PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap();
+        let y0 = (y.max(0.0) as usize).min(ph);
+        let y1 = ((y + h).max(0.0) as usize).min(ph);
+        let x0 = (x.max(0.0) as usize).min(pw);
+        let x1 = ((x + w).max(0.0) as usize).min(pw);
+        for py in y0..y1 {
+            let off = py * pw;
+            for px in x0..x1 {
+                pixels[off + px] = transparent;
+            }
         }
     }
 
+    // Fill with background (same as render_base)
     let bg = Color::from_rgba8(
         cfg.bg_color[0],
         cfg.bg_color[1],
         cfg.bg_color[2],
         cfg.bg_color[3],
     );
-    let line_color = Color::from_rgba8(
-        cfg.line_color[0],
-        cfg.line_color[1],
-        cfg.line_color[2],
-        cfg.line_color[3],
-    );
-    let label_color = cfg.label_color;
-
-    // Fill region with base background
     pixmap.fill_path(
         &PathBuilder::from_rect(tiny_skia::Rect::from_xywh(x, y, w, h).unwrap()),
         &Paint {
@@ -317,7 +363,15 @@ fn render_l3_overlay(
         None,
     );
 
-    // Border rect (replaces base grid lines erased by clear)
+    let line_color = Color::from_rgba8(
+        cfg.line_color[0],
+        cfg.line_color[1],
+        cfg.line_color[2],
+        cfg.line_color[3],
+    );
+    let label_color = cfg.label_color;
+
+    // Grid lines: 5 cols, 3 rows
     let stroke = Stroke {
         width: cfg.line_width,
         ..Default::default()
@@ -327,21 +381,7 @@ fn render_l3_overlay(
         anti_alias: true,
         ..Default::default()
     };
-    let mut pb = PathBuilder::new();
-    pb.move_to(x, y);
-    pb.line_to(x + w, y);
-    pb.line_to(x + w, y + h);
-    pb.line_to(x, y + h);
-    pb.close();
-    pixmap.stroke_path(
-        &pb.finish().unwrap(),
-        &line_paint,
-        &stroke,
-        Transform::identity(),
-        None,
-    );
 
-    // Internal grid lines: 5 cols, 3 rows
     for col in 1..5 {
         let lx = x + col as f32 * w / 5.0;
         let mut pb = PathBuilder::new();
