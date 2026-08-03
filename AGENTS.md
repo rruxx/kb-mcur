@@ -21,7 +21,7 @@ cargo fmt && cargo clippy
 cargo build --release
 ```
 
-## PGO release
+## PGO release (unused)
 
 ```sh
 export PROJ="$(pwd)"  # path to this project
