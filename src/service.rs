@@ -21,7 +21,7 @@ use crate::service::grid::{
 use crate::{
     DrawState, GridCtx,
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
-    keyboard::{KeyboardDev, KeyboardFilter},
+    keyboard::KeyboardDev,
     keymap::{
         KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTALT, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
         KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
@@ -107,7 +107,7 @@ pub fn run_service() -> Result<()> {
         );
     }
 
-    let mut kbd = KeyboardDev::open_all(KeyboardFilter::Service)?;
+    let mut kbd = KeyboardDev::open_all()?;
 
     let kbd_bits: Vec<u16> = (1u16..=255).collect();
     let mut kbd_out = create_virt_device(crate::config::DEV_KBD, &kbd_bits, false)?;
@@ -381,13 +381,13 @@ fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState)
         mouse: &mut grid.mouse,
     };
     if grid.phase == GridPhase::Selecting {
-        let monitors = grid.monitors.clone();
+        let monitors = &grid.monitors;
         handle_selecting(
             code,
             state,
             &mut grid.monitor_idx,
             &mut grid.phase,
-            &monitors,
+            monitors,
             mods,
             &mut grid.select_hint,
         );

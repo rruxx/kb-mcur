@@ -27,14 +27,7 @@ fn is_own_device(fd: &OwnedFd) -> bool {
     buf.starts_with(crate::config::OWN_PREFIX)
 }
 
-// ── Keyboard detection (mode-specific) ─────────────────────────────
-
-/// Which set of keycodes a keyboard must support to be grabbed.
-#[derive(Clone, Copy)]
-pub(crate) enum KeyboardFilter {
-    /// Matches numpads or main keyboards.
-    Service,
-}
+// ── Keyboard detection ─────────────────────────────────────────────
 
 /// a-z, 0-9, space, enter, backspace, esc
 const GRID_REQUIRED: &[u16] = &[
@@ -82,7 +75,7 @@ fn count_keys(bits: &[u8; 96]) -> u32 {
     bits.iter().map(|&byte| byte.count_ones()).sum()
 }
 
-fn matches_filter(fd: &OwnedFd, _filter: KeyboardFilter) -> bool {
+fn is_suitable(fd: &OwnedFd) -> bool {
     let Some(bits) = read_key_bits(fd) else {
         return false;
     };
@@ -106,14 +99,13 @@ fn release_grab(raw: i32) {
 /// Holds all grabbed keyboard devices.  Hot-plug via inotify on /dev/input/.
 pub(crate) struct KeyboardDev {
     fds: Vec<DeviceFd>,
-    filter: KeyboardFilter,
     inotify: Option<Inotify>,
     suspended: bool,
     pollfds: Vec<nix::poll::PollFd<'static>>,
 }
 
 impl KeyboardDev {
-    pub fn open_all(filter: KeyboardFilter) -> Result<Self> {
+    pub fn open_all() -> Result<Self> {
         let ino = Inotify::init(InitFlags::IN_NONBLOCK).context("inotify_init")?;
         ino.add_watch(
             "/dev/input/",
@@ -123,7 +115,6 @@ impl KeyboardDev {
 
         let mut devs = Self {
             fds: Vec::new(),
-            filter,
             inotify: Some(ino),
             suspended: false,
             pollfds: Vec::new(),
@@ -248,7 +239,7 @@ impl KeyboardDev {
     fn try_add(&mut self, name: &str) {
         let path = format!("/dev/input/{name}");
         let Ok(fd) = open_device(&path) else { return };
-        if is_own_device(&fd) || !matches_filter(&fd, self.filter) {
+        if is_own_device(&fd) || !is_suitable(&fd) {
             return;
         }
         if unsafe { eviocgrab(fd.as_raw_fd(), 1) }.is_err() {
