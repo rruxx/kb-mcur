@@ -88,8 +88,14 @@ src/
 │   ├── glide_alpha.rs 主键盘 glide-alpha
 │   ├── grid.rs        网格数据模型 + re-export
 │   └── grid/
-│       ├── init.rs    网格服务初始化 + watchdog
-│       └── input.rs   网格输入处理 + 渲染
+│       ├── state.rs      网格数据结构 + 叠加层初始化
+│       ├── display.rs    显示更新 + L2/L3/L4 渲染
+│       ├── process.rs    网格字节处理器 + 光标操作
+│       ├── handle.rs     选屏 + 导航事件处理
+│       ├── init.rs       网格服务初始化
+│       ├── watchdog.rs   会话检测 + 设备权限修复
+│       ├── selection.rs  多屏选择 UI
+│       └── env.rs        GridEnv 状态 + 开关逻辑
 ├── config.rs      项目标识、按键映射、网格配置
 ├── debug.rs       调试辅助（多屏模拟）
 ├── render.rs      叠加层渲染 + 文字绘制
