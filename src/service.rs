@@ -65,6 +65,10 @@ impl GridEnv {
             select_hint: String::new(),
         }
     }
+
+    fn active(&self) -> bool {
+        self.active
+    }
 }
 
 // ── Key classification ──────────────────────────────────────────────
@@ -280,7 +284,7 @@ fn toggle_grid(
     if code != KEY_CAPSLOCK || !is_press || !meta_held {
         return Ok(false);
     }
-    if grid.active {
+    if grid.active() {
         grid.active = false;
         grid.overlay = None;
         grid.mouse = None;
@@ -364,7 +368,7 @@ fn handle_glide_alpha_input(
 }
 
 fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
-    if !grid.active || !is_grid_key(code) || value == 0 {
+    if !grid.active() || !is_grid_key(code) || value == 0 {
         return false;
     }
     let state = GridStateMut {

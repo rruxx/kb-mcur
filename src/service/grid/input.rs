@@ -139,7 +139,7 @@ pub fn process_byte(
                 cache,
                 font_size,
                 &ctx.filter,
-                Some(ctx),
+                Some((ctx.l4_dx, ctx.l4_dy)),
             )?;
             return Ok(false);
         }
@@ -154,7 +154,7 @@ pub fn process_byte(
                 cache,
                 font_size,
                 &ctx.filter,
-                Some(ctx),
+                Some((ctx.l4_dx, ctx.l4_dy)),
             )?;
         }
 
@@ -171,7 +171,7 @@ pub fn process_byte(
                 cache,
                 font_size,
                 &ctx.filter,
-                Some(ctx),
+                Some((ctx.l4_dx, ctx.l4_dy)),
             )?;
         }
 
@@ -202,7 +202,7 @@ pub fn process_byte(
                     cache,
                     font_size,
                     &ctx.filter,
-                    Some(ctx),
+                    Some((ctx.l4_dx, ctx.l4_dy)),
                 )?;
                 return Ok(false);
             }
@@ -229,7 +229,7 @@ pub fn process_byte(
                 cache,
                 font_size,
                 &ctx.filter,
-                Some(ctx),
+                Some((ctx.l4_dx, ctx.l4_dy)),
             )?;
         }
     }
@@ -292,7 +292,7 @@ pub(crate) fn display_update(
     cache: &TextCache,
     font_size: f32,
     filter: &GridFilter,
-    l4_ctx: Option<&GridCtx>,
+    l4_offset: Option<(i32, i32)>,
 ) -> Result<()> {
     let l2_rect = if filter.is_empty() {
         None
@@ -351,14 +351,14 @@ pub(crate) fn display_update(
         }
         if let Some((x, y, w, h)) = l3_rect {
             render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, font_size * 0.75, l3_sel);
-            if let Some(ctx) = l4_ctx
+            if let Some((dx, dy)) = l4_offset
                 && let Some((r, c)) = l3_sel
-                && (ctx.l4_dx != 0 || ctx.l4_dy != 0)
+                && (dx != 0 || dy != 0)
             {
                 let sub_w = w / 5.0;
                 let sub_h = h / 3.0;
-                let cx = x + (c as f32 + 0.5) * sub_w + ctx.l4_dx as f32 * sub_w / 7.0;
-                let cy = y + (r as f32 + 0.5) * sub_h + ctx.l4_dy as f32 * sub_h / 7.0;
+                let cx = x + (c as f32 + 0.5) * sub_w + dx as f32 * sub_w / 7.0;
+                let cy = y + (r as f32 + 0.5) * sub_h + dy as f32 * sub_h / 7.0;
                 let r = font_size * 0.15;
                 render_l4_dot(&mut ds.pixmap, (cx, cy, r));
             }
@@ -452,7 +452,8 @@ fn render_l3_overlay(
 
     let (x, y, w, h) = rect;
 
-    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default()).unwrap();
+    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
+        .expect("embedded font data corrupted");
     let cache = TextCache::new(&font, font_size);
 
     // Clear L3 region to transparent (remove L2 content, keep desktop visible).

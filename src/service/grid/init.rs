@@ -362,7 +362,7 @@ pub(crate) fn handle_navigating(
                 gcache,
                 *state.font_size,
                 &gctx.filter,
-                Some(gctx),
+                Some((gctx.l4_dx, gctx.l4_dy)),
             ) {
                 warn!("[grid] l4 display error: {e}");
             }
