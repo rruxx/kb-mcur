@@ -14,64 +14,20 @@ use log::{info, warn};
 use crate::service::glide_alpha::{GlideAlpha, do_direction_alpha_tick, handle_alpha_event};
 use crate::service::glide_num::{GlideNum, do_direction_num_tick, handle_key_event};
 use crate::service::grid::{
-    GridPhase, GridStateMut, MonitorList, enter_grid, handle_navigating, handle_selecting,
-    init_grid_monitor, show_selection, watchdog,
+    GridEnv, GridPhase, GridStateMut, handle_navigating, handle_selecting, watchdog,
 };
 
 use crate::{
-    DrawState, GridCtx,
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     keyboard::KeyboardDev,
     keymap::{
         KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTALT, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
         KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
     },
-    overlay::Overlay,
-    uinput::Mouse,
     uinput::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
 };
 
-// ── Grid state ───────────────────────────────────────────────────────
-
-struct GridEnv {
-    active: bool,
-    phase: GridPhase,
-    overlay: Option<Overlay>,
-    mouse: Option<Mouse>,
-    cfg: Option<crate::service::grid::GridConfig>,
-    cache: Option<crate::render::TextCache>,
-    font_size: f32,
-    states: Option<Vec<DrawState>>,
-    ctx: Option<GridCtx>,
-    monitors: MonitorList,
-    monitor_idx: usize,
-    select_hint: String,
-}
-
-impl GridEnv {
-    fn new() -> Self {
-        Self {
-            active: false,
-            phase: GridPhase::Navigating,
-            overlay: None,
-            mouse: None,
-            cfg: None,
-            cache: None,
-            font_size: 0.0,
-            states: None,
-            ctx: None,
-            monitors: Vec::new(),
-            monitor_idx: 0,
-            select_hint: String::new(),
-        }
-    }
-
-    fn active(&self) -> bool {
-        self.active
-    }
-}
-
-// ── Key classification ──────────────────────────────────────────────
+// ── Signal ───────────────────────────────────────────────────────────
 
 fn is_grid_key(code: u16) -> bool {
     key_map(code, &ModState::default()).is_some()
@@ -188,7 +144,7 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if toggle_grid(code, is_press, meta_held, &mut grid, &mut kbd_out)? {
+                if grid.toggle(code, is_press, meta_held, &mut kbd_out)? {
                     continue;
                 }
 
@@ -268,71 +224,6 @@ fn toggle_glide_alpha(
         KEY_RIGHTSHIFT,
         KEY_CAPSLOCK,
     ] {
-        write_event(kbd_out, EV_KEY, key, 0)?;
-    }
-    write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
-    Ok(true)
-}
-
-fn toggle_grid(
-    code: u16,
-    is_press: bool,
-    meta_held: bool,
-    grid: &mut GridEnv,
-    kbd_out: &mut std::fs::File,
-) -> Result<bool> {
-    if code != KEY_CAPSLOCK || !is_press || !meta_held {
-        return Ok(false);
-    }
-    if grid.active() {
-        grid.active = false;
-        grid.overlay = None;
-        grid.mouse = None;
-        grid.cfg = None;
-        grid.cache = None;
-        grid.states = None;
-        grid.ctx = None;
-        warn!("[grid OFF]");
-    } else {
-        match enter_grid() {
-            Ok((init_overlay_conn, monitors_list, init_mouse)) => {
-                grid.monitors = monitors_list;
-                grid.monitor_idx = 0;
-                grid.active = true;
-
-                if grid.monitors.len() > 1 {
-                    grid.overlay = None;
-                    grid.select_hint.clear();
-                    if let Err(e) = show_selection(&mut grid.overlay, &grid.monitors) {
-                        warn!("[grid] selection: {e}");
-                        grid.active = false;
-                    } else {
-                        grid.phase = GridPhase::Selecting;
-                        info!(
-                            "[grid] select monitor (a-{})",
-                            (b'a' + (grid.monitors.len() - 1) as u8) as char
-                        );
-                    }
-                } else {
-                    grid.overlay = Some(init_overlay_conn);
-                    grid.mouse = init_mouse;
-                    if let Ok(state) = init_grid_monitor(0, &grid.monitors) {
-                        grid.overlay = Some(state.overlay);
-                        grid.mouse = state.mouse;
-                        grid.cfg = Some(state.cfg);
-                        grid.cache = Some(state.cache);
-                        grid.font_size = state.font_size;
-                        grid.states = Some(state.draw_states);
-                    }
-                    grid.ctx = Some(GridCtx::new());
-                    grid.phase = GridPhase::Navigating;
-                    warn!("[grid ON]");
-                }
-            }
-            Err(e) => warn!("[grid] init failed: {e}"),
-        }
-    }
-    for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_CAPSLOCK] {
         write_event(kbd_out, EV_KEY, key, 0)?;
     }
     write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;

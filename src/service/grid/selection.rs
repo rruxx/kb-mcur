@@ -1,0 +1,95 @@
+// Copyright (C) 2026 明雅流风
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+use anyhow::{Context, Result};
+use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
+
+use super::init::connect_as_user;
+use super::state::FONT_DATA;
+use crate::overlay::Overlay;
+use crate::render::TextCache;
+
+// ── 多屏选屏 ──────────────────────────────────────────────────────
+
+pub fn show_selection(
+    overlay: &mut Option<Overlay>,
+    monitors: &[(i32, i32, u16, u16)],
+) -> Result<()> {
+    let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
+    let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
+    let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
+    let bbox_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(0) - bbox_y;
+
+    let mut new_overlay = connect_as_user()?;
+    new_overlay.add_window(bbox_x, bbox_y, bbox_w as u16, bbox_h as u16)?;
+    new_overlay.show_all()?;
+    redraw_select_hint(&mut new_overlay, monitors, "")?;
+    *overlay = Some(new_overlay);
+    Ok(())
+}
+
+pub(crate) fn redraw_select_hint(
+    overlay: &mut Overlay,
+    monitors: &[(i32, i32, u16, u16)],
+    hint: &str,
+) -> Result<()> {
+    let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
+    let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
+    let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
+    let bbox_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(0) - bbox_y;
+
+    let mut pixmap = Pixmap::new(bbox_w as u32, bbox_h as u32).context("pixmap")?;
+    pixmap
+        .pixels_mut()
+        .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
+
+    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
+        .map_err(|e| anyhow::anyhow!("font: {e}"))?;
+    let font_size = 128.0;
+    let cache = TextCache::new(&font, font_size);
+
+    let bg = Color::from_rgba8(0, 0, 0, 144);
+    let paint = Paint {
+        shader: Shader::SolidColor(bg),
+        anti_alias: true,
+        ..Default::default()
+    };
+    let pw = font_size * 1.8;
+    let ph = font_size * 1.8;
+
+    for (i, &(mx, my, mw, mh)) in monitors.iter().enumerate() {
+        let label = format!("{}", (b'a' + i as u8) as char);
+        if !hint.is_empty() && !label.starts_with(hint) {
+            continue;
+        }
+        let cx = (mx - bbox_x) as f32 + mw as f32 * 0.5;
+        let cy = (my - bbox_y) as f32 + mh as f32 * 0.5;
+        let x = cx - pw * 0.5;
+        let y = cy - ph * 0.5;
+
+        let mut pb = PathBuilder::new();
+        pb.push_oval(tiny_skia::Rect::from_xywh(x, y, pw, ph).unwrap());
+        let oval = pb.finish().unwrap();
+        pixmap.fill_path(
+            &oval,
+            &paint,
+            tiny_skia::FillRule::Winding,
+            Transform::identity(),
+            None,
+        );
+
+        crate::render::draw_text(
+            &mut pixmap,
+            &label,
+            cx,
+            cy,
+            &cache,
+            font_size,
+            [192, 255, 192, 192],
+        );
+    }
+
+    overlay.upload(0, &pixmap)?;
+    overlay.redraw_all()?;
+    Ok(())
+}

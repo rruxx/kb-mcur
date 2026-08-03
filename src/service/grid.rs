@@ -129,11 +129,18 @@ impl Grid {
 
 // ── Sub-modules ────────────────────────────────────────────────────
 
+pub mod state;
 pub mod init;
-pub mod input;
+pub(crate) mod display;
+pub(crate) mod env;
+pub(crate) mod handle;
+pub(crate) mod process;
+pub(crate) mod selection;
+pub(crate) mod watchdog;
 
-pub(crate) use init::{
-    GridPhase, GridStateMut, MonitorList, enter_grid, handle_navigating, handle_selecting,
-    init_grid_monitor, show_selection, watchdog,
-};
-pub use input::{DrawState, FONT_DATA, GridCtx, init_overlay, process_byte};
+pub(crate) use env::GridEnv;
+pub(crate) use handle::{handle_navigating, handle_selecting};
+pub(crate) use init::{GridPhase, GridStateMut};
+pub(crate) use watchdog::watchdog;
+pub use state::{DrawState, FONT_DATA, GridCtx, init_overlay};
+pub use process::process_byte;
