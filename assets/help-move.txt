@@ -1,0 +1,3 @@
+Example:
+  kursor move -- 10 -5     right 10 px, up 5 px
+  kursor move -- -20 0     left 20 px

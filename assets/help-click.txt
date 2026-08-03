@@ -1,0 +1,4 @@
+Example:
+  kursor click L          left click once
+  kursor click -r 3 M     middle click 3 times
+  kursor click R          right click once

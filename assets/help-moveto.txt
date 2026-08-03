@@ -1,0 +1,3 @@
+Example:
+  kursor moveto 500 300   warp to (500, 300)
+  kursor moveto 0 0       top-left corner
