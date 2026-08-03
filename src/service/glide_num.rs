@@ -15,7 +15,7 @@ use crate::uinput::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, write_event,
 };
 
-// ── 方向映射 ────────────────────────────────────────────────────────
+// ── Direction ════════════════════════════════════════════════════════
 
 bitflags::bitflags! {
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,7 +61,7 @@ impl Dir {
     }
 }
 
-// ── glide-num 状态 ─────────────────────────────────────────────────
+// ── glide-num state ═════════════════════════════════════════════════
 
 pub(crate) struct GlideNum {
     pub(crate) active: bool,
@@ -99,7 +99,7 @@ impl GlideNum {
     }
 }
 
-// ── glide-num 事件处理 ─────────────────────────────────────────────────
+// ── Event handling ══════════════════════════════════════════════════
 
 pub(crate) fn handle_key_event(
     glide_num: &mut GlideNum,
@@ -161,8 +161,7 @@ pub(crate) fn handle_key_event(
     }
 
     match code {
-        c if Dir::from_numpad(c).is_some() => {
-            let flag = Dir::from_numpad(c).unwrap();
+        c if let Some(flag) = Dir::from_numpad(c) => {
             if value == 0 {
                 glide_num.dir_mask.remove(flag);
                 glide_num.dir_held = glide_num.dir_held.saturating_sub(1);

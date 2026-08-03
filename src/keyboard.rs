@@ -31,12 +31,8 @@ fn is_own_device(fd: &OwnedFd) -> bool {
 
 /// Which set of keycodes a keyboard must support to be grabbed.
 #[derive(Clone, Copy)]
-pub enum KeyboardFilter {
-    /// Grid mode: a-z, space, enter, backspace, esc; ≥30 total keys.
-    Grid,
-    /// `NumPad` mode: numpad 0-9, /*-+., numlock, numpad enter; ≥17 total keys.
-    NumPad,
-    /// Dual-mode service: matches numpads or main keyboards.
+pub(crate) enum KeyboardFilter {
+    /// Matches numpads or main keyboards.
     Service,
 }
 
@@ -86,25 +82,14 @@ fn count_keys(bits: &[u8; 96]) -> u32 {
     bits.iter().map(|&byte| byte.count_ones()).sum()
 }
 
-fn matches_filter(fd: &OwnedFd, filter: KeyboardFilter) -> bool {
+fn matches_filter(fd: &OwnedFd, _filter: KeyboardFilter) -> bool {
     let Some(bits) = read_key_bits(fd) else {
         return false;
     };
-    match filter {
-        KeyboardFilter::Grid => {
-            count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c))
-        }
-        KeyboardFilter::NumPad => {
-            count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c))
-        }
-        KeyboardFilter::Service => {
-            let grid_ok = count_keys(&bits) >= GRID_MIN_KEYS
-                && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
-            let pad_ok = count_keys(&bits) >= PAD_MIN_KEYS
-                && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
-            grid_ok || pad_ok
-        }
-    }
+    let grid_ok = count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
+    let pad_ok = count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
+    grid_ok || pad_ok
+
 }
 
 // ── Device management ──────────────────────────────────────────────
@@ -119,7 +104,7 @@ fn release_grab(raw: i32) {
 }
 
 /// Holds all grabbed keyboard devices.  Hot-plug via inotify on /dev/input/.
-pub struct KeyboardDev {
+pub(crate) struct KeyboardDev {
     fds: Vec<DeviceFd>,
     filter: KeyboardFilter,
     inotify: Option<Inotify>,
@@ -155,38 +140,6 @@ impl KeyboardDev {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.fds.is_empty()
-    }
-
-    /// Release grabs, close fds, and clear the device list.
-    /// Also suspends hot-plug rescan until the next `open_all()`.
-    pub fn close_all(&mut self) {
-        for d in &self.fds {
-            release_grab(d.fd.as_raw_fd());
-        }
-        self.fds.clear();
-        self.pollfds.clear();
-        self.suspended = true;
-    }
-
-    /// Release all grabs.
-    pub fn release(&mut self) {
-        for d in &self.fds {
-            release_grab(d.fd.as_raw_fd());
-        }
-    }
-
-    /// Block until a key event arrives, returns (code, value).
-    pub fn next_keypress(&mut self) -> Result<(u16, i32)> {
-        loop {
-            if self.is_empty() {
-                anyhow::bail!("all keyboards disconnected");
-            }
-            if let Some(ev) = self.poll_event(16)?
-                && ev.type_ == crate::uinput::EV_KEY
-            {
-                return Ok((ev.code, ev.value));
-            }
-        }
     }
 
     /// Poll for any input event with a timeout (ms).
