@@ -21,21 +21,15 @@ use crate::{
     device::abi::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
     device::input::KeyboardDev,
     keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTALT, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
-        KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, key_map,
+        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK, KEY_RIGHTMETA,
+        KEY_RIGHTSHIFT, KEY_TAB, ModState, key_map,
     },
 };
 
 // ── Key classification ───────────────────────────────────────────────
 
 fn is_grid_key(code: u16) -> bool {
-    key_map(code, &ModState::default()).is_some()
-        || code == KEY_TAB
-        || code == KEY_CAPSLOCK
-        || code == KEY_LEFTMETA
-        || code == KEY_RIGHTMETA
-        || code == KEY_LEFTALT
-        || code == KEY_RIGHTALT
+    key_map(code, &ModState::default()).is_some() || code == KEY_TAB
 }
 
 // ── Signal ───────────────────────────────────────────────────────────

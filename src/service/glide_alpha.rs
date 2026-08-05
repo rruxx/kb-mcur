@@ -66,14 +66,14 @@ impl GlideAlpha {
         value: i32,
         is_press: bool,
     ) -> Result<bool> {
-        // Modifier tracking.
+        // Modifier tracking — state only, forward the event to the desktop.
         if ctrl_code(code) {
             self.ctrl_held = is_press;
-            return Ok(true);
+            return Ok(false);
         }
         if shift_code(code) {
             self.shift_held = is_press;
-            return Ok(true);
+            return Ok(false);
         }
 
         let c = self.ctrl_held;
