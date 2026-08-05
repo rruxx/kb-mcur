@@ -18,8 +18,10 @@ use crate::service::grid::{GridEnv, fix_device_permissions};
 
 use crate::{
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
-    device::abi::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
-    device::input::KeyboardDev,
+    device::linux::abi::{
+        EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw,
+    },
+    device::linux::input::KeyboardDev,
     keymap::{
         KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, ModState,
         key_map,

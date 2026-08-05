@@ -18,7 +18,7 @@ pub fn connect_as_user() -> Result<Overlay> {
 
     let saved = nix::unistd::geteuid();
     nix::unistd::seteuid(nix::unistd::Uid::from_raw(session_uid)).context("seteuid")?;
-    let result = Overlay::connect();
+    let result = crate::overlay::connect();
     let _ = nix::unistd::seteuid(saved);
     result
 }

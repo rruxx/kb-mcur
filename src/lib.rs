@@ -15,15 +15,24 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod config;
+#[cfg(target_os = "linux")]
 pub mod debug;
 pub mod device;
+#[cfg(target_os = "linux")]
 pub mod font;
+#[cfg(target_os = "linux")]
 pub mod keymap;
 pub mod overlay;
+#[cfg(target_os = "linux")]
 pub mod render;
+#[cfg(target_os = "linux")]
 pub mod service;
 
-pub use device::uinput::Mouse;
-pub use overlay::{Monitor, Overlay, query_screen_size};
+pub use device::Mouse;
+pub use overlay::query_screen_size;
+#[cfg(target_os = "linux")]
+pub use overlay::{Monitor, Overlay};
+#[cfg(target_os = "linux")]
 pub use service::grid::state::{DrawState, GridCtx, GridPhase, GridStateMut, MonitorList};
+#[cfg(target_os = "linux")]
 pub use service::grid::{Grid, GridConfig, GridFilter};

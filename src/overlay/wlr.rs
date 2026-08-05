@@ -29,7 +29,7 @@ use wayland_protocols_wlr::virtual_pointer::v1::client::{
     zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1,
 };
 
-use crate::overlay::Monitor;
+use crate::overlay::{Monitor, OverlayBackend};
 
 struct LayerWin {
     surface: WlSurface,
@@ -138,14 +138,15 @@ impl WlrBackend {
             shm_pool: None,
         })
     }
+}
 
-    // Signatures must match `x11::X11Backend` for the `delegate!` dispatch.
+impl OverlayBackend for WlrBackend {
     #[allow(clippy::unnecessary_wraps)]
-    pub fn named_monitors(&self) -> Result<Vec<Monitor>> {
+    fn named_monitors(&self) -> Result<Vec<Monitor>> {
         Ok(self.monitors.clone())
     }
 
-    pub fn add_window(&mut self, _x: i32, _y: i32, w: u16, h: u16) -> Result<usize> {
+    fn add_window(&mut self, _x: i32, _y: i32, w: u16, h: u16) -> Result<usize> {
         let mut eq = self.conn.new_event_queue::<WlrBackend>();
         let qh = eq.handle();
         let surface = self.compositor.create_surface(&qh, ());
@@ -188,7 +189,7 @@ impl WlrBackend {
         Ok(idx)
     }
 
-    pub fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
+    fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
         let win = &self.windows[idx];
         let stride = win.w as usize * 4;
         let src = skia.data();
@@ -227,16 +228,16 @@ impl WlrBackend {
         Ok(())
     }
 
-    pub fn show_all(&self) -> Result<()> {
+    fn show_all(&self) -> Result<()> {
         self.conn.flush()?;
         Ok(())
     }
     // Signatures must match `x11::X11Backend` for the `delegate!` dispatch.
     #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
-    pub fn redraw_all(&self) -> Result<()> {
+    fn redraw_all(&self) -> Result<()> {
         Ok(())
     }
-    pub fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
+    fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
         let Some(ref v) = self.vptr else {
             return Ok(());
         };

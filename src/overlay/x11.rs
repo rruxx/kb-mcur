@@ -12,7 +12,7 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::rust_connection::RustConnection;
 
-use crate::overlay::Monitor;
+use crate::overlay::{Monitor, OverlayBackend};
 
 struct WindowState {
     window: u32,
@@ -47,8 +47,10 @@ impl X11Backend {
             windows: Vec::new(),
         })
     }
+}
 
-    pub fn named_monitors(&self) -> Result<Vec<Monitor>> {
+impl OverlayBackend for X11Backend {
+    fn named_monitors(&self) -> Result<Vec<Monitor>> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let resources = randr::get_screen_resources(&self.conn, screen.root)?.reply()?;
         let mut out = Vec::new();
@@ -73,7 +75,7 @@ impl X11Backend {
         Ok(out)
     }
 
-    pub fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
+    fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let window = self.conn.generate_id()?;
         let pixmap = self.conn.generate_id()?;
@@ -122,7 +124,7 @@ impl X11Backend {
         Ok(self.windows.len() - 1)
     }
 
-    pub fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
+    fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
         let ws = &self.windows[idx];
         let pixels = rgba_to_x11_pixels(skia.data());
         self.conn.put_image(
@@ -140,7 +142,7 @@ impl X11Backend {
         Ok(())
     }
 
-    pub fn show_all(&self) -> Result<()> {
+    fn show_all(&self) -> Result<()> {
         for ws in &self.windows {
             self.conn.map_window(ws.window)?;
         }
@@ -148,12 +150,16 @@ impl X11Backend {
         Ok(())
     }
 
-    pub fn redraw_all(&self) -> Result<()> {
+    fn redraw_all(&self) -> Result<()> {
         for ws in &self.windows {
             self.conn
                 .copy_area(ws.pixmap, ws.window, ws.gc, 0, 0, 0, 0, ws.width, ws.height)?;
         }
         self.conn.flush()?;
+        Ok(())
+    }
+
+    fn pointer_warp(&self, _x: i16, _y: i16) -> Result<()> {
         Ok(())
     }
 }

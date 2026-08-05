@@ -4,8 +4,8 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use kursor::config::MOVE_WAIT_MS;
-use kursor::device::uinput::Mouse;
-use kursor::overlay::query_screen_size;
+use kursor::device::Mouse;
+use kursor::query_screen_size;
 
 #[derive(Parser)]
 #[command(
@@ -75,7 +75,10 @@ fn main() -> Result<()> {
             m.click(parse_button(&btn)?, repeat)?;
         }
         Some(Cmd::Service) => {
+            #[cfg(target_os = "linux")]
             kursor::service::run_service()?;
+            #[cfg(not(target_os = "linux"))]
+            anyhow::bail!("service mode is not supported on this platform");
         }
         None => {
             Cli::command().print_help()?;

@@ -9,7 +9,9 @@ use anyhow::Result;
 use log::info;
 
 use crate::config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
-use crate::device::abi::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
+use crate::device::linux::abi::{
+    EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event,
+};
 use crate::keymap::{
     KEY_APOSTROPHE, KEY_CAPSLOCK, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTMETA,
     KEY_LEFTSHIFT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,

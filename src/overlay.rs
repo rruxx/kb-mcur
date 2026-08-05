@@ -1,10 +1,15 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[cfg(target_os = "windows")]
+pub mod windows;
+#[cfg(target_os = "linux")]
 pub mod wlr;
+#[cfg(target_os = "linux")]
 pub mod x11;
 
 use anyhow::Result;
+#[cfg(target_os = "linux")]
 use log::warn;
 use tiny_skia::Pixmap as SkiaPixmap;
 
@@ -40,31 +45,35 @@ impl Monitor {
     }
 }
 
-/// Runtime polypick between X11 and wlr-layer-shell backends.
-pub enum Overlay {
-    X11(Box<x11::X11Backend>),
-    Wlr(Box<wlr::WlrBackend>),
+/// Platform-specific overlay backend.
+pub trait OverlayBackend {
+    fn named_monitors(&self) -> Result<Vec<Monitor>>;
+    fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize>;
+    fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()>;
+    fn show_all(&self) -> Result<()>;
+    fn redraw_all(&self) -> Result<()>;
+    fn pointer_warp(&self, x: i16, y: i16) -> Result<()>;
 }
 
-macro_rules! delegate {
-    ($self:expr, $method:ident $(, $arg:expr)*) => {
-        match $self {
-            Overlay::X11(b) => b.$method($($arg),*),
-            Overlay::Wlr(b) => b.$method($($arg),*),
-        }
-    };
-}
+/// The active overlay backend for the current platform.
+pub type Overlay = Box<dyn OverlayBackend>;
 
-impl Overlay {
-    pub fn connect() -> Result<Self> {
+/// Connect to the display server and pick the overlay backend.
+pub fn connect() -> Result<Overlay> {
+    #[cfg(target_os = "windows")]
+    {
+        Ok(Box::new(windows::WinBackend::connect()?))
+    }
+    #[cfg(target_os = "linux")]
+    {
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
             match wlr::WlrBackend::connect() {
-                Ok(b) => return Ok(Overlay::Wlr(Box::new(b))),
+                Ok(b) => return Ok(Box::new(b)),
                 Err(e) => warn!("Wayland connection failed: {e:#}"),
             }
         }
         if std::env::var("DISPLAY").is_ok() {
-            return Ok(Overlay::X11(Box::new(x11::X11Backend::connect()?)));
+            return Ok(Box::new(x11::X11Backend::connect()?));
         }
         anyhow::bail!(
             "no display server detected.\n\
@@ -72,37 +81,25 @@ impl Overlay {
              X11: ensure DISPLAY is set."
         )
     }
-
-    pub fn named_monitors(&self) -> Result<Vec<Monitor>> {
-        delegate!(self, named_monitors)
-    }
-
-    pub fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
-        delegate!(self, add_window, x, y, w, h)
-    }
-
-    pub fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()> {
-        delegate!(self, upload, idx, skia)
-    }
-
-    pub fn show_all(&self) -> Result<()> {
-        delegate!(self, show_all)
-    }
-
-    pub fn redraw_all(&self) -> Result<()> {
-        delegate!(self, redraw_all)
-    }
-
-    pub fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
-        match self {
-            Overlay::X11(_) => Ok(()),
-            Overlay::Wlr(b) => b.pointer_warp(x, y),
-        }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        anyhow::bail!("unsupported platform")
     }
 }
 
-/// Screen dimensions via a temporary X11 connection (for CLI use).
+/// Screen dimensions (for CLI use).
 #[must_use]
 pub fn query_screen_size() -> (u16, u16) {
-    x11::query_screen_size()
+    #[cfg(target_os = "windows")]
+    {
+        windows::query_screen_size()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        x11::query_screen_size()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        (0, 0)
+    }
 }

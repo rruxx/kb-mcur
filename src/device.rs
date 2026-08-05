@@ -1,10 +1,14 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Device layer: kernel input ABI (`abi`) + physical read client (`input`) + virtual write client (`uinput`).
+//! Device layer: platform-specific input capture and virtual pointer.
 
-pub mod abi;
-pub mod input;
-pub mod uinput;
+#[cfg(target_os = "linux")]
+pub mod linux;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
-pub use uinput::Mouse;
+#[cfg(target_os = "linux")]
+pub use linux::Mouse;
+#[cfg(target_os = "windows")]
+pub use windows::Mouse;

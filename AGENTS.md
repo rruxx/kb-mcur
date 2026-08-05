@@ -2,16 +2,18 @@
 
 ## Project
 
-kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots).
+kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots) and Windows (CLI commands).
 
 ## Conventions
 
 - Rust edition 2024, `#![warn(clippy::pedantic)]`, allowed categories in `src/lib.rs`.
-- Use `nix` for syscalls. Never raw `libc::` for ioctl, poll, stat, read, close, mmap.
+- Use `nix` for syscalls (Linux only). Never raw `libc::` for ioctl, poll, stat, read, close, mmap.
 - Use `bytemuck` for `#[repr(C)]` struct byte casts. Never `std::mem::zeroed()`.
 - Use `log` (`info!`/`warn!`/`error!`). Never `eprintln!`.
 - Constants in `src/config.rs`. No magic numbers.
-- `src/device/abi.rs` is the single source for kernel input structs, ioctl defs, device creation.
+- `src/device/linux/abi.rs` is the single source for Linux kernel input structs, ioctl defs, device creation.
+- Platform split lives under `src/device/` (`linux/` vs `windows/`) and `src/overlay/`; core logic (grid/glide/render) is platform-neutral.
+- Use the modern module layout (a `linux.rs` + `linux/` dir), never `mod.rs`.
 
 ## QA && Build
 
@@ -20,6 +22,21 @@ cargo check
 cargo fmt && cargo clippy
 cargo build --release
 ```
+
+## Windows cross-build
+
+Requires `zig` + `cargo-zigbuild` (Linux host):
+
+```sh
+rustup target add x86_64-pc-windows-gnu
+cargo check --target x86_64-pc-windows-gnu
+cargo zigbuild --release --target x86_64-pc-windows-gnu
+# → target/x86_64-pc-windows-gnu/release/kursor.exe
+```
+
+Note: zig prints `ignoring deprecated linker optimization setting '1'` — harmless.
+Windows currently supports only the CLI commands (`move` / `moveto` / `click`);
+`service` (three-mode daemon) is Linux-only (stage 2).
 
 ## PGO release (unused)
 

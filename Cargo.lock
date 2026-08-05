@@ -448,6 +448,7 @@ dependencies = [
  "tiny-skia",
  "wayland-client",
  "wayland-protocols-wlr",
+ "windows-sys",
  "x11rb",
 ]
 
