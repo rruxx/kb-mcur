@@ -3,6 +3,10 @@
 
 // ── Standard 105-key USB HID → Linux evdev keycodes ─────────────────
 
+/// Highest evdev keycode this project registers on the virtual keyboard.
+/// 255 covers the standard keyset (letters, digits, numpad, modifiers).
+pub const KEYCODE_MAX: u16 = 255;
+
 // pub const KEY_RESERVED: u16 = 0;
 pub const KEY_ESC: u16 = 1;
 pub const KEY_1: u16 = 2;
@@ -207,8 +211,8 @@ pub fn key_map(code: u16, mods: &ModState) -> Option<u8> {
         KEY_COMMA => Some(b','),
         KEY_DOT => Some(b'.'),
 
-        // evdev keycodes 2-11 = KEY_1 through KEY_0 (wrapping).
-        2..=11 => {
+        // evdev keycodes KEY_1..=KEY_0 (wrapping).
+        KEY_1..=KEY_0 => {
             const SHIFT: &[u8] = b")!@#$%^&*(";
             let idx = ((code - 1) % 10) as usize;
             Some(if upper { SHIFT[idx] } else { b'0' + idx as u8 })

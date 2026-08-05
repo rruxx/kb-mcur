@@ -6,7 +6,7 @@ use log::info;
 
 use super::GridFilter;
 use super::state::{DrawState, GridCtx};
-use crate::config::l3_key_pos;
+use crate::config::{MouseButton, l3_key_pos};
 use crate::device::linux::uinput::Mouse;
 
 // ── Cursor & button actions ────────────────────────────────────────
@@ -34,7 +34,7 @@ pub fn cursor_action(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
-    button: u8,
+    button: MouseButton,
     repeat: u32,
     ctx: &GridCtx,
 ) -> Result<()> {
@@ -49,7 +49,10 @@ pub fn cursor_action(
     let n = if repeat == 0 { 1 } else { repeat };
     m.click(button, n)?;
     if let Some((cx, cy)) = center {
-        info!("click btn{button} x{n}  {name} ({cx:.0}, {cy:.0})");
+        info!(
+            "click btn{} x{n}  {name} ({cx:.0}, {cy:.0})",
+            button.as_u8()
+        );
     }
     Ok(())
 }

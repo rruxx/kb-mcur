@@ -22,27 +22,27 @@ pub struct WinBackend;
 
 impl WinBackend {
     pub fn connect() -> Result<Self> {
-        anyhow::bail!("Windows overlay is not implemented yet")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
 }
 
 impl OverlayBackend for WinBackend {
     fn named_monitors(&self) -> Result<Vec<Monitor>> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
     fn add_window(&mut self, _x: i32, _y: i32, _w: u16, _h: u16) -> Result<usize> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
     fn upload(&self, _idx: usize, _skia: &SkiaPixmap) -> Result<()> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
     fn show_all(&self) -> Result<()> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
     fn redraw_all(&self) -> Result<()> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
     fn pointer_warp(&self, _x: i16, _y: i16) -> Result<()> {
-        anyhow::bail!("not implemented")
+        anyhow::bail!("Windows overlay is not implemented yet (stage 2)")
     }
 }

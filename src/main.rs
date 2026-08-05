@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use kursor::config::MOVE_WAIT_MS;
+use kursor::config::{MOVE_WAIT_MS, MouseButton};
 use kursor::device::Mouse;
 use kursor::query_screen_size;
 
@@ -43,11 +43,11 @@ enum Cmd {
     Service,
 }
 
-fn parse_button(s: &str) -> Result<u8> {
+fn parse_button(s: &str) -> Result<MouseButton> {
     match s {
-        "L" | "l" | "left" | "1" => Ok(1),
-        "M" | "m" | "middle" | "2" => Ok(2),
-        "R" | "r" | "right" | "3" => Ok(3),
+        "L" | "l" | "left" | "1" => Ok(MouseButton::Left),
+        "M" | "m" | "middle" | "2" => Ok(MouseButton::Middle),
+        "R" | "r" | "right" | "3" => Ok(MouseButton::Right),
         other => anyhow::bail!("unknown button: {other} (use L|M|R)"),
     }
 }

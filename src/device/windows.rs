@@ -6,12 +6,3 @@
 pub mod mouse;
 
 pub use mouse::Mouse;
-
-/// Screen dimensions for the primary display (for CLI use).
-#[must_use]
-pub fn query_screen_size() -> (u16, u16) {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
-    let w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-    let h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
-    (w as u16, h as u16)
-}

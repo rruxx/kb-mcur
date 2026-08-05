@@ -34,8 +34,6 @@ pub const FALLBACK_HEIGHT: u16 = 1080;
 pub const GRID_ROWS: u32 = 27;
 pub const GRID_COLS: u32 = 27;
 
-// ── Two-layer grid key layouts ────────────────────────────────────────
-
 // ── Colours ──────────────────────────────────────────────────────────
 
 pub const LINE_COLOR: [u8; 4] = [255, 255, 255, 40];
@@ -139,10 +137,34 @@ pub fn cursor_speed(repeat_count: u32) -> i32 {
 
 // ── Action keys ──────────────────────────────────────────────────────
 
-pub const CLICK_KEYS: [(char, u8); 3] = [('j', 1), ('k', 2), ('l', 3)];
+/// Mouse buttons in the shared 1=left / 2=middle / 3=right order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MouseButton {
+    Left,
+    Middle,
+    Right,
+}
+
+impl MouseButton {
+    /// USB HID order used by [`CLICK_KEYS`] (1=left, 2=middle, 3=right).
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::Left => 1,
+            Self::Middle => 2,
+            Self::Right => 3,
+        }
+    }
+}
+
+pub const CLICK_KEYS: [(char, MouseButton); 3] = [
+    ('j', MouseButton::Left),
+    ('k', MouseButton::Middle),
+    ('l', MouseButton::Right),
+];
 
 #[must_use]
-pub fn action_key(ch: char) -> Option<u8> {
+pub fn action_key(ch: char) -> Option<MouseButton> {
     for &(k, btn) in &CLICK_KEYS {
         if k == ch {
             return Some(btn);
@@ -165,12 +187,12 @@ pub const BTN_MIDDLE: u16 = 0x112;
 pub const BTN_SIDE: u16 = 0x113;
 pub const BTN_EXTRA: u16 = 0x114;
 
-/// USB HID button code for mouse buttons (1=left, 2=middle, 3=right).
+/// USB HID button code for mouse buttons.
 #[must_use]
-pub const fn hid_button_code(button: u8) -> u16 {
+pub const fn hid_button_code(button: MouseButton) -> u16 {
     match button {
-        1 => BTN_LEFT,
-        2 => BTN_MIDDLE,
-        _ => BTN_RIGHT,
+        MouseButton::Left => BTN_LEFT,
+        MouseButton::Middle => BTN_MIDDLE,
+        MouseButton::Right => BTN_RIGHT,
     }
 }

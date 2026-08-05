@@ -23,8 +23,8 @@ use crate::{
     },
     device::linux::input::KeyboardDev,
     keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, ModState,
-        key_map,
+        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, KEYCODE_MAX,
+        ModState, key_map,
     },
 };
 
@@ -60,7 +60,7 @@ pub fn run_service() -> Result<()> {
 
     let mut kbd = KeyboardDev::open_all()?;
 
-    let kbd_bits: Vec<u16> = (1u16..=255).collect();
+    let kbd_bits: Vec<u16> = (1u16..=KEYCODE_MAX).collect();
     let mut kbd_out = create_virt_device(crate::config::DEV_KBD, &kbd_bits, false)?;
     let mut ptr_out = create_virt_device(
         crate::config::DEV_PTR,
@@ -71,7 +71,7 @@ pub fn run_service() -> Result<()> {
     let mut glide_num = GlideNum::new();
     let mut glide_alpha = GlideAlpha::new();
 
-    for code in 1u16..=255 {
+    for code in 1u16..=KEYCODE_MAX {
         write_event(&mut kbd_out, EV_KEY, code, 0)?;
     }
     write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;

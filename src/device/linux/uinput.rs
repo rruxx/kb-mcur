@@ -16,8 +16,8 @@ use super::abi::{
     ui_dev_create, ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit, ui_set_keybit,
 };
 use crate::config::{
-    BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, UINPUT_CREATE_WAIT_MS,
-    UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
+    BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, MouseButton,
+    UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
 };
 
 pub struct Mouse {
@@ -148,7 +148,7 @@ impl Mouse {
         Ok(())
     }
 
-    pub fn button_press(&mut self, button: u8) -> Result<()> {
+    pub fn button_press(&mut self, button: MouseButton) -> Result<()> {
         let code = button_hid(button);
         self.write_events(&[
             Self::make_event(EV_KEY, code, 1),
@@ -157,7 +157,7 @@ impl Mouse {
         Ok(())
     }
 
-    pub fn button_release(&mut self, button: u8) -> Result<()> {
+    pub fn button_release(&mut self, button: MouseButton) -> Result<()> {
         let code = button_hid(button);
         self.write_events(&[
             Self::make_event(EV_KEY, code, 0),
@@ -166,7 +166,7 @@ impl Mouse {
         Ok(())
     }
 
-    pub fn click(&mut self, button: u8, count: u32) -> Result<()> {
+    pub fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
         let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
         for _ in 0..count {
             self.button_press(button)?;

@@ -252,8 +252,8 @@ impl<'a> GridStateMut<'a> {
                 }
             }
         }
-        if let Some(o) = self.overlay.as_mut()
-            && b'\x1b' == byte.unwrap_or(0)
+        if byte == Some(b'\x1b')
+            && let Some(o) = self.overlay.as_mut()
         {
             select_hint.clear();
             let _ = redraw_select_hint(o, monitors, "");
@@ -287,15 +287,7 @@ impl<'a> GridStateMut<'a> {
                     KEY_J => gctx.l4_dy = (gctx.l4_dy + 1).min(3),
                     _ => {}
                 }
-                if let Err(e) = display_update(
-                    o,
-                    gstats,
-                    gcfg,
-                    gcache,
-                    *self.font_size,
-                    &gctx.filter,
-                    Some((gctx.l4_dx, gctx.l4_dy)),
-                ) {
+                if let Err(e) = Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx) {
                     warn!("[grid] l4 display error: {e}");
                 }
             }
@@ -329,6 +321,26 @@ impl<'a> GridStateMut<'a> {
 
     // ── Byte-level input handler ──
 
+    /// Re-render the active monitor from its current filter + L4 offset.
+    fn redraw(
+        o: &Overlay,
+        gcfg: &GridConfig,
+        gcache: &TextCache,
+        gstats: &mut [DrawState],
+        font_size: f32,
+        gctx: &GridCtx,
+    ) -> Result<()> {
+        display_update(
+            o,
+            gstats,
+            gcfg,
+            gcache,
+            font_size,
+            &gctx.filter,
+            Some((gctx.l4_dx, gctx.l4_dy)),
+        )
+    }
+
     fn process_byte(&mut self, byte: u8) -> Result<()> {
         let (Some(o), Some(gcfg), Some(gcache), Some(gstats), Some(gctx)) = (
             self.overlay.as_mut(),
@@ -348,29 +360,13 @@ impl<'a> GridStateMut<'a> {
                 }
                 gctx.filter.clear();
                 gctx.repeat = 0;
-                display_update(
-                    o,
-                    gstats,
-                    gcfg,
-                    gcache,
-                    *self.font_size,
-                    &gctx.filter,
-                    Some((gctx.l4_dx, gctx.l4_dy)),
-                )?;
+                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
             }
 
             0x1b => {
                 gctx.filter.clear();
                 gctx.repeat = 0;
-                display_update(
-                    o,
-                    gstats,
-                    gcfg,
-                    gcache,
-                    *self.font_size,
-                    &gctx.filter,
-                    Some((gctx.l4_dx, gctx.l4_dy)),
-                )?;
+                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
             }
 
             0x7f | b'\x08' => {
@@ -379,15 +375,7 @@ impl<'a> GridStateMut<'a> {
                     gctx.filter.pop();
                 }
                 gctx.repeat = 0;
-                display_update(
-                    o,
-                    gstats,
-                    gcfg,
-                    gcache,
-                    *self.font_size,
-                    &gctx.filter,
-                    Some((gctx.l4_dx, gctx.l4_dy)),
-                )?;
+                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
             }
 
             ch => {
@@ -410,15 +398,7 @@ impl<'a> GridStateMut<'a> {
                     }
                     gctx.filter.clear();
                     gctx.repeat = 0;
-                    display_update(
-                        o,
-                        gstats,
-                        gcfg,
-                        gcache,
-                        *self.font_size,
-                        &gctx.filter,
-                        Some((gctx.l4_dx, gctx.l4_dy)),
-                    )?;
+                    Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
                     return Ok(());
                 }
 
@@ -437,15 +417,7 @@ impl<'a> GridStateMut<'a> {
                 }
                 gctx.filter.push(c);
                 gctx.repeat = 0;
-                display_update(
-                    o,
-                    gstats,
-                    gcfg,
-                    gcache,
-                    *self.font_size,
-                    &gctx.filter,
-                    Some((gctx.l4_dx, gctx.l4_dy)),
-                )?;
+                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
             }
         }
         Ok(())

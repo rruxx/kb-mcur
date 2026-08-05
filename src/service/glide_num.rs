@@ -6,7 +6,7 @@ use std::fs::File;
 use anyhow::Result;
 use log::info;
 
-use crate::config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
+use crate::config::{self, BTN_EXTRA, BTN_SIDE, MouseButton, hid_button_code};
 use crate::device::linux::abi::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event,
 };
@@ -21,7 +21,7 @@ use crate::service::dir::{Dir, direction_tick, update_dir};
 pub struct GlideNum {
     active: bool,
     numlock_held: bool,
-    btn5_binding: u8,
+    btn5_binding: MouseButton,
     btn_held: bool,
     dir_held: u8,
     dir_mask: Dir,
@@ -33,7 +33,7 @@ impl GlideNum {
     pub fn new() -> Self {
         Self {
             active: false,
-            btn5_binding: 1,
+            btn5_binding: MouseButton::Left,
             btn_held: false,
             numlock_held: false,
             dir_held: 0,
@@ -95,11 +95,7 @@ impl GlideNum {
     }
 
     fn btn_code(&self) -> u16 {
-        match self.btn5_binding {
-            2 => BTN_MIDDLE,
-            3 => BTN_RIGHT,
-            _ => BTN_LEFT,
-        }
+        hid_button_code(self.btn5_binding)
     }
 
     // ── Event handling ──
@@ -207,21 +203,21 @@ impl GlideNum {
             }
             KEY_KPASTERISK => {
                 if is_press {
-                    self.btn5_binding = 2;
+                    self.btn5_binding = MouseButton::Middle;
                     info!("[btn5=M]");
                 }
                 Ok(true)
             }
             KEY_KPSLASH => {
                 if is_press {
-                    self.btn5_binding = 1;
+                    self.btn5_binding = MouseButton::Left;
                     info!("[btn5=L]");
                 }
                 Ok(true)
             }
             KEY_KPMINUS => {
                 if is_press {
-                    self.btn5_binding = 3;
+                    self.btn5_binding = MouseButton::Right;
                     info!("[btn5=R]");
                 }
                 Ok(true)
