@@ -63,10 +63,11 @@ impl GridEnv {
     }
 
     /// Toggle grid mode on/off via CapsLock+Meta.
-    /// Returns `Ok(true)` if the key was consumed.
+    /// Returns `Ok(true)` if the event was consumed.
     pub fn toggle(
         &mut self,
         code: u16,
+        _value: i32,
         is_press: bool,
         mods: &ModState,
         kbd_out: &mut std::fs::File,

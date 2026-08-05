@@ -21,8 +21,8 @@ use crate::{
     device::abi::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
     device::input::KeyboardDev,
     keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK, KEY_RIGHTMETA,
-        KEY_RIGHTSHIFT, KEY_TAB, ModState, key_map,
+        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, ModState,
+        key_map,
     },
 };
 
@@ -150,15 +150,15 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if toggle_glide_num(&mut glide_num, code, value, is_press, &mods) {
+                if glide_num.toggle(code, value, is_press, &mods, &mut kbd_out)? {
                     continue;
                 }
 
-                if toggle_glide_alpha(&mut glide_alpha, code, is_press, &mods, &mut kbd_out)? {
+                if glide_alpha.toggle(code, value, is_press, &mods, &mut kbd_out)? {
                     continue;
                 }
 
-                if grid.toggle(code, is_press, &mods, &mut kbd_out)? {
+                if grid.toggle(code, value, is_press, &mods, &mut kbd_out)? {
                     continue;
                 }
 
@@ -188,72 +188,6 @@ pub fn run_service() -> Result<()> {
             warn!("poll {t_poll:?}");
         }
     }
-}
-
-// ── Toggles ──────────────────────────────────────────────────────────
-
-fn toggle_glide_num(
-    glide_num: &mut GlideNum,
-    code: u16,
-    value: i32,
-    is_press: bool,
-    mods: &ModState,
-) -> bool {
-    if code == KEY_NUMLOCK {
-        glide_num.set_numlock(value != 0);
-    }
-    if code == KEY_KPENTER
-        && is_press
-        && glide_num.numlock_held()
-        && !mods.meta
-        && !mods.shift
-        && !mods.ctrl
-        && !mods.alt
-    {
-        glide_num.toggle();
-        warn!(
-            "{}",
-            if glide_num.active() {
-                "[glide-num ON]"
-            } else {
-                "[glide-num OFF]"
-            }
-        );
-        return true;
-    }
-    false
-}
-
-fn toggle_glide_alpha(
-    glide_alpha: &mut GlideAlpha,
-    code: u16,
-    is_press: bool,
-    mods: &ModState,
-    kbd_out: &mut std::fs::File,
-) -> Result<bool> {
-    if code != KEY_CAPSLOCK || !is_press || !mods.meta || !mods.shift || mods.ctrl || mods.alt {
-        return Ok(false);
-    }
-    glide_alpha.toggle();
-    warn!(
-        "{}",
-        if glide_alpha.active() {
-            "[glide-alpha ON]"
-        } else {
-            "[glide-alpha OFF]"
-        }
-    );
-    for key in [
-        KEY_LEFTMETA,
-        KEY_RIGHTMETA,
-        KEY_LEFTSHIFT,
-        KEY_RIGHTSHIFT,
-        KEY_CAPSLOCK,
-    ] {
-        write_event(kbd_out, EV_KEY, key, 0)?;
-    }
-    write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
-    Ok(true)
 }
 
 // ── Input dispatch ───────────────────────────────────────────────────

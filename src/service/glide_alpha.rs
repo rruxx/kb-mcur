@@ -6,12 +6,14 @@
 use std::fs::File;
 
 use anyhow::Result;
+use log::info;
 
 use crate::config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
 use crate::device::abi::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 use crate::keymap::{
-    KEY_APOSTROPHE, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_RIGHTCTRL,
-    KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
+    KEY_APOSTROPHE, KEY_CAPSLOCK, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTMETA,
+    KEY_LEFTSHIFT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
+    ModState,
 };
 use crate::service::dir::{Dir, direction_tick, update_dir};
 
@@ -46,9 +48,39 @@ impl GlideAlpha {
         self.active
     }
 
-    /// Toggle glide-alpha on/off.
-    pub fn toggle(&mut self) {
+    /// Toggle glide-alpha on/off via Meta+Shift+CapsLock.
+    /// Returns `Ok(true)` if the event was consumed.
+    pub fn toggle(
+        &mut self,
+        code: u16,
+        _value: i32,
+        is_press: bool,
+        mods: &ModState,
+        kbd_out: &mut File,
+    ) -> Result<bool> {
+        if code != KEY_CAPSLOCK || !is_press || !mods.meta || !mods.shift || mods.ctrl || mods.alt {
+            return Ok(false);
+        }
         self.active = !self.active;
+        info!(
+            "{}",
+            if self.active {
+                "[glide-alpha ON]"
+            } else {
+                "[glide-alpha OFF]"
+            }
+        );
+        for key in [
+            KEY_LEFTMETA,
+            KEY_RIGHTMETA,
+            KEY_LEFTSHIFT,
+            KEY_RIGHTSHIFT,
+            KEY_CAPSLOCK,
+        ] {
+            write_event(kbd_out, EV_KEY, key, 0)?;
+        }
+        write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
+        Ok(true)
     }
 
     /// One per-frame movement step while a direction is held.
