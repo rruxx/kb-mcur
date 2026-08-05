@@ -31,10 +31,15 @@ Requires `zig` + `cargo-zigbuild` (Linux host):
 rustup target add x86_64-pc-windows-gnu
 cargo check --target x86_64-pc-windows-gnu
 cargo zigbuild --release --target x86_64-pc-windows-gnu
-# → target/x86_64-pc-windows-gnu/release/kursor.exe
+contrib/patch-pe-version.sh target/x86_64-pc-windows-gnu/release/kursor.exe
+# → target/x86_64-pc-windows-gnu/release/kursor.exe (subsystem 10.00)
 ```
 
 Note: zig prints `ignoring deprecated linker optimization setting '1'` — harmless.
+The Windows build uses `-C target-cpu=x86-64-v3` (like Linux, see `.cargo/config.toml`).
+zig cc does not forward a subsystem version to its internal lld-link, so
+`contrib/patch-pe-version.sh` must run after linking to declare Windows 10/11
+(os + subsystem version 10.0).
 Windows currently supports only the CLI commands (`move` / `moveto` / `click`);
 `service` (three-mode daemon) is Linux-only (stage 2).
 
