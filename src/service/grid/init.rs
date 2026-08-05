@@ -3,8 +3,8 @@
 
 use anyhow::{Context, Result};
 
-use super::state::MonitorList;
 use super::device_perm::{display_session_uid, setup_display_env};
+use super::state::MonitorList;
 use crate::debug;
 use crate::overlay::Overlay;
 

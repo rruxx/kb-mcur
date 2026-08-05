@@ -3,11 +3,10 @@
 
 //! wlr-layer-shell overlay backend for wlroots-based Wayland compositors.
 
-use std::os::fd::{AsFd, FromRawFd, OwnedFd};
+use std::os::fd::{AsFd, OwnedFd};
 use std::ptr::NonNull;
 
 use anyhow::{Context, Result};
-use nix::fcntl::OFlag;
 use tiny_skia::Pixmap as SkiaPixmap;
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
@@ -302,23 +301,9 @@ impl Drop for WlrBackend {
 }
 
 fn shm_fd(size: u32) -> Result<OwnedFd> {
-    use std::fs::OpenOptions;
-    use std::os::fd::IntoRawFd;
-    use std::os::unix::fs::OpenOptionsExt;
-    let path = std::env::temp_dir().join(format!(
-        "{}-{}",
-        crate::config::SHM_PREFIX,
-        std::process::id()
-    ));
-    let file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create_new(true)
-        .custom_flags((OFlag::O_CLOEXEC | OFlag::O_RDWR).bits())
-        .open(&path)
-        .context("shm temp file")?;
-    file.set_len(u64::from(size))?;
-    let raw = file.into_raw_fd();
-    let _ = nix::unistd::unlink(&path);
-    Ok(unsafe { OwnedFd::from_raw_fd(raw) })
+    use nix::sys::memfd::MFdFlags;
+    let fd = nix::sys::memfd::memfd_create(crate::config::SHM_PREFIX, MFdFlags::MFD_CLOEXEC)
+        .context("memfd_create")?;
+    nix::unistd::ftruncate(&fd, i64::from(size)).context("ftruncate")?;
+    Ok(fd)
 }

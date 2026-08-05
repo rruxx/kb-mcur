@@ -55,11 +55,7 @@ pub fn display_update(
         None
     };
     let l3_sel = if filter.len() >= 3 {
-        filter
-            .input()
-            .chars()
-            .nth(2)
-            .and_then(l3_key_pos)
+        filter.input().chars().nth(2).and_then(l3_key_pos)
     } else {
         None
     };

@@ -88,14 +88,15 @@ src/
 │   ├── glide_alpha.rs Main-keyboard glide-alpha
 │   ├── grid.rs        Grid data model + re-exports
 │   └── grid/
-│       ├── state.rs      Grid data structures + overlay init
+│       ├── base.rs       Base-layer rendering (BG + L1 + labels)
+│       ├── state.rs      Grid state + input handlers (GridStateMut)
 │       ├── display.rs    Display update + L2/L3/L4 rendering
-│       ├── process.rs    Grid byte handler + cursor actions
-│       ├── handle.rs     Selecting + navigating event handlers
-│       ├── init.rs       Grid service init
-│       ├── watchdog.rs   Session detection + device permission fix
+│       ├── process.rs    Cursor actions + region geometry
+│       ├── init.rs       Grid service init + connection
+│       ├── device_perm.rs Session detection + device permission fix
 │       ├── selection.rs  Multi-monitor selection UI
-│       └── env.rs        GridEnv state + toggle logic
+│       └── env.rs        GridEnv state + toggle/input API
+│   ├── dir.rs            Shared direction bitmask + glide ticks
 ├── config.rs      Project identity, key mappings, grid config
 ├── debug.rs       Debug helpers (multi-monitor simulation)
 ├── render.rs      Overlay rendering + text drawing

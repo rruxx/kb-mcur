@@ -134,13 +134,13 @@ impl Grid {
 // ── Sub-modules ────────────────────────────────────────────────────
 
 pub mod base;
+pub mod device_perm;
 pub mod display;
 pub mod env;
 pub mod init;
 pub mod process;
 pub mod selection;
 pub mod state;
-pub mod device_perm;
 
-pub use env::GridEnv;
 pub use device_perm::fix_device_permissions;
+pub use env::GridEnv;

@@ -44,10 +44,46 @@ const GRID_REQUIRED: &[u16] = &[
     KEY_BACKSPACE,
     KEY_ENTER,
     KEY_SPACE,
-    KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, // 0-9
-    KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, // Q-P
-    KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, // A-L
-    KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, // Z-M
+    // 0-9
+    KEY_1,
+    KEY_2,
+    KEY_3,
+    KEY_4,
+    KEY_5,
+    KEY_6,
+    KEY_7,
+    KEY_8,
+    KEY_9,
+    KEY_0,
+    // Q-P
+    KEY_Q,
+    KEY_W,
+    KEY_E,
+    KEY_R,
+    KEY_T,
+    KEY_Y,
+    KEY_U,
+    KEY_I,
+    KEY_O,
+    KEY_P,
+    // A-L
+    KEY_A,
+    KEY_S,
+    KEY_D,
+    KEY_F,
+    KEY_G,
+    KEY_H,
+    KEY_J,
+    KEY_K,
+    KEY_L,
+    // Z-M
+    KEY_Z,
+    KEY_X,
+    KEY_C,
+    KEY_V,
+    KEY_B,
+    KEY_N,
+    KEY_M,
 ];
 const GRID_MIN_KEYS: u32 = 40;
 
@@ -55,11 +91,17 @@ const GRID_MIN_KEYS: u32 = 40;
 const PAD_REQUIRED: &[u16] = &[
     KEY_KPASTERISK,
     KEY_NUMLOCK,
-    KEY_KP7, KEY_KP8, KEY_KP9, // KP7-KP9
+    KEY_KP7,
+    KEY_KP8,
+    KEY_KP9, // KP7-KP9
     KEY_KPMINUS,
-    KEY_KP4, KEY_KP5, KEY_KP6, // KP4-KP6
+    KEY_KP4,
+    KEY_KP5,
+    KEY_KP6, // KP4-KP6
     KEY_KPPLUS,
-    KEY_KP1, KEY_KP2, KEY_KP3, // KP1-KP3
+    KEY_KP1,
+    KEY_KP2,
+    KEY_KP3, // KP1-KP3
     KEY_KP0,
     KEY_KPDOT,
     KEY_KPENTER,

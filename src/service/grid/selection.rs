@@ -22,11 +22,7 @@ pub fn show_selection(overlay: &mut Option<Overlay>, monitors: &[Monitor]) -> Re
     Ok(())
 }
 
-pub fn redraw_select_hint(
-    overlay: &mut Overlay,
-    monitors: &[Monitor],
-    hint: &str,
-) -> Result<()> {
+pub fn redraw_select_hint(overlay: &mut Overlay, monitors: &[Monitor], hint: &str) -> Result<()> {
     let (bbox_x, bbox_y, bbox_w, bbox_h) = Monitor::bbox(monitors);
 
     let mut pixmap = Pixmap::new(bbox_w as u32, bbox_h as u32).context("pixmap")?;
