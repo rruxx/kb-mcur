@@ -3,11 +3,11 @@
 
 use log::{info, warn};
 
-use super::init::{GridPhase, GridStateMut, MonitorList, init_grid_monitor};
-use super::state::GridCtx;
-use super::process::process_byte;
 use super::display::display_update;
+use super::init::{GridPhase, GridStateMut, MonitorList, init_grid_monitor};
+use super::process::process_byte;
 use super::selection::redraw_select_hint;
+use super::state::GridCtx;
 use crate::keymap::{KEY_H, KEY_J, KEY_K, KEY_L, KEY_TAB, ModState, map as key_map};
 
 // ── Grid 事件处理 ─────────────────────────────────────────────────

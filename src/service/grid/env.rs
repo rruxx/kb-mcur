@@ -6,8 +6,8 @@ use log::{info, warn};
 
 use super::GridConfig;
 use super::init::{GridPhase, enter_grid, init_grid_monitor};
-use super::state::{DrawState, GridCtx};
 use super::selection::show_selection;
+use super::state::{DrawState, GridCtx};
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA};
 use crate::overlay::Overlay;
 use crate::render::TextCache;

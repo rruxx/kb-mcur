@@ -23,5 +23,5 @@ pub mod render;
 pub mod service;
 pub mod uinput;
 
-pub use service::grid::state::{DrawState, FONT_DATA, GridCtx, init_overlay};
 pub use service::grid::process_byte;
+pub use service::grid::state::{DrawState, FONT_DATA, GridCtx, init_overlay};

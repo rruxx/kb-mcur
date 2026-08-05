@@ -4,9 +4,9 @@
 use anyhow::Result;
 use log::info;
 
-use super::{GridConfig, GridFilter};
-use super::state::{DrawState, GridCtx, MONITOR_NAME};
 use super::display::display_update;
+use super::state::{DrawState, GridCtx, MONITOR_NAME};
+use super::{GridConfig, GridFilter};
 use crate::config::{action_key, l1_key_pos, l2_key_pos, l3_key_pos};
 use crate::overlay::Overlay;
 use crate::render::TextCache;

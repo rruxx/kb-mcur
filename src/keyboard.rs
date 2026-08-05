@@ -79,10 +79,11 @@ fn is_suitable(fd: &OwnedFd) -> bool {
     let Some(bits) = read_key_bits(fd) else {
         return false;
     };
-    let grid_ok = count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
-    let pad_ok = count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
+    let grid_ok =
+        count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
+    let pad_ok =
+        count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
     grid_ok || pad_ok
-
 }
 
 // ── Device management ──────────────────────────────────────────────

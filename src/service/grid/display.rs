@@ -3,8 +3,8 @@
 
 use anyhow::Result;
 
-use super::{GridConfig, GridFilter};
 use super::state::{DrawState, FONT_DATA};
+use super::{GridConfig, GridFilter};
 use crate::config::{L3_KEYS, l1_key_pos};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
@@ -53,7 +53,11 @@ pub(crate) fn display_update(
         None
     };
     let l3_sel = if filter.len() >= 3 {
-        filter.input().chars().nth(2).and_then(crate::config::l3_key_pos)
+        filter
+            .input()
+            .chars()
+            .nth(2)
+            .and_then(crate::config::l3_key_pos)
     } else {
         None
     };
