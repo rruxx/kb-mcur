@@ -74,8 +74,6 @@ pub struct Cell {
 
 pub struct Grid {
     pub cells: Vec<Cell>,
-    pub cols: u32,
-    pub rows: u32,
 }
 
 impl Grid {
@@ -114,11 +112,7 @@ impl Grid {
                 });
             }
         }
-        Self {
-            cells,
-            cols: config.cols,
-            rows: config.rows,
-        }
+        Self { cells }
     }
 
     #[must_use]
@@ -129,6 +123,7 @@ impl Grid {
 
 // ── Sub-modules ────────────────────────────────────────────────────
 
+pub(crate) mod base;
 pub(crate) mod display;
 pub(crate) mod env;
 pub(crate) mod handle;
@@ -141,6 +136,4 @@ pub(crate) mod watchdog;
 pub(crate) use env::GridEnv;
 pub(crate) use handle::{handle_navigating, handle_selecting};
 pub(crate) use init::{GridPhase, GridStateMut};
-pub use process::process_byte;
-pub use state::{DrawState, FONT_DATA, GridCtx, init_overlay};
 pub(crate) use watchdog::watchdog;

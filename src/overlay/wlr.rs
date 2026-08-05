@@ -140,6 +140,8 @@ impl WlrBackend {
         })
     }
 
+    // Signatures must match `x11::X11Backend` for the `delegate!` dispatch.
+    #[allow(clippy::unnecessary_wraps)]
     pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
         Ok(self.monitors.clone())
     }
@@ -230,6 +232,8 @@ impl WlrBackend {
         self.conn.flush()?;
         Ok(())
     }
+    // Signatures must match `x11::X11Backend` for the `delegate!` dispatch.
+    #[allow(clippy::unused_self, clippy::unnecessary_wraps)]
     pub fn redraw_all(&self) -> Result<()> {
         Ok(())
     }

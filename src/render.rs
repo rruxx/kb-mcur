@@ -8,15 +8,13 @@ use tiny_skia::{
     Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform,
 };
 
-use crate::service::grid::{Grid, GridConfig, GridFilter};
-
-pub struct TextCache {
+pub(crate) struct TextCache {
     glyphs: HashMap<char, (Metrics, Vec<u8>)>,
 }
 
 impl TextCache {
     #[must_use]
-    pub fn new(font: &Font, size: f32) -> Self {
+    pub(crate) fn new(font: &Font, size: f32) -> Self {
         let mut glyphs = HashMap::new();
         for ch in 'a'..='z' {
             glyphs.insert(ch, font.rasterize(ch, size));
@@ -32,89 +30,13 @@ impl TextCache {
     }
 }
 
-// ── Base layer (background + grid lines) ────────────────────────────
+// ── Glyph metrics & drawing ─────────────────────────────────────────
 
-/// Fill pixmap with `BG_COLOR`, return the premultiplied pixel value.
-pub fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 {
-    pixmap
-        .pixels_mut()
-        .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
-    let w = pixmap.width() as f32;
-    let h = pixmap.height() as f32;
-    let bg = rgba(cfg.bg_color);
-    fill_rect(pixmap, 0.0, 0.0, w, h, bg);
-    pixmap.pixels()[0]
-}
-
-/// Draw L1 grid lines (9×3) onto a pixmap pre-filled with `BG_COLOR`.
-pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
-    let w = pixmap.width() as f32;
-    let h = pixmap.height() as f32;
-    let line = rgba(cfg.line_color);
-    let stroke = Stroke {
-        width: 3.0,
-        ..Default::default()
-    };
-    for col in 1..9 {
-        let x = (col as f32 / 9.0) * w;
-        draw_line(pixmap, x, 0.0, x, h, &line, &stroke);
-    }
-    for row in 1..3 {
-        let y = (row as f32 / 3.0) * h;
-        draw_line(pixmap, 0.0, y, w, y, &line, &stroke);
-    }
-}
-
-pub fn render_labels(
-    pixmap: &mut Pixmap,
-    grid: &Grid,
-    cfg: &GridConfig,
-    cache: &TextCache,
-    font_size: f32,
-    filter: Option<&GridFilter>,
-    phase: usize,
-) {
-    let highlight = cfg.label_color;
-    let dim = [192, 255, 192, 64];
-
-    for cell in &grid.cells {
-        if filter.is_some_and(|f| !f.matches(&cell.label)) {
-            continue;
-        }
-        let chars: Vec<char> = cell.label.chars().collect();
-        if chars.len() == 2 {
-            let (col0, col1) = match phase {
-                0 => (highlight, dim),
-                1 => (dim, highlight),
-                _ => (dim, dim),
-            };
-            let gap = font_size * 0.10;
-            let w0 = char_width(cache, chars[0]);
-            let w1 = char_width(cache, chars[1]);
-            let total = w0 + gap + w1;
-            let cx0 = cell.center.0 - total * 0.5 + w0 * 0.5;
-            let cx1 = cx0 + w0 * 0.5 + gap + w1 * 0.5;
-            draw_char_glyph(pixmap, chars[0], cx0, cell.center.1, cache, col0);
-            draw_char_glyph(pixmap, chars[1], cx1, cell.center.1, cache, col1);
-        } else {
-            draw_text(
-                pixmap,
-                &cell.label,
-                cell.center.0,
-                cell.center.1,
-                cache,
-                font_size,
-                highlight,
-            );
-        }
-    }
-}
-
-fn char_width(cache: &TextCache, ch: char) -> f32 {
+pub(crate) fn char_width(cache: &TextCache, ch: char) -> f32 {
     cache.get(ch).map_or(0.0, |(m, _)| m.advance_width)
 }
 
-fn draw_char_glyph(
+pub(crate) fn draw_char_glyph(
     pixmap: &mut Pixmap,
     ch: char,
     cx: f32,
@@ -135,11 +57,11 @@ fn draw_char_glyph(
 
 // ── Low-level draw ─────────────────────────────────────────────────
 
-fn rgba(color: [u8; 4]) -> Color {
+pub(crate) fn rgba(color: [u8; 4]) -> Color {
     Color::from_rgba8(color[0], color[1], color[2], color[3])
 }
 
-fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
+pub(crate) fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
     pixmap.fill_path(
         &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
         &Paint {
@@ -152,7 +74,7 @@ fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) 
     );
 }
 
-fn draw_line(
+pub(crate) fn draw_line(
     pixmap: &mut Pixmap,
     x1: f32,
     y1: f32,
@@ -197,7 +119,7 @@ fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rg
     }
 }
 
-pub fn draw_text(
+pub(crate) fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,
     cx: f32,

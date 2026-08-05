@@ -3,9 +3,11 @@
 
 use anyhow::Result;
 
-use super::state::{DrawState, font};
+use super::base::render_labels;
+use super::state::DrawState;
 use super::{GridConfig, GridFilter};
 use crate::config::{L3_KEYS, l1_key_pos};
+use crate::font;
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 
@@ -67,7 +69,7 @@ pub(crate) fn display_update(
         for i in 0..ds.mask_idx.len() {
             ds.pixmap.pixels_mut()[ds.mask_idx[i]] = ds.mask_px[i];
         }
-        crate::render::render_labels(
+        render_labels(
             &mut ds.pixmap,
             &ds.grid,
             cfg,
@@ -187,7 +189,7 @@ fn render_l3_overlay(
 
     let (x, y, w, h) = rect;
 
-    let cache = l3_cache.get_or_insert_with(|| TextCache::new(font(), font_size));
+    let cache = l3_cache.get_or_insert_with(|| TextCache::new(font::font(), font_size));
 
     let pw = pixmap.width() as usize;
     let ph = pixmap.height() as usize;

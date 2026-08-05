@@ -4,31 +4,20 @@
 use std::sync::OnceLock;
 
 use anyhow::{Context, Result};
-use fontdue::Font;
 use tiny_skia::Pixmap;
 
+use super::base::{render_bg, render_l1, render_labels};
 use super::{Grid, GridConfig, GridFilter};
 use crate::config::{FALLBACK_HEIGHT, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN};
+use crate::font;
 use crate::overlay::Overlay;
 use crate::render::TextCache;
-
-pub const FONT_DATA: &[u8] = include_bytes!("../../../assets/font.ttf");
-
-/// Parsed once per process; `Font` is `Send + Sync` (plain data).
-pub(crate) static FONT: OnceLock<Font> = OnceLock::new();
-
-pub(crate) fn font() -> &'static Font {
-    FONT.get_or_init(|| {
-        fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
-            .expect("embedded font data corrupted")
-    })
-}
 
 pub(crate) static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 
 /// Per-monitor state: the 27×27 grid, its base-layer RGBA bytes, and a
 /// persistent pixmap that is re-uploaded on every redraw.
-pub struct DrawState {
+pub(crate) struct DrawState {
     pub(crate) grid: Grid,
     pub(crate) pixmap: Pixmap,
     pub(crate) bg_pixel: tiny_skia::PremultipliedColorU8,
@@ -39,7 +28,7 @@ pub struct DrawState {
     pub(crate) l3_cache: Option<TextCache>,
 }
 
-pub fn init_overlay(
+pub(crate) fn init_overlay(
     overlay: &mut Overlay,
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
@@ -54,14 +43,14 @@ pub fn init_overlay(
         / FONT_ROW_DIVISOR)
         .clamp(FONT_SIZE_MIN, FONT_SIZE_MAX)
         .round();
-    let cache = TextCache::new(font(), font_size);
+    let cache = TextCache::new(font::font(), font_size);
 
     let mut draw_states = Vec::new();
     for (idx, &(x, y, w, h)) in monitors.iter().enumerate() {
         let grid = Grid::new(u32::from(w), u32::from(h), &cfg);
         let mut pixmap = Pixmap::new(u32::from(w), u32::from(h)).context("pixmap")?;
-        let bg_pixel = crate::render::render_bg(&mut pixmap, &cfg);
-        crate::render::render_l1(&mut pixmap, &cfg);
+        let bg_pixel = render_bg(&mut pixmap, &cfg);
+        render_l1(&mut pixmap, &cfg);
 
         let all_px = pixmap.pixels();
         let mut mask_idx = Vec::new();
@@ -73,7 +62,7 @@ pub fn init_overlay(
             }
         }
 
-        crate::render::render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None, 0);
+        render_labels(&mut pixmap, &grid, &cfg, &cache, font_size, None, 0);
         overlay.add_window(x, y, w, h)?;
         overlay.upload(idx, &pixmap)?;
         draw_states.push(DrawState {
@@ -94,7 +83,7 @@ pub fn init_overlay(
 
 // ── Grid context ────────────────────────────────────────────────────
 
-pub struct GridCtx {
+pub(crate) struct GridCtx {
     pub(crate) filter: GridFilter,
     pub(crate) repeat: u32,
     pub(crate) l4_dx: i32,

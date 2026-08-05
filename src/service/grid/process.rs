@@ -16,7 +16,7 @@ use crate::uinput::Mouse;
 
 /// Single-byte input handler for interactive grid mode.
 #[allow(clippy::too_many_arguments)]
-pub fn process_byte(
+pub(crate) fn process_byte(
     byte: u8,
     overlay: &mut Overlay,
     mouse: &mut Option<Mouse>,

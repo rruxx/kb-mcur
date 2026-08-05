@@ -15,13 +15,11 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod config;
-pub mod debug;
-pub mod keyboard;
-pub mod keymap;
+pub(crate) mod debug;
+pub(crate) mod font;
+pub(crate) mod keyboard;
+pub(crate) mod keymap;
 pub mod overlay;
-pub mod render;
+pub(crate) mod render;
 pub mod service;
 pub mod uinput;
-
-pub use service::grid::process_byte;
-pub use service::grid::state::{DrawState, FONT_DATA, GridCtx, init_overlay};
