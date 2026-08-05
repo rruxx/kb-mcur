@@ -10,7 +10,7 @@ use crate::config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
 use crate::device::abi::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 use crate::keymap::{
     KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER,
-    KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_NUMLOCK, ModState,
+    KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, ModState,
 };
 use crate::service::dir::{Dir, direction_tick, update_dir};
 
@@ -46,18 +46,15 @@ impl GlideNum {
     }
 
     /// Toggle glide-num on/off via NumLock+KPEnter.
-    /// Also tracks `NumLock` state. Returns `Ok(true)` if the event was consumed.
+    /// Returns `Ok(true)` if the event was consumed.
     pub fn toggle(
         &mut self,
         code: u16,
-        value: i32,
+        _value: i32,
         is_press: bool,
         mods: &ModState,
         _kbd_out: &mut File,
     ) -> Result<bool> {
-        if code == KEY_NUMLOCK {
-            self.numlock_held = value != 0;
-        }
         if code == KEY_KPENTER
             && is_press
             && self.numlock_held
@@ -78,6 +75,11 @@ impl GlideNum {
             return Ok(true);
         }
         Ok(false)
+    }
+
+    /// Record whether `NumLock` is currently held.
+    pub fn set_numlock(&mut self, held: bool) {
+        self.numlock_held = held;
     }
 
     #[must_use]

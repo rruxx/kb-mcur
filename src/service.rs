@@ -111,6 +111,9 @@ pub fn run_service() -> Result<()> {
                 let is_press = value > 0;
 
                 mods.update(code, is_press);
+                if code == KEY_NUMLOCK {
+                    glide_num.set_numlock(value != 0);
+                }
 
                 // Only EV_KEY events carry mode-relevant information.
                 if ev.type_ != EV_KEY {
