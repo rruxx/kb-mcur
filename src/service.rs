@@ -76,8 +76,6 @@ pub fn run_service() -> Result<()> {
 
     let mut grid = GridEnv::new();
     let mut mods = ModState::default();
-    let mut meta_held = false;
-    let mut shift_held = false;
 
     let mut warn_is_done = false;
     let mut last_wd = Instant::now();
@@ -113,11 +111,6 @@ pub fn run_service() -> Result<()> {
                 let is_press = value > 0;
 
                 mods.update(code, is_press);
-                match code {
-                    KEY_LEFTMETA | KEY_RIGHTMETA => meta_held = is_press,
-                    KEY_LEFTSHIFT | KEY_RIGHTSHIFT => shift_held = is_press,
-                    _ => {}
-                }
 
                 // Only EV_KEY events carry mode-relevant information.
                 if ev.type_ != EV_KEY {
@@ -125,12 +118,23 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                // A chord trigger (CapsLock/KPEnter down with its modifier held)
-                // consumes a pending modifier press; otherwise the pending press
-                // is replayed to the desktop before the current event.
+                // Precisely match a mode-toggle chord so extra modifiers
+                // (e.g. meta+ctrl+capslock) are not mistaken for one.
+                // grid:        meta, no shift/ctrl/alt
+                // glide-alpha: meta+shift, no ctrl/alt
+                // glide-num:   numlock, no meta/shift/ctrl/alt
                 let chord = is_press
-                    && ((code == KEY_CAPSLOCK && meta_held)
-                        || (code == KEY_KPENTER && glide_num.numlock_held()));
+                    && match code {
+                        KEY_CAPSLOCK => mods.meta && !mods.ctrl && !mods.alt,
+                        KEY_KPENTER => {
+                            glide_num.numlock_held()
+                                && !mods.meta
+                                && !mods.shift
+                                && !mods.ctrl
+                                && !mods.alt
+                        }
+                        _ => false,
+                    };
                 if let Some(p) = pending.take()
                     && !chord
                 {
@@ -146,22 +150,15 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if toggle_glide_num(&mut glide_num, code, value, is_press) {
+                if toggle_glide_num(&mut glide_num, code, value, is_press, &mods) {
                     continue;
                 }
 
-                if toggle_glide_alpha(
-                    &mut glide_alpha,
-                    code,
-                    is_press,
-                    meta_held,
-                    shift_held,
-                    &mut kbd_out,
-                )? {
+                if toggle_glide_alpha(&mut glide_alpha, code, is_press, &mods, &mut kbd_out)? {
                     continue;
                 }
 
-                if grid.toggle(code, is_press, meta_held, &mut kbd_out)? {
+                if grid.toggle(code, is_press, &mods, &mut kbd_out)? {
                     continue;
                 }
 
@@ -195,11 +192,24 @@ pub fn run_service() -> Result<()> {
 
 // ── Toggles ──────────────────────────────────────────────────────────
 
-fn toggle_glide_num(glide_num: &mut GlideNum, code: u16, value: i32, is_press: bool) -> bool {
+fn toggle_glide_num(
+    glide_num: &mut GlideNum,
+    code: u16,
+    value: i32,
+    is_press: bool,
+    mods: &ModState,
+) -> bool {
     if code == KEY_NUMLOCK {
         glide_num.set_numlock(value != 0);
     }
-    if code == KEY_KPENTER && is_press && glide_num.numlock_held() {
+    if code == KEY_KPENTER
+        && is_press
+        && glide_num.numlock_held()
+        && !mods.meta
+        && !mods.shift
+        && !mods.ctrl
+        && !mods.alt
+    {
         glide_num.toggle();
         warn!(
             "{}",
@@ -218,11 +228,10 @@ fn toggle_glide_alpha(
     glide_alpha: &mut GlideAlpha,
     code: u16,
     is_press: bool,
-    meta_held: bool,
-    shift_held: bool,
+    mods: &ModState,
     kbd_out: &mut std::fs::File,
 ) -> Result<bool> {
-    if code != KEY_CAPSLOCK || !is_press || !meta_held || !shift_held {
+    if code != KEY_CAPSLOCK || !is_press || !mods.meta || !mods.shift || mods.ctrl || mods.alt {
         return Ok(false);
     }
     glide_alpha.toggle();

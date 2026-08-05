@@ -68,10 +68,10 @@ impl GridEnv {
         &mut self,
         code: u16,
         is_press: bool,
-        meta_held: bool,
+        mods: &ModState,
         kbd_out: &mut std::fs::File,
     ) -> Result<bool> {
-        if code != KEY_CAPSLOCK || !is_press || !meta_held {
+        if code != KEY_CAPSLOCK || !is_press || !mods.meta || mods.shift || mods.ctrl || mods.alt {
             return Ok(false);
         }
         if self.active() {

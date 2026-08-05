@@ -139,9 +139,12 @@ pub const KEY_LEFTMETA: u16 = 125;
 pub const KEY_RIGHTMETA: u16 = 126;
 // pub const KEY_COMPOSE: u16 = 127;
 
+/// Modifier-key state (shift/ctrl/meta/alt), one bool per key.
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ModState {
     pub shift: bool,
+    pub ctrl: bool,
     pub meta: bool,
     pub alt: bool,
 }
@@ -150,6 +153,7 @@ impl ModState {
     pub fn update(&mut self, code: u16, pressed: bool) {
         match code {
             KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = pressed,
+            KEY_LEFTCTRL | KEY_RIGHTCTRL => self.ctrl = pressed,
             KEY_LEFTMETA | KEY_RIGHTMETA => self.meta = pressed,
             KEY_LEFTALT | KEY_RIGHTALT => self.alt = pressed,
             _ => {}
