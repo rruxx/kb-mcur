@@ -9,11 +9,11 @@
 //! replay feedback loops.
 
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use anyhow::{Result, bail};
-use log::{info, warn};
+use log::{error, info, warn};
 use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, SendInput,
@@ -31,6 +31,8 @@ use crate::keymap::{KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA};
 use crate::service::Service;
 
 const TICK_MS: u64 = 20; // direction-tick period (~50 Hz)
+const PROBE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
 
 // LLKHF_INJECTED — the low-level hook was not injected by SendInput.
 const LLKHF_INJECTED: u32 = 0x10;
@@ -49,6 +51,53 @@ thread_local! {
 }
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
+
+/// Wall-clock ms of the last hook call — proves the hook is alive. The main
+/// loop probes it; if a probe is not answered, the OS has stalled the hook
+/// (slow-callback timeout) and we reinstall it.
+static LAST_HOOK_MS: AtomicU64 = AtomicU64::new(0);
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
+}
+
+/// Inject a no-function key (`VK_NONAME`) down+up as a liveness probe.
+/// The probe passes through the hook (`LLKHF_INJECTED`), updating `LAST_HOOK_MS`.
+fn inject_probe() -> Result<()> {
+    const KEYEVENTF_KEYUP: u32 = 0x0002;
+    const VK_NONAME: u16 = 0xFF;
+    let down = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_NONAME,
+                wScan: 0,
+                dwFlags: 0,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let up = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VK_NONAME,
+                wScan: 0,
+                dwFlags: KEYEVENTF_KEYUP,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+    let inputs = [down, up];
+    if unsafe { SendInput(2, &raw const inputs[0], std::mem::size_of::<INPUT>() as i32) } != 2 {
+        bail!("SendInput probe failed");
+    }
+    Ok(())
+}
 
 // ── Hook callback ────────────────────────────────────────────────────
 
@@ -114,6 +163,8 @@ unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -
     if n_code != HC_ACTION as i32 {
         return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
     }
+    // Every hook call (including our own injected probe) proves liveness.
+    LAST_HOOK_MS.store(now_ms(), Ordering::Relaxed);
     let kb = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
     if kb.flags & LLKHF_INJECTED != 0 {
         return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
@@ -226,6 +277,10 @@ pub fn run() -> Result<()> {
     let tick = Duration::from_millis(TICK_MS);
     let mut result = Ok(());
     let mut last_report = std::time::Instant::now();
+    let mut last_probe = std::time::Instant::now();
+    let mut probe_pending = false;
+    let mut probe_before = 0u64;
+    let mut hook = hook;
 
     loop {
         if SHUTDOWN.load(Ordering::Relaxed) {
@@ -239,6 +294,39 @@ pub fn run() -> Result<()> {
             unsafe {
                 TranslateMessage(&raw const msg);
                 DispatchMessageW(&raw const msg);
+            }
+        }
+
+        // Liveness probe: inject a no-function key every PROBE_INTERVAL; if the
+        // hook does not answer within PROBE_TIMEOUT the OS has stalled it
+        // (slow-callback timeout). Reinstall the hook and clear stuck state.
+        if !probe_pending && now.duration_since(last_probe) >= PROBE_INTERVAL {
+            probe_before = LAST_HOOK_MS.load(Ordering::Relaxed);
+            if let Err(e) = inject_probe() {
+                warn!("probe failed: {e}");
+            }
+            last_probe = now;
+            probe_pending = true;
+        }
+        if probe_pending && now.duration_since(last_probe) >= PROBE_TIMEOUT {
+            probe_pending = false;
+            if LAST_HOOK_MS.load(Ordering::Relaxed) <= probe_before {
+                warn!("hook stalled — reinstalling");
+                unsafe { UnhookWindowsHookEx(hook) };
+                SVC.with(|s| {
+                    if let Some(svc) = s.borrow_mut().as_mut() {
+                        svc.reset_direction();
+                    }
+                });
+                hook = unsafe {
+                    SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), std::ptr::null_mut(), 0)
+                };
+                if hook.is_null() {
+                    error!("hook reinstall failed");
+                    result = Err(anyhow::anyhow!("SetWindowsHookExW failed on reinstall"));
+                    break;
+                }
+                warn!("hook reinstalled");
             }
         }
 

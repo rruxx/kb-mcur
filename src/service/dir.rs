@@ -30,6 +30,18 @@ bitflags::bitflags! {
     }
 }
 
+/// All eight directional flags, in iteration order.
+pub const ALL_DIRS: [Dir; 8] = [
+    Dir::UP,
+    Dir::DOWN,
+    Dir::LEFT,
+    Dir::RIGHT,
+    Dir::UP_LEFT,
+    Dir::UP_RIGHT,
+    Dir::DOWN_LEFT,
+    Dir::DOWN_RIGHT,
+];
+
 impl Dir {
     /// Map a numpad keycode to its direction.
     #[must_use]
