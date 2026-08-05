@@ -48,11 +48,14 @@ RUSTFLAGS="-Cprofile-use=${PROJ}/tmp/merged.profdata" cargo build --release
 
 ## Pack
 
+Release binaries are built with `-C target-cpu=x86-64-v3` (see `.cargo/config.toml`),
+so the archive name carries the `x86_64_v3` micro-architecture level (Arch convention).
+
 ```sh
-export PROJ_V="$(cargo pkgid | cut -d\# -f2)"
+export PROJ_V="$(cargo pkgid | cut -d\@ -f2)"
 
 tar -I zstd \
-    -cf $PWD/target/kursor-v${PROJ_V}-x86_64-unknown-linux-gnu.tar.zst \
+    -cf $PWD/target/kursor-v${PROJ_V}-x86_64_v3-unknown-linux-gnu.tar.zst \
     -C  $PWD/target/release kursor \
     -C  $PWD/contrib/systemd kursord.service
 ```
