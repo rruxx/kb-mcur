@@ -2,15 +2,15 @@
 
 [中文](README.d/README-zh.md)
 
-Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), CLI macros.
+Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), single-shot CLI commands (move / moveto / click).
 X11 / wlroots / KDE / GNOME.
 
 ## Motivation
 
+- Built-in keyboard-driven mouse features on each platform are too weak — actually going mouse-free remains impractical.
 - No uniform keyboard-driven mouse workflow across X11 and Wayland.
 - [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) only supports wlroots compositors (Sway, Hyprland), not KDE or GNOME.
 - KDE 5 had a toggle shortcut similar to Windows; it was removed in KDE 6.
-- GNOME has never offered one.
 
 kursor is a single binary that runs everywhere.
 
@@ -30,6 +30,7 @@ sudo install -m755 target/release/kursor /usr/bin/
 | --- | --- |
 | Build | Rust toolchain ≥ 1.80 |
 | Kernel | Linux ≥ 5.0 (`/dev/uinput`) |
+| CPU | x86-64-v3 (Zen3+) — release builds are tuned for it |
 | Permissions | `sudo usermod -aG input $USER` |
 | Overlay transparency | X11 with compositor; Wayland native |
 
@@ -118,6 +119,7 @@ AGPL-3.0-or-later
 ## See also
 
 - [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) — keyboard-driven pointer for wlroots
+- [keynav](https://github.com/jordansissel/keynav) — X11 keyboard-driven pointer (retire your mouse)
 - [warpd](https://github.com/rvaiya/warpd) — modal keyboard-driven mouse
 - [mouseless](https://github.com/jbensmann/mouseless) — keyboard-driven mouse control
 - [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation

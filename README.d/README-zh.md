@@ -2,15 +2,15 @@
 
 [English](../README.md)
 
-三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）、CLI 宏快捷键。
+三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）、一次性 CLI 命令（move / moveto / click）。
 支持 X11 / wlroots / KDE / GNOME。
 
 ## 初衷
 
+- 各平台自带的键盘驱动鼠标功能不够强大，实际使用难以真正脱离鼠标。
 - Linux 缺乏跨 X11 和 Wayland 的统一键盘鼠标工作流。
 - [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) 仅支持 wlroots 系合成器（Sway、Hyprland），KDE 和 GNOME 不可用。
 - KDE 5 原本有类似 Windows 的开关快捷键，但 KDE 6 已不可用。
-- GNOME 从未提供此功能。
 
 kursor 一个二进制适配全部。
 
@@ -30,6 +30,7 @@ sudo install -m755 target/release/kursor /usr/bin/
 | --- | --- |
 | 构建 | Rust 工具链 ≥ 1.80 |
 | 内核 | Linux ≥ 5.0（`/dev/uinput`） |
+| CPU | x86-64-v3（Zen3+）—— 发布构建已启用该指令集优化 |
 | 权限 | `sudo usermod -aG input $USER` |
 | 叠加层透明 | X11 搭配合成器；Wayland 原生支持 |
 
@@ -118,6 +119,7 @@ AGPL-3.0-or-later
 ## 参考
 
 - [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) — wlroots 键盘驱动指针
+- [keynav](https://github.com/jordansissel/keynav) — X11 键盘驱动指针（retire your mouse）
 - [warpd](https://github.com/rvaiya/warpd) — 模态键盘驱动鼠标
 - [mouseless](https://github.com/jbensmann/mouseless) — 键盘驱动鼠标控制
 - [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland 自动化工具
