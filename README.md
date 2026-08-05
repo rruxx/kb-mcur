@@ -3,7 +3,7 @@
 [中文](README.d/README-zh.md)
 
 Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click).
-Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI).
+Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI + glide service).
 
 ## Motivation
 
@@ -42,15 +42,21 @@ Download `kursor-v{VERSION}-x86_64_v3-pc-windows-gnu.7z` from Releases — a sin
 
 ## Usage
 
-### service — glide-num + glide-alpha + grid (Linux)
+### service — glide-num + glide-alpha + grid
 
-Start once as a systemd service; three orthogonal modes:
+Linux runs all three modes (grid needs an overlay backend); Windows runs glide-num + glide-alpha (the grid overlay is stage 2). Three orthogonal modes:
 
 **glide-num (NumPad):** NumLock+KPEnter toggle. Direction keys move with acceleration (3→50 px). `/ * -` switch btn5 (L/M/R). NumLock+`/ 8 7 9` scroll, NumLock+`* -` back/forward.
 
 **glide-alpha (Main keyboard):** meta+shift+capslock toggle. `ctrl+h/j/k/l` move, `shift+h/j/k/l` scroll, `ctrl+u/i` back/forward, `Space/;/'` left/right/middle.
 
 **grid (meta+capslock):** 27×27 grid in three progressive layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` click, Enter warp, 0-9 prefix repeats, Backspace goes up a layer, Esc resets. Multi-monitor: `a-z` selects display, Tab switches. L4: alt+h/j/k/l nudges within the L3 cell.
+
+#### Windows (glide)
+
+Windows `service` uses a low-level keyboard hook (`WH_KEYBOARD_LL`), which is **not fully reliable**: the OS may silently freeze it on a slow callback, and **elevated (UIPI)** input from admin windows is missed unless kursor itself runs elevated (needs UAC, a security trade-off). **Secure-desktop** input (Ctrl+Alt+Del, UAC prompts, logon) cannot be captured by any app-level hook — a platform limitation. kursor auto-detects a frozen hook and reinstalls it.
+
+#### Linux (systemd)
 
 ```sh
 sudo setcap cap_sys_admin+ep /usr/bin/kursor

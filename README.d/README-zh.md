@@ -3,7 +3,7 @@
 [English](../README.md)
 
 三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）与一次性 CLI 命令（move / moveto / click）。
-支持 Linux（X11 / wlroots / KDE / GNOME）与 Windows（CLI）。
+支持 Linux（X11 / wlroots / KDE / GNOME）与 Windows（CLI + glide service）。
 
 ## 初衷
 
@@ -42,15 +42,21 @@ sudo install -m755 target/release/kursor /usr/bin/
 
 ## 用法
 
-### service — glide-num + glide-alpha + grid（Linux）
+### service — glide-num + glide-alpha + grid
 
-以 systemd 服务启动一次，三种正交模式：
+Linux 支持全部三模式（grid 需叠加层后端）；Windows 支持 glide-num + glide-alpha（grid 叠加层为阶段 2）。三种正交模式：
 
 **glide-num（小键盘）：** NumLock+KPEnter 切换。方向键移动并加速（3→50 px）。`/ * -` 切换按钮（L/M/R）。NumLock+`/ 8 7 9` 滚动，NumLock+`* -` 后退/前进。
 
 **glide-alpha（主键盘）：** meta+shift+capslock 切换。`ctrl+h/j/k/l` 移动，`shift+h/j/k/l` 滚动，`ctrl+u/i` 后退/前进，`Space/;/'` 左/右/中键。
 
 **grid（meta+capslock）：** 27×27 三层渐进网格（L1: 9×3，L2: 3×9，L3: 5×3）。`j/k/l` 点击，Enter 定位，0-9 前缀连击，Backspace 回上一层，Esc 复位。多屏：`a-z` 选屏，Tab 切换。L4：alt+h/j/k/l 在 L3 格内微移。
+
+#### Windows（glide）
+
+Windows 的 `service` 使用底层键盘钩子（`WH_KEYBOARD_LL`），**并非完全可靠**：系统可能在回调超时时静默冻结它；**提权窗口（UIPI）**的输入在普通权限下无法捕获（以管理员权限运行 kursor 可缓解，但需 UAC 提权且有安全风险）；**安全桌面**（Ctrl+Alt+Del、UAC 确认、登录界面）的输入任何应用级钩子都无法捕获，属平台固有限制。kursor 会自动检测冻结的钩子并重装。
+
+#### Linux（systemd）
 
 ```sh
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
