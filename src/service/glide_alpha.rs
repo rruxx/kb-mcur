@@ -7,53 +7,18 @@ use std::fs::File;
 
 use anyhow::Result;
 
-use crate::config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
+use crate::config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
 use crate::keymap::{
     KEY_APOSTROPHE, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_RIGHTCTRL,
     KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
 };
-use crate::uinput::{
-    EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, write_event,
-};
-
-// ── Direction ════════════════════════════════════════════════════════
-
-bitflags::bitflags! {
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    struct Dir: u8 {
-        const LEFT  = 0x01;
-        const DOWN  = 0x02;
-        const UP    = 0x04;
-        const RIGHT = 0x08;
-    }
-}
-
-impl Dir {
-    fn from_alpha(code: u16) -> Option<Self> {
-        match code {
-            KEY_H => Some(Dir::LEFT),
-            KEY_J => Some(Dir::DOWN),
-            KEY_K => Some(Dir::UP),
-            KEY_L => Some(Dir::RIGHT),
-            _ => None,
-        }
-    }
-
-    fn to_vector(self) -> (i32, i32) {
-        match self {
-            Dir::LEFT => (-1, 0),
-            Dir::DOWN => (0, 1),
-            Dir::UP => (0, -1),
-            Dir::RIGHT => (1, 0),
-            _ => (0, 0),
-        }
-    }
-}
+use crate::service::dir::{Dir, direction_tick, update_dir};
+use crate::uinput::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 
 // ── glide-alpha state ═══════════════════════════════════════════════
 
-pub(crate) struct GlideAlpha {
-    pub(crate) active: bool,
+pub struct GlideAlpha {
+    active: bool,
     ctrl_held: bool,
     shift_held: bool,
     btn_held: Option<u16>,
@@ -63,7 +28,8 @@ pub(crate) struct GlideAlpha {
 }
 
 impl GlideAlpha {
-    pub(crate) fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             active: false,
             ctrl_held: false,
@@ -75,103 +41,115 @@ impl GlideAlpha {
         }
     }
 
-    pub(crate) fn active(&self) -> bool {
+    #[must_use]
+    pub fn active(&self) -> bool {
         self.active
     }
-}
 
-// ── Event handling ══════════════════════════════════════════════════
-
-pub(crate) fn handle_alpha_event(
-    glide_alpha: &mut GlideAlpha,
-    ptr_out: &mut File,
-    code: u16,
-    value: i32,
-    is_press: bool,
-) -> Result<bool> {
-    // ── modifier tracking ──
-    if ctrl_code(code) {
-        glide_alpha.ctrl_held = is_press;
-        return Ok(true);
-    }
-    if shift_code(code) {
-        glide_alpha.shift_held = is_press;
-        return Ok(true);
+    /// Toggle glide-alpha on/off.
+    pub fn toggle(&mut self) {
+        self.active = !self.active;
     }
 
-    let c = glide_alpha.ctrl_held;
-    let s = glide_alpha.shift_held;
-
-    // ── ctrl + h/j/k/l = move ──
-    if c && !s
-        && let Some(flag) = Dir::from_alpha(code)
-    {
-        update_dir(
-            &mut glide_alpha.dir_held,
-            &mut glide_alpha.dir_mask,
-            &mut glide_alpha.dir_count,
-            flag,
-            value,
-        );
-        return Ok(true);
+    /// One per-frame movement step while a direction is held.
+    pub fn direction_tick(&mut self, ptr_out: &mut File) -> Result<()> {
+        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr_out)
     }
 
-    // ── shift + h/j/k/l = scroll ──
-    if s && !c
-        && let Some((axis, dir)) = scroll_code(code)
-    {
-        if is_press {
-            write_event(ptr_out, EV_REL, axis, dir)?;
-            write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+    // ── Event handling ──
+
+    /// Handle one key event. Returns `Ok(true)` if the key was consumed.
+    pub fn handle_event(
+        &mut self,
+        ptr_out: &mut File,
+        code: u16,
+        value: i32,
+        is_press: bool,
+    ) -> Result<bool> {
+        // Modifier tracking.
+        if ctrl_code(code) {
+            self.ctrl_held = is_press;
+            return Ok(true);
         }
-        return Ok(true);
-    }
+        if shift_code(code) {
+            self.shift_held = is_press;
+            return Ok(true);
+        }
 
-    // ── ctrl + u/i = back/forward ──
-    if c && !s {
-        match code {
-            KEY_U => {
-                if is_press {
-                    write_event(ptr_out, EV_KEY, BTN_SIDE, 1)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                    write_event(ptr_out, EV_KEY, BTN_SIDE, 0)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                }
-                return Ok(true);
+        let c = self.ctrl_held;
+        let s = self.shift_held;
+
+        // ctrl + h/j/k/l = move.
+        if c && !s
+            && let Some(flag) = Dir::from_alpha(code)
+        {
+            update_dir(
+                &mut self.dir_held,
+                &mut self.dir_mask,
+                &mut self.dir_count,
+                flag,
+                value,
+            );
+            return Ok(true);
+        }
+
+        // shift + h/j/k/l = scroll.
+        if s && !c
+            && let Some((axis, dir)) = scroll_code(code)
+        {
+            if is_press {
+                write_event(ptr_out, EV_REL, axis, dir)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
             }
-            KEY_I => {
-                if is_press {
-                    write_event(ptr_out, EV_KEY, BTN_EXTRA, 1)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                    write_event(ptr_out, EV_KEY, BTN_EXTRA, 0)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+            return Ok(true);
+        }
+
+        // ctrl + u/i = back/forward.
+        if c && !s {
+            match code {
+                KEY_U => {
+                    if is_press {
+                        write_event(ptr_out, EV_KEY, BTN_SIDE, 1)?;
+                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        write_event(ptr_out, EV_KEY, BTN_SIDE, 0)?;
+                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    }
+                    return Ok(true);
                 }
-                return Ok(true);
+                KEY_I => {
+                    if is_press {
+                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 1)?;
+                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 0)?;
+                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    }
+                    return Ok(true);
+                }
+                _ => {}
             }
-            _ => {}
         }
-    }
 
-    // ── Space / ; / ' = left / right / middle (press→down, release→up) ──
-    let btn_code: u16 = match code {
-        KEY_SPACE => BTN_LEFT,
-        KEY_SEMICOLON => BTN_RIGHT,
-        KEY_APOSTROPHE => BTN_MIDDLE,
-        _ => return Ok(false),
-    };
+        // Space / ; / ' = left / right / middle (press→down, release→up).
+        let btn: u16 = match code {
+            KEY_SPACE => BTN_LEFT,
+            KEY_SEMICOLON => BTN_RIGHT,
+            KEY_APOSTROPHE => BTN_MIDDLE,
+            _ => return Ok(false),
+        };
 
-    if value > 0 {
-        if glide_alpha.btn_held.is_none() {
-            write_event(ptr_out, EV_KEY, btn_code, 1)?;
+        if value > 0 {
+            if self.btn_held.is_none() {
+                write_event(ptr_out, EV_KEY, btn, 1)?;
+                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                self.btn_held = Some(btn);
+            }
+        } else if self.btn_held == Some(btn) {
+            write_event(ptr_out, EV_KEY, btn, 0)?;
             write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-            glide_alpha.btn_held = Some(btn_code);
+            self.btn_held = None;
         }
-    } else if glide_alpha.btn_held == Some(btn_code) {
-        write_event(ptr_out, EV_KEY, btn_code, 0)?;
-        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-        glide_alpha.btn_held = None;
+        Ok(true)
     }
-    Ok(true)
 }
 
 // ── Helpers ═════════════════════════════════════════════════════════
@@ -192,37 +170,4 @@ fn scroll_code(code: u16) -> Option<(u16, i32)> {
         KEY_L => Some((REL_HWHEEL, 1)),
         _ => None,
     }
-}
-
-fn update_dir(held: &mut u8, mask: &mut Dir, count: &mut u32, flag: Dir, value: i32) {
-    if value == 0 {
-        mask.remove(flag);
-        *held = held.saturating_sub(1);
-        if *held == 0 {
-            *count = 0;
-        }
-    } else if value == 1 {
-        mask.insert(flag);
-        *held = held.saturating_add(1);
-    }
-}
-
-// ── Per‑frame tick ══════════════════════════════════════════════════
-
-pub(crate) fn do_direction_alpha_tick(
-    glide_alpha: &mut GlideAlpha,
-    ptr_out: &mut File,
-) -> Result<()> {
-    if glide_alpha.dir_held != 1 {
-        return Ok(());
-    }
-    let (dx, dy) = glide_alpha.dir_mask.to_vector();
-    glide_alpha.dir_count = glide_alpha.dir_count.saturating_add(1);
-    let step = config::cursor_speed(glide_alpha.dir_count) as f32;
-    let mx = (dx as f32 * step) as i32;
-    let my = (dy as f32 * step) as i32;
-    write_event(ptr_out, EV_REL, REL_X, mx)?;
-    write_event(ptr_out, EV_REL, REL_Y, my)?;
-    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-    Ok(())
 }

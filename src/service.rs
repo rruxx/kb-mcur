@@ -12,8 +12,8 @@ use std::time::Instant;
 use anyhow::Result;
 use log::{info, warn};
 
-use crate::service::glide_alpha::{GlideAlpha, do_direction_alpha_tick, handle_alpha_event};
-use crate::service::glide_num::{GlideNum, do_direction_num_tick, handle_key_event};
+use crate::service::glide_alpha::GlideAlpha;
+use crate::service::glide_num::GlideNum;
 use crate::service::grid::{GridEnv, watchdog};
 
 use crate::{
@@ -163,8 +163,8 @@ pub fn run_service() -> Result<()> {
                 write_event_raw(&mut kbd_out, &ev)?;
             }
             Ok(None) => {
-                do_direction_num_tick(&mut glide_num, &mut ptr_out)?;
-                do_direction_alpha_tick(&mut glide_alpha, &mut ptr_out)?;
+                glide_num.direction_tick(&mut ptr_out)?;
+                glide_alpha.direction_tick(&mut ptr_out)?;
             }
             Err(e) => return Err(e),
         }
@@ -179,10 +179,10 @@ pub fn run_service() -> Result<()> {
 
 fn toggle_glide_num(code: u16, value: i32, is_press: bool, glide_num: &mut GlideNum) -> bool {
     if code == KEY_NUMLOCK {
-        glide_num.numlock_held = value != 0;
+        glide_num.set_numlock(value != 0);
     }
-    if code == KEY_KPENTER && is_press && glide_num.numlock_held {
-        glide_num.active = !glide_num.active;
+    if code == KEY_KPENTER && is_press && glide_num.numlock_held() {
+        glide_num.toggle();
         warn!(
             "{}",
             if glide_num.active() {
@@ -207,7 +207,7 @@ fn toggle_glide_alpha(
     if code != KEY_CAPSLOCK || !is_press || !meta_held || !shift_held {
         return Ok(false);
     }
-    glide_alpha.active = !glide_alpha.active;
+    glide_alpha.toggle();
     warn!(
         "{}",
         if glide_alpha.active() {
@@ -241,7 +241,7 @@ fn handle_glide_num_input(
     if !glide_num.active() {
         return Ok(false);
     }
-    handle_key_event(glide_num, ptr_out, code, value, is_press)
+    glide_num.handle_event(ptr_out, code, value, is_press)
 }
 
 fn handle_glide_alpha_input(
@@ -254,7 +254,7 @@ fn handle_glide_alpha_input(
     if !glide_alpha.active() {
         return Ok(false);
     }
-    handle_alpha_event(glide_alpha, ptr_out, code, value, is_press)
+    glide_alpha.handle_event(ptr_out, code, value, is_press)
 }
 
 fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
