@@ -46,6 +46,12 @@ impl GlideAlpha {
         self.active
     }
 
+    /// Currently held direction mask (diagnostics).
+    #[must_use]
+    pub fn held_dir(&self) -> Dir {
+        self.dir_mask
+    }
+
     /// Toggle glide-alpha on/off via Meta+Shift+CapsLock.
     /// Returns `Ok(true)` if the event was consumed.
     pub fn toggle(

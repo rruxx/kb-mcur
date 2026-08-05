@@ -147,6 +147,16 @@ impl Service {
         self.glide_num.reset_input();
         self.glide_alpha.reset_input();
     }
+
+    /// Current held-direction masks for both glide modes (diagnostics).
+    #[must_use]
+    pub fn direction_summary(&self) -> String {
+        format!(
+            "num {:?} | alpha {:?}",
+            self.glide_num.held_dir(),
+            self.glide_alpha.held_dir()
+        )
+    }
 }
 
 impl Default for Service {

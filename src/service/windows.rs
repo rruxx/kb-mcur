@@ -225,11 +225,13 @@ pub fn run() -> Result<()> {
     let mut msg = unsafe { std::mem::zeroed::<MSG>() };
     let tick = Duration::from_millis(TICK_MS);
     let mut result = Ok(());
+    let mut last_report = std::time::Instant::now();
 
     loop {
         if SHUTDOWN.load(Ordering::Relaxed) {
             break;
         }
+        let now = std::time::Instant::now();
         while unsafe { PeekMessageW(&raw mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
             if msg.message == WM_QUIT {
                 break;
@@ -253,6 +255,18 @@ pub fn run() -> Result<()> {
             result = Err(e);
             break;
         }
+
+        // Diagnostics: print held direction masks once per second.
+        if now.duration_since(last_report) >= Duration::from_secs(1) {
+            let summary = SVC.with(|s| {
+                s.borrow()
+                    .as_ref()
+                    .map_or(String::new(), Service::direction_summary)
+            });
+            info!("dir: {summary}");
+            last_report = now;
+        }
+
         std::thread::sleep(tick);
     }
 
