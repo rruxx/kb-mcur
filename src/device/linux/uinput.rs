@@ -11,14 +11,16 @@ use std::os::unix::fs::OpenOptionsExt;
 use nix::fcntl::OFlag;
 
 use super::abi::{
-    ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN, InputAbsinfo, InputEvent, REL_X, REL_Y,
-    SYN_REPORT, UinputAbsSetup, UinputSetup, ZERO_TIMEVAL, create_virt_device, ui_abs_setup,
-    ui_dev_create, ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit, ui_set_keybit,
+    ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN, InputAbsinfo, InputEvent, REL_HWHEEL, REL_WHEEL,
+    REL_X, REL_Y, SYN_REPORT, UinputAbsSetup, UinputSetup, ZERO_TIMEVAL, create_virt_device,
+    ui_abs_setup, ui_dev_create, ui_dev_destroy, ui_dev_setup, ui_set_absbit, ui_set_evbit,
+    ui_set_keybit,
 };
 use crate::config::{
-    BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, MouseButton,
-    UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
+    BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL,
+    MouseButton, UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
 };
+use crate::device::pointer::{Pointer, ScrollAxis, SideButton};
 
 pub struct Mouse {
     fd: File,
@@ -175,6 +177,52 @@ impl Mouse {
             std::thread::sleep(half);
         }
         Ok(())
+    }
+}
+
+impl Pointer for Mouse {
+    fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
+        Mouse::move_rel(self, dx, dy)
+    }
+
+    fn button(&mut self, button: MouseButton, press: bool) -> Result<()> {
+        if press {
+            Mouse::button_press(self, button)
+        } else {
+            Mouse::button_release(self, button)
+        }
+    }
+
+    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
+        Mouse::click(self, button, count)
+    }
+
+    fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()> {
+        let code = match axis {
+            ScrollAxis::Vertical => REL_WHEEL,
+            ScrollAxis::Horizontal => REL_HWHEEL,
+        };
+        self.write_events(&[
+            Self::make_event(EV_REL, code, dir),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
+        ])
+    }
+
+    fn side(&mut self, button: SideButton) -> Result<()> {
+        let code = match button {
+            SideButton::Back => BTN_SIDE,
+            SideButton::Forward => BTN_EXTRA,
+        };
+        self.write_events(&[
+            Self::make_event(EV_KEY, code, 1),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
+            Self::make_event(EV_KEY, code, 0),
+            Self::make_event(EV_SYN, SYN_REPORT, 0),
+        ])
+    }
+
+    fn warp(&mut self, x: i16, y: i16) -> Result<()> {
+        Mouse::warp(self, x, y)
     }
 }
 

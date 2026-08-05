@@ -76,10 +76,7 @@ fn main() -> Result<()> {
             m.click(parse_button(&btn)?, repeat)?;
         }
         Some(Cmd::Service) => {
-            #[cfg(target_os = "linux")]
             kursor::service::run_service()?;
-            #[cfg(not(target_os = "linux"))]
-            anyhow::bail!("service mode is not supported on this platform");
         }
         None => {
             Cli::command().print_help()?;

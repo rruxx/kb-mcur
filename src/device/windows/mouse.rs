@@ -5,13 +5,22 @@
 
 use anyhow::Result;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEEVENTF_MIDDLEDOWN,
-    MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, MOUSEINPUT,
+    INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_HWHEEL, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+    MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, MOUSEEVENTF_MOVE, MOUSEEVENTF_RIGHTDOWN,
+    MOUSEEVENTF_RIGHTUP, MOUSEEVENTF_WHEEL, MOUSEEVENTF_XDOWN, MOUSEEVENTF_XUP, MOUSEINPUT,
     SendInput,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::SetCursorPos;
 
 use crate::config::{CLICK_INTERVAL_MS, MouseButton};
+use crate::device::pointer::{Pointer, ScrollAxis, SideButton};
+
+/// `WHEEL_DELTA` — one wheel notch.
+const WHEEL_DELTA: i32 = 120;
+
+/// XBUTTON1 / XBUTTON2 `mouseData` values (back/forward).
+const XBUTTON_BACK: u32 = 0x0001;
+const XBUTTON_FORWARD: u32 = 0x0002;
 
 /// Synthetic pointer that injects mouse input via Win32 APIs.
 pub struct Mouse;
@@ -31,17 +40,17 @@ impl Mouse {
 
     /// Move the cursor by a relative delta.
     pub fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
-        send(&[mouse_input(MOUSEEVENTF_MOVE, dx, dy)])
+        send(&[mouse_input(MOUSEEVENTF_MOVE, dx, dy, 0)])
     }
 
     /// Press a mouse button.
     pub fn button_press(&mut self, button: MouseButton) -> Result<()> {
-        send(&[mouse_input(button_flag(button, true), 0, 0)])
+        send(&[mouse_input(button_flag(button, true), 0, 0, 0)])
     }
 
     /// Release a mouse button.
     pub fn button_release(&mut self, button: MouseButton) -> Result<()> {
-        send(&[mouse_input(button_flag(button, false), 0, 0)])
+        send(&[mouse_input(button_flag(button, false), 0, 0, 0)])
     }
 
     /// Press and release a button `count` times.
@@ -49,12 +58,53 @@ impl Mouse {
         let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
         for _ in 0..count {
             send(&[
-                mouse_input(button_flag(button, true), 0, 0),
-                mouse_input(button_flag(button, false), 0, 0),
+                mouse_input(button_flag(button, true), 0, 0, 0),
+                mouse_input(button_flag(button, false), 0, 0, 0),
             ])?;
             std::thread::sleep(half);
         }
         Ok(())
+    }
+}
+
+impl Pointer for Mouse {
+    fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()> {
+        Mouse::move_rel(self, dx, dy)
+    }
+
+    fn button(&mut self, button: MouseButton, press: bool) -> Result<()> {
+        if press {
+            Mouse::button_press(self, button)
+        } else {
+            Mouse::button_release(self, button)
+        }
+    }
+
+    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
+        Mouse::click(self, button, count)
+    }
+
+    fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()> {
+        let (flags, data) = match axis {
+            ScrollAxis::Vertical => (MOUSEEVENTF_WHEEL, dir * WHEEL_DELTA),
+            ScrollAxis::Horizontal => (MOUSEEVENTF_HWHEEL, dir * WHEEL_DELTA),
+        };
+        send(&[mouse_input(flags, 0, 0, data as u32)])
+    }
+
+    fn side(&mut self, button: SideButton) -> Result<()> {
+        let data = match button {
+            SideButton::Back => XBUTTON_BACK,
+            SideButton::Forward => XBUTTON_FORWARD,
+        };
+        send(&[
+            mouse_input(MOUSEEVENTF_XDOWN, 0, 0, data),
+            mouse_input(MOUSEEVENTF_XUP, 0, 0, data),
+        ])
+    }
+
+    fn warp(&mut self, x: i16, y: i16) -> Result<()> {
+        Mouse::warp(self, x, y)
     }
 }
 
@@ -71,14 +121,14 @@ fn button_flag(button: MouseButton, press: bool) -> u32 {
 }
 
 /// Build an `INPUT` for a mouse event.
-fn mouse_input(flags: u32, dx: i32, dy: i32) -> INPUT {
+fn mouse_input(flags: u32, dx: i32, dy: i32, mouse_data: u32) -> INPUT {
     INPUT {
         r#type: INPUT_MOUSE,
         Anonymous: INPUT_0 {
             mi: MOUSEINPUT {
                 dx,
                 dy,
-                mouseData: 0,
+                mouseData: mouse_data,
                 dwFlags: flags,
                 time: 0,
                 dwExtraInfo: 0,

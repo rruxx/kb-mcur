@@ -3,15 +3,11 @@
 
 //! glide-alpha — main-keyboard glide mode.
 
-use std::fs::File;
-
 use anyhow::Result;
 use log::info;
 
-use crate::config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
-use crate::device::linux::abi::{
-    EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event,
-};
+use crate::config::MouseButton;
+use crate::device::pointer::{KeyboardOut, Pointer, ScrollAxis, SideButton};
 use crate::keymap::{
     KEY_APOSTROPHE, KEY_CAPSLOCK, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTMETA,
     KEY_LEFTSHIFT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
@@ -25,7 +21,7 @@ pub struct GlideAlpha {
     active: bool,
     ctrl_held: bool,
     shift_held: bool,
-    btn_held: Option<u16>,
+    btn_held: Option<MouseButton>,
     dir_held: u8,
     dir_mask: Dir,
     dir_count: u32,
@@ -58,7 +54,7 @@ impl GlideAlpha {
         _value: i32,
         is_press: bool,
         mods: &ModState,
-        kbd_out: &mut File,
+        kbd: &mut dyn KeyboardOut,
     ) -> Result<bool> {
         if code != KEY_CAPSLOCK || !is_press || !mods.meta || !mods.shift || mods.ctrl || mods.alt {
             return Ok(false);
@@ -79,15 +75,15 @@ impl GlideAlpha {
             KEY_RIGHTSHIFT,
             KEY_CAPSLOCK,
         ] {
-            write_event(kbd_out, EV_KEY, key, 0)?;
+            kbd.key(key, 0)?;
         }
-        write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
+        kbd.sync()?;
         Ok(true)
     }
 
     /// One per-frame movement step while a direction is held.
-    pub fn direction_tick(&mut self, ptr_out: &mut File) -> Result<()> {
-        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr_out)
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
     }
 
     // ── Event handling ──
@@ -95,7 +91,7 @@ impl GlideAlpha {
     /// Handle one key event. Returns `Ok(true)` if the key was consumed.
     pub fn handle_event(
         &mut self,
-        ptr_out: &mut File,
+        ptr: &mut dyn Pointer,
         code: u16,
         value: i32,
         is_press: bool,
@@ -132,54 +128,39 @@ impl GlideAlpha {
             && let Some((axis, dir)) = scroll_code(code)
         {
             if is_press {
-                write_event(ptr_out, EV_REL, axis, dir)?;
-                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                ptr.scroll(axis, dir)?;
             }
             return Ok(true);
         }
 
         // ctrl + u/i = back/forward.
         if c && !s {
-            match code {
-                KEY_U => {
-                    if is_press {
-                        write_event(ptr_out, EV_KEY, BTN_SIDE, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        write_event(ptr_out, EV_KEY, BTN_SIDE, 0)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                    }
-                    return Ok(true);
-                }
-                KEY_I => {
-                    if is_press {
-                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 0)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                    }
-                    return Ok(true);
-                }
-                _ => {}
+            let btn = match code {
+                KEY_U => SideButton::Back,
+                KEY_I => SideButton::Forward,
+                _ => return Ok(false),
+            };
+            if is_press {
+                ptr.side(btn)?;
             }
+            return Ok(true);
         }
 
         // Space / ; / ' = left / right / middle (press→down, release→up).
-        let btn: u16 = match code {
-            KEY_SPACE => BTN_LEFT,
-            KEY_SEMICOLON => BTN_RIGHT,
-            KEY_APOSTROPHE => BTN_MIDDLE,
+        let btn: MouseButton = match code {
+            KEY_SPACE => MouseButton::Left,
+            KEY_SEMICOLON => MouseButton::Right,
+            KEY_APOSTROPHE => MouseButton::Middle,
             _ => return Ok(false),
         };
 
         if value > 0 {
             if self.btn_held.is_none() {
-                write_event(ptr_out, EV_KEY, btn, 1)?;
-                write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                ptr.button(btn, true)?;
                 self.btn_held = Some(btn);
             }
         } else if self.btn_held == Some(btn) {
-            write_event(ptr_out, EV_KEY, btn, 0)?;
-            write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+            ptr.button(btn, false)?;
             self.btn_held = None;
         }
         Ok(true)
@@ -196,12 +177,12 @@ fn shift_code(code: u16) -> bool {
     matches!(code, KEY_LEFTSHIFT | KEY_RIGHTSHIFT)
 }
 
-fn scroll_code(code: u16) -> Option<(u16, i32)> {
+fn scroll_code(code: u16) -> Option<(ScrollAxis, i32)> {
     match code {
-        KEY_H => Some((REL_HWHEEL, -1)),
-        KEY_J => Some((REL_WHEEL, -1)),
-        KEY_K => Some((REL_WHEEL, 1)),
-        KEY_L => Some((REL_HWHEEL, 1)),
+        KEY_H => Some((ScrollAxis::Horizontal, -1)),
+        KEY_J => Some((ScrollAxis::Vertical, -1)),
+        KEY_K => Some((ScrollAxis::Vertical, 1)),
+        KEY_L => Some((ScrollAxis::Horizontal, 1)),
         _ => None,
     }
 }

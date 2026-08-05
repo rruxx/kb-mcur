@@ -9,8 +9,8 @@ use super::init::enter_grid;
 use super::selection::show_selection;
 use super::state::DrawState;
 use super::state::{GridCtx, GridPhase, GridStateMut, MonitorList, init_grid_monitor};
-use crate::device::linux::abi::{EV_KEY, EV_SYN, SYN_REPORT, write_event};
 use crate::device::linux::uinput::Mouse;
+use crate::device::pointer::KeyboardOut;
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
@@ -70,7 +70,7 @@ impl GridEnv {
         _value: i32,
         is_press: bool,
         mods: &ModState,
-        kbd_out: &mut std::fs::File,
+        kbd: &mut dyn KeyboardOut,
     ) -> Result<bool> {
         if code != KEY_CAPSLOCK || !is_press || !mods.meta || mods.shift || mods.ctrl || mods.alt {
             return Ok(false);
@@ -125,9 +125,9 @@ impl GridEnv {
             }
         }
         for key in [KEY_LEFTMETA, KEY_RIGHTMETA, KEY_CAPSLOCK] {
-            write_event(kbd_out, EV_KEY, key, 0)?;
+            kbd.key(key, 0)?;
         }
-        write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
+        kbd.sync()?;
         Ok(true)
     }
 

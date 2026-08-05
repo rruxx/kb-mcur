@@ -4,12 +4,10 @@
 //! Shared direction handling for glide modes: a direction bitmask with
 //! hold/release tracking and per-frame accelerated cursor movement.
 
-use std::fs::File;
-
 use anyhow::Result;
 
 use crate::config;
-use crate::device::linux::abi::{EV_REL, EV_SYN, REL_X, REL_Y, SYN_REPORT, write_event};
+use crate::device::pointer::Pointer;
 use crate::keymap::{
     KEY_H, KEY_J, KEY_K, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
     KEY_L,
@@ -92,7 +90,7 @@ pub fn update_dir(held: &mut u8, mask: &mut Dir, count: &mut u32, flag: Dir, val
 }
 
 /// One per-frame movement step while a direction is held (accelerated).
-pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr_out: &mut File) -> Result<()> {
+pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr: &mut dyn Pointer) -> Result<()> {
     if held != 1 {
         return Ok(());
     }
@@ -101,8 +99,5 @@ pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr_out: &mut File) 
     let step = config::cursor_speed(*count) as f32;
     let mx = (dx as f32 * step) as i32;
     let my = (dy as f32 * step) as i32;
-    write_event(ptr_out, EV_REL, REL_X, mx)?;
-    write_event(ptr_out, EV_REL, REL_Y, my)?;
-    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-    Ok(())
+    ptr.move_rel(mx, my)
 }

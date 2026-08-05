@@ -54,4 +54,6 @@ Note: zig prints `ignoring deprecated linker optimization setting '1'` — harml
 `patch-pe-version.sh` declares Windows 7 (NT 6.1) as the minimum — zig cc can't forward a
 subsystem version to its internal lld-link. Win32 calls (`SendInput`/`SetCursorPos`/
 `GetSystemMetrics`) are Windows 2000-era, so the real constraint is x86-64-v3 (AVX2).
-Windows ships CLI (`move`/`moveto`/`click`) only; `service` is Linux-only (stage 2).
+CLI (`move`/`moveto`/`click`) works on both platforms. `service` runs on Linux (all three
+modes) and on Windows (stage 1: glide-num + glide-alpha via `WH_KEYBOARD_LL`); the
+Windows grid overlay (Direct2D) is stage 2.

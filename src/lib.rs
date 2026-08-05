@@ -20,12 +20,10 @@ pub mod debug;
 pub mod device;
 #[cfg(target_os = "linux")]
 pub mod font;
-#[cfg(target_os = "linux")]
 pub mod keymap;
 pub mod overlay;
 #[cfg(target_os = "linux")]
 pub mod render;
-#[cfg(target_os = "linux")]
 pub mod service;
 
 pub use device::Mouse;

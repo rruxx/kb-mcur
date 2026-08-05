@@ -1,15 +1,11 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fs::File;
-
 use anyhow::Result;
 use log::info;
 
-use crate::config::{self, BTN_EXTRA, BTN_SIDE, MouseButton, hid_button_code};
-use crate::device::linux::abi::{
-    EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event,
-};
+use crate::config::MouseButton;
+use crate::device::pointer::{KeyboardOut, Pointer, ScrollAxis, SideButton};
 use crate::keymap::{
     KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER,
     KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, ModState,
@@ -55,7 +51,7 @@ impl GlideNum {
         _value: i32,
         is_press: bool,
         mods: &ModState,
-        _kbd_out: &mut File,
+        _kbd: &mut dyn KeyboardOut,
     ) -> Result<bool> {
         if code == KEY_KPENTER
             && is_press
@@ -90,12 +86,8 @@ impl GlideNum {
     }
 
     /// One per-frame movement step while a direction is held.
-    pub fn direction_tick(&mut self, ptr_out: &mut File) -> Result<()> {
-        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr_out)
-    }
-
-    fn btn_code(&self) -> u16 {
-        hid_button_code(self.btn5_binding)
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
     }
 
     // ── Event handling ──
@@ -103,7 +95,7 @@ impl GlideNum {
     /// Handle one key event. Returns `Ok(true)` if the key was consumed.
     pub fn handle_event(
         &mut self,
-        ptr_out: &mut File,
+        ptr: &mut dyn Pointer,
         code: u16,
         value: i32,
         is_press: bool,
@@ -112,47 +104,37 @@ impl GlideNum {
             match code {
                 KEY_KPSLASH => {
                     if is_press {
-                        write_event(ptr_out, EV_REL, REL_WHEEL, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.scroll(ScrollAxis::Vertical, 1)?;
                     }
                     return Ok(true);
                 }
                 KEY_KP8 => {
                     if is_press {
-                        write_event(ptr_out, EV_REL, REL_WHEEL, -1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.scroll(ScrollAxis::Vertical, -1)?;
                     }
                     return Ok(true);
                 }
                 KEY_KP7 => {
                     if is_press {
-                        write_event(ptr_out, EV_REL, REL_HWHEEL, -1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.scroll(ScrollAxis::Horizontal, -1)?;
                     }
                     return Ok(true);
                 }
                 KEY_KP9 => {
                     if is_press {
-                        write_event(ptr_out, EV_REL, REL_HWHEEL, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.scroll(ScrollAxis::Horizontal, 1)?;
                     }
                     return Ok(true);
                 }
                 KEY_KPASTERISK => {
                     if is_press {
-                        write_event(ptr_out, EV_KEY, BTN_SIDE, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        write_event(ptr_out, EV_KEY, BTN_SIDE, 0)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.side(SideButton::Back)?;
                     }
                     return Ok(true);
                 }
                 KEY_KPMINUS => {
                     if is_press {
-                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        write_event(ptr_out, EV_KEY, BTN_EXTRA, 0)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                        ptr.side(SideButton::Forward)?;
                     }
                     return Ok(true);
                 }
@@ -173,20 +155,17 @@ impl GlideNum {
             }
             KEY_KP5 => {
                 if value > 0 {
-                    write_event(ptr_out, EV_KEY, self.btn_code(), 1)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    ptr.button(self.btn5_binding, true)?;
                     self.btn_held = true;
                 } else if value == 0 && self.btn_held {
-                    write_event(ptr_out, EV_KEY, self.btn_code(), 0)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    ptr.button(self.btn5_binding, false)?;
                     self.btn_held = false;
                 }
                 Ok(true)
             }
             KEY_KPDOT => {
                 if is_press {
-                    write_event(ptr_out, EV_KEY, self.btn_code(), 0)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    ptr.button(self.btn5_binding, false)?;
                     self.btn_held = false;
                     info!("[release]");
                 }
@@ -194,8 +173,7 @@ impl GlideNum {
             }
             KEY_KP0 => {
                 if value == 1 && !self.btn_held {
-                    write_event(ptr_out, EV_KEY, self.btn_code(), 1)?;
-                    write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
+                    ptr.button(self.btn5_binding, true)?;
                     self.btn_held = true;
                     info!("[hold]");
                 }
@@ -224,16 +202,7 @@ impl GlideNum {
             }
             KEY_KPPLUS => {
                 if value == 1 {
-                    let code = self.btn_code();
-                    let half = std::time::Duration::from_millis(config::CLICK_INTERVAL_MS / 2);
-                    for _ in 0..2 {
-                        write_event(ptr_out, EV_KEY, code, 1)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        std::thread::sleep(half);
-                        write_event(ptr_out, EV_KEY, code, 0)?;
-                        write_event(ptr_out, EV_SYN, SYN_REPORT, 0)?;
-                        std::thread::sleep(half);
-                    }
+                    ptr.click(self.btn5_binding, 2)?;
                     info!("[dblclick]");
                 }
                 Ok(true)

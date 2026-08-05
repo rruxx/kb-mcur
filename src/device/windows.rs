@@ -3,6 +3,7 @@
 
 //! Windows device layer: virtual pointer via Win32 APIs.
 
+pub mod keyboard;
 pub mod mouse;
 
 pub use mouse::Mouse;

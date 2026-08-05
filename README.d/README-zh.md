@@ -66,7 +66,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 | `kursor moveto 500 300` | 绝对定位 |
 | `kursor click -r 3 M` | 连击 |
 
-各命令加 `--help` 查看完整键表。`service` 仅限 Linux。
+各命令加 `--help` 查看完整键表。`service` 在 Linux 支持全部三模式，Windows 支持 glide-num + glide-alpha（grid 叠加层为阶段 2）。
 
 ## 架构
 

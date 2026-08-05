@@ -66,7 +66,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 | `kursor moveto 500 300` | Absolute warp |
 | `kursor click -r 3 M` | Click with repeat |
 
-`--help` prints full key maps. `service` is Linux-only.
+`--help` prints full key maps. `service` runs on Linux (all three modes) and on Windows (glide-num + glide-alpha; grid overlay is stage 2).
 
 ## Architecture
 

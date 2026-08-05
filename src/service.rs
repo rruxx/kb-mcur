@@ -4,228 +4,186 @@
 pub mod dir;
 pub mod glide_alpha;
 pub mod glide_num;
+#[cfg(target_os = "linux")]
 pub mod grid;
-
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
+#[cfg(target_os = "linux")]
+pub mod linux;
+#[cfg(target_os = "windows")]
+pub mod windows;
 
 use anyhow::Result;
-use log::{info, warn};
 
+use crate::device::pointer::{KeyboardOut, Pointer};
+use crate::keymap::{
+    KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, ModState,
+};
+#[cfg(target_os = "linux")]
+use crate::keymap::{KEY_TAB, key_map};
 use crate::service::glide_alpha::GlideAlpha;
 use crate::service::glide_num::GlideNum;
-use crate::service::grid::{GridEnv, fix_device_permissions};
+#[cfg(target_os = "linux")]
+use crate::service::grid::GridEnv;
 
-use crate::{
-    config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
-    device::linux::abi::{
-        EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw,
-    },
-    device::linux::input::KeyboardDev,
-    keymap::{
-        KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, KEY_TAB, KEYCODE_MAX,
-        ModState, key_map,
-    },
-};
+// ── Cross-mode service state ─────────────────────────────────────────
 
-// ── Key classification ───────────────────────────────────────────────
-
-fn is_grid_key(code: u16) -> bool {
-    key_map(code, &ModState::default()).is_some() || code == KEY_TAB
+/// Shared service state driven by a platform main loop.
+pub struct Service {
+    glide_num: GlideNum,
+    glide_alpha: GlideAlpha,
+    #[cfg(target_os = "linux")]
+    grid: GridEnv,
+    mods: ModState,
+    /// A held modifier (Meta/NumLock) whose key-down has not yet been forwarded.
+    /// Consumed when a mode-toggle chord follows; replayed otherwise.
+    pending: Option<u16>,
 }
 
-// ── Signal ───────────────────────────────────────────────────────────
-
-extern "C" fn shutdown_signal(_: i32) {
-    SHUTDOWN.store(true, Ordering::Relaxed);
-}
-
-static SHUTDOWN: AtomicBool = AtomicBool::new(false);
-
-// ── Main entry point ─────────────────────────────────────────────────
-
-pub fn run_service() -> Result<()> {
-    info!("service — grid + glide-num + glide-alpha");
-
-    unsafe {
-        let _ = nix::sys::signal::signal(
-            nix::sys::signal::Signal::SIGINT,
-            nix::sys::signal::SigHandler::Handler(shutdown_signal),
-        );
-        let _ = nix::sys::signal::signal(
-            nix::sys::signal::Signal::SIGTERM,
-            nix::sys::signal::SigHandler::Handler(shutdown_signal),
-        );
+impl Service {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            glide_num: GlideNum::new(),
+            glide_alpha: GlideAlpha::new(),
+            #[cfg(target_os = "linux")]
+            grid: GridEnv::new(),
+            mods: ModState::default(),
+            pending: None,
+        }
     }
 
-    let mut kbd = KeyboardDev::open_all()?;
+    /// Dispatch one `EV_KEY` event. Returns `Ok(true)` if consumed.
+    pub fn dispatch(
+        &mut self,
+        code: u16,
+        value: i32,
+        ptr: &mut dyn Pointer,
+        kbd: &mut dyn KeyboardOut,
+    ) -> Result<bool> {
+        let is_press = value > 0;
+        self.mods.update(code, is_press);
+        if code == KEY_NUMLOCK {
+            self.glide_num.set_numlock(value != 0);
+        }
 
-    let kbd_bits: Vec<u16> = (1u16..=KEYCODE_MAX).collect();
-    let mut kbd_out = create_virt_device(crate::config::DEV_KBD, &kbd_bits, false)?;
-    let mut ptr_out = create_virt_device(
-        crate::config::DEV_PTR,
-        &[BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, BTN_EXTRA],
-        true,
-    )?;
+        // Precisely match a mode-toggle chord so extra modifiers
+        // (e.g. meta+ctrl+capslock) are not mistaken for one.
+        let chord = is_press
+            && match code {
+                KEY_CAPSLOCK => self.mods.meta && !self.mods.ctrl && !self.mods.alt,
+                KEY_KPENTER => {
+                    self.glide_num.numlock_held()
+                        && !self.mods.meta
+                        && !self.mods.shift
+                        && !self.mods.ctrl
+                        && !self.mods.alt
+                }
+                _ => false,
+            };
+        if let Some(p) = self.pending.take()
+            && !chord
+        {
+            kbd.key(p, 1)?;
+            kbd.sync()?;
+        }
 
-    let mut glide_num = GlideNum::new();
-    let mut glide_alpha = GlideAlpha::new();
+        // Hold Meta/NumLock presses: forward only if no chord follows.
+        if is_press && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA || code == KEY_NUMLOCK) {
+            self.pending = Some(code);
+            return Ok(true);
+        }
 
-    for code in 1u16..=KEYCODE_MAX {
-        write_event(&mut kbd_out, EV_KEY, code, 0)?;
+        if self
+            .glide_num
+            .toggle(code, value, is_press, &self.mods, kbd)?
+        {
+            return Ok(true);
+        }
+        if self
+            .glide_alpha
+            .toggle(code, value, is_press, &self.mods, kbd)?
+        {
+            return Ok(true);
+        }
+        #[cfg(target_os = "linux")]
+        if self.grid.toggle(code, value, is_press, &self.mods, kbd)? {
+            return Ok(true);
+        }
+        if glide_num_input(code, value, is_press, &mut self.glide_num, ptr)? {
+            return Ok(true);
+        }
+        if glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr)? {
+            return Ok(true);
+        }
+        #[cfg(target_os = "linux")]
+        if grid_input(code, value, &mut self.grid, &self.mods) {
+            return Ok(true);
+        }
+        Ok(false)
     }
-    write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
 
-    let mut grid = GridEnv::new();
-    let mut mods = ModState::default();
-
-    let mut warn_is_done = false;
-    let mut last_wd = Instant::now();
-    // A held modifier whose key-down has not yet been forwarded to the desktop.
-    // It is consumed when a mode-toggle chord follows; otherwise it is replayed.
-    let mut pending: Option<u16> = None;
-
-    loop {
-        if SHUTDOWN.load(Ordering::Relaxed) {
-            info!("shutting down");
-            break Ok(());
-        }
-
-        let now = Instant::now();
-        if now.duration_since(last_wd) >= std::time::Duration::from_secs(1) {
-            fix_device_permissions();
-            last_wd = now;
-        }
-
-        if kbd.is_empty() {
-            if !warn_is_done {
-                warn!("all keyboards gone");
-            }
-            warn_is_done = true;
-        } else {
-            warn_is_done = false;
-        }
-        let t_poll_start = Instant::now();
-        match kbd.poll_event(32) {
-            Ok(Some(ev)) => {
-                let code = ev.code;
-                let value = ev.value;
-                let is_press = value > 0;
-
-                mods.update(code, is_press);
-                if code == KEY_NUMLOCK {
-                    glide_num.set_numlock(value != 0);
-                }
-
-                // Only EV_KEY events carry mode-relevant information.
-                if ev.type_ != EV_KEY {
-                    write_event_raw(&mut kbd_out, &ev)?;
-                    continue;
-                }
-
-                // Precisely match a mode-toggle chord so extra modifiers
-                // (e.g. meta+ctrl+capslock) are not mistaken for one.
-                // grid:        meta, no shift/ctrl/alt
-                // glide-alpha: meta+shift, no ctrl/alt
-                // glide-num:   numlock, no meta/shift/ctrl/alt
-                let chord = is_press
-                    && match code {
-                        KEY_CAPSLOCK => mods.meta && !mods.ctrl && !mods.alt,
-                        KEY_KPENTER => {
-                            glide_num.numlock_held()
-                                && !mods.meta
-                                && !mods.shift
-                                && !mods.ctrl
-                                && !mods.alt
-                        }
-                        _ => false,
-                    };
-                if let Some(p) = pending.take()
-                    && !chord
-                {
-                    write_event(&mut kbd_out, EV_KEY, p, 1)?;
-                    write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
-                }
-
-                // Hold Meta/NumLock presses: forward only if no chord follows.
-                if is_press
-                    && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA || code == KEY_NUMLOCK)
-                {
-                    pending = Some(code);
-                    continue;
-                }
-
-                if glide_num.toggle(code, value, is_press, &mods, &mut kbd_out)? {
-                    continue;
-                }
-
-                if glide_alpha.toggle(code, value, is_press, &mods, &mut kbd_out)? {
-                    continue;
-                }
-
-                if grid.toggle(code, value, is_press, &mods, &mut kbd_out)? {
-                    continue;
-                }
-
-                if handle_glide_num_input(code, value, is_press, &mut glide_num, &mut ptr_out)? {
-                    continue;
-                }
-
-                if handle_glide_alpha_input(code, value, is_press, &mut glide_alpha, &mut ptr_out)?
-                {
-                    continue;
-                }
-
-                if handle_grid_input(code, value, &mut grid, &mods) {
-                    continue;
-                }
-
-                write_event_raw(&mut kbd_out, &ev)?;
-            }
-            Ok(None) => {
-                glide_num.direction_tick(&mut ptr_out)?;
-                glide_alpha.direction_tick(&mut ptr_out)?;
-            }
-            Err(e) => return Err(e),
-        }
-        let t_poll = t_poll_start.elapsed();
-        if t_poll > std::time::Duration::from_millis(40) {
-            warn!("poll {t_poll:?}");
-        }
+    /// One per-frame movement tick for both glide modes.
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+        self.glide_num.direction_tick(ptr)?;
+        self.glide_alpha.direction_tick(ptr)
     }
 }
 
-// ── Input dispatch ───────────────────────────────────────────────────
+impl Default for Service {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-fn handle_glide_num_input(
+// ── Input dispatch helpers ───────────────────────────────────────────
+
+fn glide_num_input(
     code: u16,
     value: i32,
     is_press: bool,
     glide_num: &mut GlideNum,
-    ptr_out: &mut std::fs::File,
+    ptr: &mut dyn Pointer,
 ) -> Result<bool> {
     if !glide_num.active() {
         return Ok(false);
     }
-    glide_num.handle_event(ptr_out, code, value, is_press)
+    glide_num.handle_event(ptr, code, value, is_press)
 }
 
-fn handle_glide_alpha_input(
+fn glide_alpha_input(
     code: u16,
     value: i32,
     is_press: bool,
     glide_alpha: &mut GlideAlpha,
-    ptr_out: &mut std::fs::File,
+    ptr: &mut dyn Pointer,
 ) -> Result<bool> {
     if !glide_alpha.active() {
         return Ok(false);
     }
-    glide_alpha.handle_event(ptr_out, code, value, is_press)
+    glide_alpha.handle_event(ptr, code, value, is_press)
 }
 
-fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
+#[cfg(target_os = "linux")]
+fn grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
     if !grid.active() || !is_grid_key(code) || value == 0 {
         return false;
     }
     grid.handle_input(code, value, mods)
+}
+
+#[cfg(target_os = "linux")]
+fn is_grid_key(code: u16) -> bool {
+    key_map(code, &ModState::default()).is_some() || code == KEY_TAB
+}
+
+// ── Platform entry point ─────────────────────────────────────────────
+
+pub fn run_service() -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        linux::run()
+    }
+    #[cfg(target_os = "windows")]
+    {
+        windows::run()
+    }
 }
