@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use anyhow::{Result, bail};
-use log::info;
+use log::{info, warn};
 use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, SendInput,
@@ -148,6 +148,9 @@ unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -
     } else {
         HOOK.with(|s| {
             let mut s = s.borrow_mut();
+            if !s.pressed[vk] {
+                warn!("keyup without keydown (vk=0x{vk:x})");
+            }
             s.pressed[vk] = false;
             s.swallowed[vk] = false;
         });

@@ -68,6 +68,14 @@ impl Service {
             self.glide_num.set_numlock(value != 0);
         }
 
+        // Windows: swallow NumLock so the OS never toggles the lock state
+        // (that would turn the numpad into navigation keys and break glide-num).
+        // Meta is forwarded so system `Win+key` chords keep working.
+        #[cfg(target_os = "windows")]
+        if code == KEY_NUMLOCK {
+            return Ok(true);
+        }
+
         // Linux (evdev grab): hold Meta/NumLock presses and replay them only if
         // no mode-toggle chord follows. Windows forwards modifiers immediately
         // so system `Win+key` chords work; toggle chords still match via `ModState`.

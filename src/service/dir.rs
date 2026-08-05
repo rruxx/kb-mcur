@@ -5,6 +5,7 @@
 //! hold/release tracking and per-frame accelerated cursor movement.
 
 use anyhow::Result;
+use log::debug;
 
 use crate::config;
 use crate::device::pointer::Pointer;
@@ -83,9 +84,11 @@ pub fn update_dir(held: &mut u8, mask: &mut Dir, count: &mut u32, flag: Dir, val
         if *held == 0 {
             *count = 0;
         }
+        debug!("dir release {flag:?} held={held}");
     } else if value == 1 {
         mask.insert(flag);
         *held = held.saturating_add(1);
+        debug!("dir press {flag:?} held={held}");
     }
 }
 

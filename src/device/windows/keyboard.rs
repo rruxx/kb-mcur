@@ -24,6 +24,44 @@ use crate::keymap::{
 #[must_use]
 pub fn vk_to_evdev(vk: u32, scan: u32, extended: bool) -> Option<u16> {
     let ext = extended || scan >> 8 == 0xE0;
+    let scan_lo = (scan & 0xFF) as u8;
+
+    // Numpad keys are identified by their physical scan code (0x47–0x53 plus
+    // the operator cluster), which is independent of the NumLock toggle state.
+    // With NumLock off the pad reports navigation VKs (VK_LEFT/VK_HOME…), so a
+    // vk-based match alone would let glide-num keys leak through to the desktop.
+    // Must be non-extended: the main-keyboard arrows share the same low scan
+    // bytes but carry the 0xE0 extended prefix (e.g. Up = 0xE048).
+    let pad = if ext {
+        None
+    } else {
+        match scan_lo {
+            0x45 => Some(KEY_NUMLOCK),
+            0x47 => Some(KEY_KP7),
+            0x48 => Some(KEY_KP8),
+            0x49 => Some(KEY_KP9),
+            0x4B => Some(KEY_KP4),
+            0x4C => Some(KEY_KP5),
+            0x4D => Some(KEY_KP6),
+            0x4F => Some(KEY_KP1),
+            0x50 => Some(KEY_KP2),
+            0x51 => Some(KEY_KP3),
+            0x52 => Some(KEY_KP0),
+            0x53 => Some(KEY_KPDOT),
+            0x35 => Some(KEY_KPSLASH),
+            0x37 => Some(KEY_KPASTERISK),
+            0x4A => Some(KEY_KPMINUS),
+            0x4E => Some(KEY_KPPLUS),
+            _ => None,
+        }
+    };
+    if let Some(code) = pad {
+        return Some(code);
+    }
+    if ext && scan_lo == 0x1C {
+        return Some(KEY_KPENTER); // numpad Enter (extended 0xE01C)
+    }
+
     match vk {
         // Backspace / Tab / Enter / Esc / Space
         0x08 => Some(KEY_BACKSPACE),
