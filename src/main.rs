@@ -43,7 +43,7 @@ enum Cmd {
     Service,
 }
 
-fn btn_code(s: &str) -> Result<u8> {
+fn parse_button(s: &str) -> Result<u8> {
     match s {
         "L" | "l" | "left" | "1" => Ok(1),
         "M" | "m" | "middle" | "2" => Ok(2),
@@ -72,7 +72,7 @@ fn main() -> Result<()> {
         Some(Cmd::Click { repeat, btn }) => {
             let (sw, sh) = query_screen_size();
             let mut m = Mouse::new(sw, sh)?;
-            m.click(btn_code(&btn)?, repeat)?;
+            m.click(parse_button(&btn)?, repeat)?;
         }
         Some(Cmd::Service) => {
             kursor::service::run_service()?;

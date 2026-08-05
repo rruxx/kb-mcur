@@ -14,19 +14,19 @@ use log::{info, warn};
 
 use crate::service::glide_alpha::GlideAlpha;
 use crate::service::glide_num::GlideNum;
-use crate::service::grid::{GridEnv, watchdog};
+use crate::service::grid::{GridEnv, fix_device_permissions};
 
 use crate::{
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
     keyboard::KeyboardDev,
     keymap::{
         KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTALT, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_NUMLOCK,
-        KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, map as key_map,
+        KEY_RIGHTALT, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_TAB, ModState, key_map,
     },
     uinput::{EV_KEY, EV_SYN, SYN_REPORT, create_virt_device, write_event, write_event_raw},
 };
 
-// ── Signal ───────────────────────────────────────────────────────────
+// ── Key classification ───────────────────────────────────────────────
 
 fn is_grid_key(code: u16) -> bool {
     key_map(code, &ModState::default()).is_some()
@@ -96,7 +96,7 @@ pub fn run_service() -> Result<()> {
 
         let now = Instant::now();
         if now.duration_since(last_wd) >= std::time::Duration::from_secs(1) {
-            watchdog();
+            fix_device_permissions();
             last_wd = now;
         }
 
@@ -128,16 +128,16 @@ pub fn run_service() -> Result<()> {
                     continue;
                 }
 
-                if toggle_glide_num(code, value, is_press, &mut glide_num) {
+                if toggle_glide_num(&mut glide_num, code, value, is_press) {
                     continue;
                 }
 
                 if toggle_glide_alpha(
+                    &mut glide_alpha,
                     code,
                     is_press,
                     meta_held,
                     shift_held,
-                    &mut glide_alpha,
                     &mut kbd_out,
                 )? {
                     continue;
@@ -177,7 +177,7 @@ pub fn run_service() -> Result<()> {
 
 // ── Toggles ──────────────────────────────────────────────────────────
 
-fn toggle_glide_num(code: u16, value: i32, is_press: bool, glide_num: &mut GlideNum) -> bool {
+fn toggle_glide_num(glide_num: &mut GlideNum, code: u16, value: i32, is_press: bool) -> bool {
     if code == KEY_NUMLOCK {
         glide_num.set_numlock(value != 0);
     }
@@ -197,11 +197,11 @@ fn toggle_glide_num(code: u16, value: i32, is_press: bool, glide_num: &mut Glide
 }
 
 fn toggle_glide_alpha(
+    glide_alpha: &mut GlideAlpha,
     code: u16,
     is_press: bool,
     meta_held: bool,
     shift_held: bool,
-    glide_alpha: &mut GlideAlpha,
     kbd_out: &mut std::fs::File,
 ) -> Result<bool> {
     if code != KEY_CAPSLOCK || !is_press || !meta_held || !shift_held {

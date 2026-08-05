@@ -6,10 +6,10 @@ use anyhow::Result;
 use super::base::render_labels;
 use super::state::DrawState;
 use super::{GridConfig, GridFilter};
-use crate::config::{L3_KEYS, l1_key_pos};
+use crate::config::{L3_KEYS, l1_key_pos, l3_key_pos};
 use crate::font;
 use crate::overlay::Overlay;
-use crate::render::TextCache;
+use crate::render::{TextCache, draw_text};
 
 // ── Display update ──────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ pub(crate) fn display_update(
             .input()
             .chars()
             .nth(2)
-            .and_then(crate::config::l3_key_pos)
+            .and_then(l3_key_pos)
     } else {
         None
     };
@@ -277,7 +277,7 @@ fn render_l3_overlay(
             }
             let cx = x + (col as f32 + 0.5) * w / 5.0;
             let cy = y + (row as f32 + 0.5) * h / 3.0;
-            crate::render::draw_text(
+            draw_text(
                 pixmap,
                 &ch.to_string(),
                 cx,

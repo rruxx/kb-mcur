@@ -8,7 +8,6 @@
 use const_format::concatcp;
 
 pub const PROJECT_NAME: &str = "kursor";
-pub const SERVICE: &str = concatcp!(PROJECT_NAME, "d");
 
 /// Kernel `UINPUT_MAX_NAME_SIZE` — struct layout must match this.
 pub const UINPUT_NAME_MAXLEN: usize = 80;
@@ -168,7 +167,7 @@ pub const BTN_EXTRA: u16 = 0x114;
 
 /// USB HID button code for mouse buttons (1=left, 2=middle, 3=right).
 #[must_use]
-pub const fn btn_code(button: u8) -> u16 {
+pub const fn hid_button_code(button: u8) -> u16 {
     match button {
         1 => BTN_LEFT,
         2 => BTN_MIDDLE,

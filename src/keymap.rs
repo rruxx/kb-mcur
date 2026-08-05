@@ -5,16 +5,16 @@
 
 // pub const KEY_RESERVED: u16 = 0;
 pub const KEY_ESC: u16 = 1;
-// pub const KEY_1: u16 = 2;
-// pub const KEY_2: u16 = 3;
-// pub const KEY_3: u16 = 4;
-// pub const KEY_4: u16 = 5;
-// pub const KEY_5: u16 = 6;
-// pub const KEY_6: u16 = 7;
-// pub const KEY_7: u16 = 8;
-// pub const KEY_8: u16 = 9;
-// pub const KEY_9: u16 = 10;
-// pub const KEY_0: u16 = 11;
+pub const KEY_1: u16 = 2;
+pub const KEY_2: u16 = 3;
+pub const KEY_3: u16 = 4;
+pub const KEY_4: u16 = 5;
+pub const KEY_5: u16 = 6;
+pub const KEY_6: u16 = 7;
+pub const KEY_7: u16 = 8;
+pub const KEY_8: u16 = 9;
+pub const KEY_9: u16 = 10;
+pub const KEY_0: u16 = 11;
 // pub const KEY_MINUS: u16 = 12;
 // pub const KEY_EQUAL: u16 = 13;
 pub const KEY_BACKSPACE: u16 = 14;
@@ -160,7 +160,7 @@ impl ModState {
 /// Map keycode + modifiers → ASCII byte (a-z/linefeed/space/backspace/esc).
 /// Returns None for unsupported / modifier-only keys.
 #[must_use]
-pub fn map(code: u16, mods: &ModState) -> Option<u8> {
+pub fn key_map(code: u16, mods: &ModState) -> Option<u8> {
     const LUT: [(u16, u8); 26] = [
         (KEY_Q, b'q'),
         (KEY_W, b'w'),

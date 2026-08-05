@@ -28,7 +28,6 @@ impl Default for GridConfig {
     }
 }
 
-#[derive(Default)]
 pub struct GridFilter {
     input: String,
 }
@@ -36,7 +35,9 @@ pub struct GridFilter {
 impl GridFilter {
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            input: String::new(),
+        }
     }
     #[must_use]
     pub fn input(&self) -> &str {
@@ -126,11 +127,11 @@ impl Grid {
 pub(crate) mod base;
 pub(crate) mod display;
 pub(crate) mod env;
-pub mod init;
+pub(crate) mod init;
 pub(crate) mod process;
 pub(crate) mod selection;
-pub mod state;
-pub(crate) mod watchdog;
+pub(crate) mod state;
+pub(crate) mod device_perm;
 
 pub(crate) use env::GridEnv;
-pub(crate) use watchdog::watchdog;
+pub(crate) use device_perm::fix_device_permissions;

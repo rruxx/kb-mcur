@@ -12,7 +12,7 @@ use nix::fcntl::OFlag;
 
 use crate::config::{
     BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL, UINPUT_CREATE_WAIT_MS,
-    UINPUT_NAME_MAXLEN, btn_code as button_hid,
+    UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
 };
 use crate::uinput::raw::{
     ABS_X, ABS_Y, EV_ABS, EV_KEY, EV_REL, EV_SYN, InputAbsinfo, InputEvent, REL_X, REL_Y,

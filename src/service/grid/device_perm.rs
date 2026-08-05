@@ -52,7 +52,9 @@ pub(crate) fn setup_display_env(uid: u32) {
     }
 }
 
-pub fn watchdog() {
+/// Fix ownership of the uinput devices this project created so the
+/// current display session user can open them.
+pub fn fix_device_permissions() {
     let Some(session_uid) = display_session_uid() else {
         return;
     };

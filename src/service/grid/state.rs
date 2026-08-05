@@ -15,7 +15,7 @@ use crate::config::{
     l2_key_pos, l3_key_pos,
 };
 use crate::font;
-use crate::keymap::{KEY_H, KEY_J, KEY_K, KEY_L, KEY_TAB, ModState, map as key_map};
+use crate::keymap::{KEY_H, KEY_J, KEY_K, KEY_L, KEY_TAB, ModState, key_map};
 use crate::overlay::{Monitor, Overlay};
 use crate::render::TextCache;
 use crate::uinput::Mouse;
@@ -162,12 +162,6 @@ impl GridCtx {
             l4_dx: 0,
             l4_dy: 0,
         }
-    }
-}
-
-impl Default for GridCtx {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

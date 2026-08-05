@@ -4,7 +4,7 @@
 use anyhow::{Context, Result};
 
 use super::state::MonitorList;
-use super::watchdog::{display_session_uid, setup_display_env};
+use super::device_perm::{display_session_uid, setup_display_env};
 use crate::debug;
 use crate::overlay::Overlay;
 

@@ -7,7 +7,7 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader,
 use super::init::connect_as_user;
 use crate::font;
 use crate::overlay::{Monitor, Overlay};
-use crate::render::TextCache;
+use crate::render::{TextCache, draw_text};
 
 // ── Multi-monitor selection ──────────────────────────────────────────
 
@@ -67,7 +67,7 @@ pub(crate) fn redraw_select_hint(
             None,
         );
 
-        crate::render::draw_text(
+        draw_text(
             &mut pixmap,
             &label,
             cx,

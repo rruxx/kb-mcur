@@ -29,32 +29,41 @@ fn is_own_device(fd: &OwnedFd) -> bool {
 
 // ── Keyboard detection ─────────────────────────────────────────────
 
+use crate::keymap::{
+    KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_A, KEY_B,
+    KEY_BACKSPACE, KEY_C, KEY_D, KEY_E, KEY_ENTER, KEY_ESC, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
+    KEY_K, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8,
+    KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_L,
+    KEY_M, KEY_N, KEY_NUMLOCK, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_SPACE, KEY_T, KEY_U, KEY_V,
+    KEY_W, KEY_X, KEY_Y, KEY_Z,
+};
+
 /// a-z, 0-9, space, enter, backspace, esc
 const GRID_REQUIRED: &[u16] = &[
-    1,  // KEY_ESC
-    14, // KEY_BACKSPACE
-    28, // KEY_ENTER
-    57, // KEY_SPACE
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, // 0-9
-    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, // Q-P
-    30, 31, 32, 33, 34, 35, 36, 37, 38, // A-L
-    44, 45, 46, 47, 48, 49, 50, // Z-M
+    KEY_ESC,
+    KEY_BACKSPACE,
+    KEY_ENTER,
+    KEY_SPACE,
+    KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0, // 0-9
+    KEY_Q, KEY_W, KEY_E, KEY_R, KEY_T, KEY_Y, KEY_U, KEY_I, KEY_O, KEY_P, // Q-P
+    KEY_A, KEY_S, KEY_D, KEY_F, KEY_G, KEY_H, KEY_J, KEY_K, KEY_L, // A-L
+    KEY_Z, KEY_X, KEY_C, KEY_V, KEY_B, KEY_N, KEY_M, // Z-M
 ];
 const GRID_MIN_KEYS: u32 = 40;
 
 /// numpad 0-9, /*-+., numlock, numpad enter
 const PAD_REQUIRED: &[u16] = &[
-    55, // KEY_KPASTERISK
-    69, // KEY_NUMLOCK
-    71, 72, 73, // KP7-KP9
-    74, // KEY_KPMINUS
-    75, 76, 77, // KP4-KP6
-    78, // KEY_KPPLUS
-    79, 80, 81, // KP1-KP3
-    82, // KEY_KP0
-    83, // KEY_KPDOT
-    96, // KEY_KPENTER
-    98, // KEY_KPSLASH
+    KEY_KPASTERISK,
+    KEY_NUMLOCK,
+    KEY_KP7, KEY_KP8, KEY_KP9, // KP7-KP9
+    KEY_KPMINUS,
+    KEY_KP4, KEY_KP5, KEY_KP6, // KP4-KP6
+    KEY_KPPLUS,
+    KEY_KP1, KEY_KP2, KEY_KP3, // KP1-KP3
+    KEY_KP0,
+    KEY_KPDOT,
+    KEY_KPENTER,
+    KEY_KPSLASH,
 ];
 const PAD_MIN_KEYS: u32 = 17;
 
