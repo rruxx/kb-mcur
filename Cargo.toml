@@ -3,6 +3,9 @@ name = "kursor"
 version = "3.1.4"
 edition = "2024"
 
+[lints.rust]
+linker_messages = "allow"
+
 [dependencies]
 tiny-skia = "0.12"
 fontdue = "0.9"
