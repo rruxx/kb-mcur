@@ -81,6 +81,9 @@ pub fn run_service() -> Result<()> {
 
     let mut warn_is_done = false;
     let mut last_wd = Instant::now();
+    // A held modifier whose key-down has not yet been forwarded to the desktop.
+    // It is consumed when a mode-toggle chord follows; otherwise it is replayed.
+    let mut pending: Option<u16> = None;
 
     loop {
         if SHUTDOWN.load(Ordering::Relaxed) {
@@ -119,6 +122,27 @@ pub fn run_service() -> Result<()> {
                 // Only EV_KEY events carry mode-relevant information.
                 if ev.type_ != EV_KEY {
                     write_event_raw(&mut kbd_out, &ev)?;
+                    continue;
+                }
+
+                // A chord trigger (CapsLock/KPEnter down with its modifier held)
+                // consumes a pending modifier press; otherwise the pending press
+                // is replayed to the desktop before the current event.
+                let chord = is_press
+                    && ((code == KEY_CAPSLOCK && meta_held)
+                        || (code == KEY_KPENTER && glide_num.numlock_held()));
+                if let Some(p) = pending.take()
+                    && !chord
+                {
+                    write_event(&mut kbd_out, EV_KEY, p, 1)?;
+                    write_event(&mut kbd_out, EV_SYN, SYN_REPORT, 0)?;
+                }
+
+                // Hold Meta/NumLock presses: forward only if no chord follows.
+                if is_press
+                    && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA || code == KEY_NUMLOCK)
+                {
+                    pending = Some(code);
                     continue;
                 }
 
