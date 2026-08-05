@@ -46,12 +46,6 @@ impl GlideAlpha {
         self.active
     }
 
-    /// Currently held direction mask (diagnostics).
-    #[must_use]
-    pub fn held_dir(&self) -> Dir {
-        self.dir_mask
-    }
-
     /// Toggle glide-alpha on/off via Meta+Shift+CapsLock.
     /// Returns `Ok(true)` if the event was consumed.
     pub fn toggle(
@@ -89,7 +83,7 @@ impl GlideAlpha {
     }
 
     /// One per-frame movement step while a direction is held.
-    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<bool> {
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
         direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
     }
 

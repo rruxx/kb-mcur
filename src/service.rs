@@ -135,27 +135,15 @@ impl Service {
     }
 
     /// One per-frame movement tick for both glide modes.
-    /// Returns `Ok(true)` if either mode emitted a step.
-    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<bool> {
-        let n = self.glide_num.direction_tick(ptr)?;
-        let a = self.glide_alpha.direction_tick(ptr)?;
-        Ok(n || a)
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+        self.glide_num.direction_tick(ptr)?;
+        self.glide_alpha.direction_tick(ptr)
     }
 
     /// Force-clear any stuck glide direction state.
     pub fn reset_direction(&mut self) {
         self.glide_num.reset_input();
         self.glide_alpha.reset_input();
-    }
-
-    /// Current held-direction masks for both glide modes (diagnostics).
-    #[must_use]
-    pub fn direction_summary(&self) -> String {
-        format!(
-            "num {:?} | alpha {:?}",
-            self.glide_num.held_dir(),
-            self.glide_alpha.held_dir()
-        )
     }
 }
 

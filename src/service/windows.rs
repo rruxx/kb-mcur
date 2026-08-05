@@ -6,11 +6,12 @@
 //! Stage 1: glide-num + glide-alpha (mouse-only, no overlay). The hook
 //! swallows consumed keys (returns non-zero) and lets the rest through.
 //! Injected input (`LLKHF_INJECTED`) is passed through untouched to avoid
-//! replay feedback loops.
+//! replay feedback loops. The OS may silently freeze a slow hook; a liveness
+//! probe detects that and reinstalls it (see `Probe`).
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use log::{error, info, warn};
@@ -19,30 +20,24 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, SendInput,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, GetSystemMetrics, HC_ACTION, KBDLLHOOKSTRUCT, MSG, PM_REMOVE,
-    PeekMessageW, SM_CXSCREEN, SM_CYSCREEN, SetWindowsHookExW, TranslateMessage,
+    CallNextHookEx, DispatchMessageW, GetSystemMetrics, HC_ACTION, HHOOK, KBDLLHOOKSTRUCT, MSG,
+    PM_REMOVE, PeekMessageW, SM_CXSCREEN, SM_CYSCREEN, SetWindowsHookExW, TranslateMessage,
     UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
 use crate::device::pointer::KeyboardOut;
 use crate::device::windows::keyboard::vk_to_evdev;
 use crate::device::windows::mouse::Mouse;
-use crate::keymap::{KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA};
 use crate::service::Service;
 
 const TICK_MS: u64 = 20; // direction-tick period (~50 Hz)
-const PROBE_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
-const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
+const PROBE_INTERVAL: Duration = Duration::from_millis(100);
+const PROBE_TIMEOUT: Duration = Duration::from_millis(100);
 
 // LLKHF_INJECTED — the low-level hook was not injected by SendInput.
 const LLKHF_INJECTED: u32 = 0x10;
 // LLKHF_EXTENDED — extended key (numpad Enter, arrows, …).
 const LLKHF_EXTENDED: u32 = 0x01;
-
-// VK codes for replayed modifiers (pending passthrough).
-const VK_LWIN: u16 = 0x5B;
-const VK_RWIN: u16 = 0x5C;
-const VK_NUMLOCK: u16 = 0x90;
 
 thread_local! {
     static SVC: RefCell<Option<Service>> = const { RefCell::new(None) };
@@ -52,9 +47,8 @@ thread_local! {
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
-/// Wall-clock ms of the last hook call — proves the hook is alive. The main
-/// loop probes it; if a probe is not answered, the OS has stalled the hook
-/// (slow-callback timeout) and we reinstall it.
+/// Wall-clock ms of the last hook call — proves the hook is alive. The liveness
+/// probe reads it; if a probe is not answered, the OS has stalled the hook.
 static LAST_HOOK_MS: AtomicU64 = AtomicU64::new(0);
 
 fn now_ms() -> u64 {
@@ -63,38 +57,116 @@ fn now_ms() -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
+// ── Shared state access ───────────────────────────────────────────────
+
+/// Run `f` with the shared service state (main-loop path, no re-entry).
+fn with_service<T>(f: impl FnOnce(&mut Service, &mut Mouse) -> T) -> Option<T> {
+    SVC.with(|svc| {
+        MOUSE.with(|m| {
+            let mut svc = svc.borrow_mut();
+            let mut m = m.borrow_mut();
+            let (Some(svc), Some(m)) = (svc.as_mut(), m.as_mut()) else {
+                return None;
+            };
+            Some(f(svc, m))
+        })
+    })
+}
+
+/// Drain pending window messages so the low-level hook fires on this thread.
+fn pump_messages(msg: &mut MSG) {
+    while unsafe { PeekMessageW(&raw mut *msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
+        if msg.message == WM_QUIT {
+            break;
+        }
+        unsafe {
+            TranslateMessage(&raw const *msg);
+            DispatchMessageW(&raw const *msg);
+        }
+    }
+}
+
+// ── Liveness probe ────────────────────────────────────────────────────
+
 /// Inject a no-function key (`VK_NONAME`) down+up as a liveness probe.
-/// The probe passes through the hook (`LLKHF_INJECTED`), updating `LAST_HOOK_MS`.
+/// It passes through the hook (`LLKHF_INJECTED`), updating `LAST_HOOK_MS`.
 fn inject_probe() -> Result<()> {
     const KEYEVENTF_KEYUP: u32 = 0x0002;
     const VK_NONAME: u16 = 0xFF;
-    let down = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: VK_NONAME,
-                wScan: 0,
-                dwFlags: 0,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-    let up = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: VK_NONAME,
-                wScan: 0,
-                dwFlags: KEYEVENTF_KEYUP,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-    let inputs = [down, up];
+    let inputs = [
+        key_input(VK_NONAME, 0),
+        key_input(VK_NONAME, KEYEVENTF_KEYUP),
+    ];
     if unsafe { SendInput(2, &raw const inputs[0], std::mem::size_of::<INPUT>() as i32) } != 2 {
         bail!("SendInput probe failed");
+    }
+    Ok(())
+}
+
+/// Build a keyboard `INPUT` for a VK with the given flags.
+fn key_input(vk: u16, flags: u32) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    }
+}
+
+/// Liveness-probe state machine: arm a probe on an interval, then declare the
+/// hook stalled if it does not answer within a timeout.
+struct Probe {
+    interval: Duration,
+    timeout: Duration,
+    last: Instant,
+    pending: bool,
+    before: u64,
+}
+
+impl Probe {
+    fn new() -> Self {
+        Self {
+            interval: PROBE_INTERVAL,
+            timeout: PROBE_TIMEOUT,
+            last: Instant::now(),
+            pending: false,
+            before: 0,
+        }
+    }
+
+    fn due(&self, now: Instant) -> bool {
+        !self.pending && now.duration_since(self.last) >= self.interval
+    }
+
+    fn arm(&mut self, now: Instant) {
+        self.before = LAST_HOOK_MS.load(Ordering::Relaxed);
+        self.last = now;
+        self.pending = true;
+    }
+
+    /// Returns `true` when the probe went unanswered (hook stalled).
+    fn check(&mut self, now: Instant) -> bool {
+        if !self.pending || now.duration_since(self.last) < self.timeout {
+            return false;
+        }
+        self.pending = false;
+        LAST_HOOK_MS.load(Ordering::Relaxed) <= self.before
+    }
+}
+
+/// Reinstall the hook after a stall and clear any stuck direction state.
+fn reinstall_hook(hook: &mut HHOOK) -> Result<()> {
+    unsafe { UnhookWindowsHookEx(*hook) };
+    with_service(|svc, _| svc.reset_direction());
+    *hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), std::ptr::null_mut(), 0) };
+    if hook.is_null() {
+        bail!("SetWindowsHookExW failed on reinstall");
     }
     Ok(())
 }
@@ -119,44 +191,16 @@ impl HookState {
 }
 
 /// `KeyboardOut` for the hook: swallowing is implicit (return 1 from the hook),
-/// so `key(v, >0)` only replays a previously swallowed modifier.
+/// and modifiers pass through immediately, so replaying is a no-op.
 struct HookKbd;
 
 impl KeyboardOut for HookKbd {
-    fn key(&mut self, code: u16, value: i32) -> Result<()> {
-        if value > 0 {
-            replay_key(code)?;
-        }
+    fn key(&mut self, _code: u16, _value: i32) -> Result<()> {
         Ok(())
     }
     fn sync(&mut self) -> Result<()> {
         Ok(())
     }
-}
-
-fn replay_key(code: u16) -> Result<()> {
-    let vk = match code {
-        KEY_LEFTMETA => VK_LWIN,
-        KEY_RIGHTMETA => VK_RWIN,
-        KEY_NUMLOCK => VK_NUMLOCK,
-        _ => return Ok(()),
-    };
-    let input = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: vk,
-                wScan: 0,
-                dwFlags: 0,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-    if unsafe { SendInput(1, &raw const input, std::mem::size_of::<INPUT>() as i32) } != 1 {
-        bail!("SendInput replay failed");
-    }
-    Ok(())
 }
 
 unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -> isize {
@@ -199,9 +243,6 @@ unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -
     } else {
         HOOK.with(|s| {
             let mut s = s.borrow_mut();
-            if !s.pressed[vk] {
-                warn!("keyup without keydown (vk=0x{vk:x})");
-            }
             s.pressed[vk] = false;
             s.swallowed[vk] = false;
         });
@@ -266,7 +307,7 @@ pub fn run() -> Result<()> {
     SVC.with(|s| *s.borrow_mut() = Some(Service::new()));
     MOUSE.with(|m| *m.borrow_mut() = Some(mouse));
 
-    let hook =
+    let mut hook =
         unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), std::ptr::null_mut(), 0) };
     if hook.is_null() {
         bail!("SetWindowsHookExW failed");
@@ -275,84 +316,35 @@ pub fn run() -> Result<()> {
 
     let mut msg = unsafe { std::mem::zeroed::<MSG>() };
     let tick = Duration::from_millis(TICK_MS);
+    let mut probe = Probe::new();
     let mut result = Ok(());
-    let mut last_report = std::time::Instant::now();
-    let mut last_probe = std::time::Instant::now();
-    let mut probe_pending = false;
-    let mut probe_before = 0u64;
-    let mut hook = hook;
 
     loop {
         if SHUTDOWN.load(Ordering::Relaxed) {
             break;
         }
-        let now = std::time::Instant::now();
-        while unsafe { PeekMessageW(&raw mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
-            if msg.message == WM_QUIT {
-                break;
-            }
-            unsafe {
-                TranslateMessage(&raw const msg);
-                DispatchMessageW(&raw const msg);
-            }
-        }
+        let now = Instant::now();
+        pump_messages(&mut msg);
 
-        // Liveness probe: inject a no-function key every PROBE_INTERVAL; if the
-        // hook does not answer within PROBE_TIMEOUT the OS has stalled it
-        // (slow-callback timeout). Reinstall the hook and clear stuck state.
-        if !probe_pending && now.duration_since(last_probe) >= PROBE_INTERVAL {
-            probe_before = LAST_HOOK_MS.load(Ordering::Relaxed);
+        if probe.due(now) {
             if let Err(e) = inject_probe() {
                 warn!("probe failed: {e}");
             }
-            last_probe = now;
-            probe_pending = true;
+            probe.arm(now);
         }
-        if probe_pending && now.duration_since(last_probe) >= PROBE_TIMEOUT {
-            probe_pending = false;
-            if LAST_HOOK_MS.load(Ordering::Relaxed) <= probe_before {
-                warn!("hook stalled — reinstalling");
-                unsafe { UnhookWindowsHookEx(hook) };
-                SVC.with(|s| {
-                    if let Some(svc) = s.borrow_mut().as_mut() {
-                        svc.reset_direction();
-                    }
-                });
-                hook = unsafe {
-                    SetWindowsHookExW(WH_KEYBOARD_LL, Some(hook_proc), std::ptr::null_mut(), 0)
-                };
-                if hook.is_null() {
-                    error!("hook reinstall failed");
-                    result = Err(anyhow::anyhow!("SetWindowsHookExW failed on reinstall"));
-                    break;
-                }
-                warn!("hook reinstalled");
+        if probe.check(now) {
+            warn!("hook stalled — reinstalling");
+            if let Err(e) = reinstall_hook(&mut hook) {
+                error!("hook reinstall failed: {e}");
+                result = Err(e);
+                break;
             }
+            warn!("hook reinstalled");
         }
 
-        if let Err(e) = SVC.with(|svc| {
-            MOUSE.with(|m| {
-                let mut svc = svc.borrow_mut();
-                let mut m = m.borrow_mut();
-                let (Some(svc), Some(m)) = (svc.as_mut(), m.as_mut()) else {
-                    return Ok(());
-                };
-                svc.direction_tick(m).map(|_| ())
-            })
-        }) {
+        if let Some(Err(e)) = with_service(|svc, m| svc.direction_tick(m)) {
             result = Err(e);
             break;
-        }
-
-        // Diagnostics: print held direction masks once per second.
-        if now.duration_since(last_report) >= Duration::from_secs(1) {
-            let summary = SVC.with(|s| {
-                s.borrow()
-                    .as_ref()
-                    .map_or(String::new(), Service::direction_summary)
-            });
-            info!("dir: {summary}");
-            last_report = now;
         }
 
         std::thread::sleep(tick);

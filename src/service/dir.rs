@@ -30,18 +30,6 @@ bitflags::bitflags! {
     }
 }
 
-/// All eight directional flags, in iteration order.
-pub const ALL_DIRS: [Dir; 8] = [
-    Dir::UP,
-    Dir::DOWN,
-    Dir::LEFT,
-    Dir::RIGHT,
-    Dir::UP_LEFT,
-    Dir::UP_RIGHT,
-    Dir::DOWN_LEFT,
-    Dir::DOWN_RIGHT,
-];
-
 impl Dir {
     /// Map a numpad keycode to its direction.
     #[must_use]
@@ -105,16 +93,14 @@ pub fn update_dir(held: &mut u8, mask: &mut Dir, count: &mut u32, flag: Dir, val
 }
 
 /// One per-frame movement step while a direction is held (accelerated).
-/// Returns `Ok(true)` if a step was emitted.
-pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr: &mut dyn Pointer) -> Result<bool> {
+pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr: &mut dyn Pointer) -> Result<()> {
     if held != 1 {
-        return Ok(false);
+        return Ok(());
     }
     let (dx, dy) = mask.to_vector();
     *count = count.saturating_add(1);
     let step = config::cursor_speed(*count) as f32;
     let mx = (dx as f32 * step) as i32;
     let my = (dy as f32 * step) as i32;
-    ptr.move_rel(mx, my)?;
-    Ok(true)
+    ptr.move_rel(mx, my)
 }

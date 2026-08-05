@@ -43,12 +43,6 @@ impl GlideNum {
         self.active
     }
 
-    /// Currently held direction mask (diagnostics).
-    #[must_use]
-    pub fn held_dir(&self) -> Dir {
-        self.dir_mask
-    }
-
     /// Toggle glide-num on/off via NumLock+KPEnter.
     /// Returns `Ok(true)` if the event was consumed.
     pub fn toggle(
@@ -93,7 +87,7 @@ impl GlideNum {
     }
 
     /// One per-frame movement step while a direction is held.
-    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<bool> {
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
         direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
     }
 
