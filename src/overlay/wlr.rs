@@ -30,7 +30,7 @@ use wayland_protocols_wlr::virtual_pointer::v1::client::{
     zwlr_virtual_pointer_v1::ZwlrVirtualPointerV1,
 };
 
-type MonitorInfo = (String, i32, i32, u16, u16);
+use crate::overlay::Monitor;
 
 struct LayerWin {
     surface: WlSurface,
@@ -46,7 +46,7 @@ pub struct WlrBackend {
     layer_shell: ZwlrLayerShellV1,
     vptr: Option<ZwlrVirtualPointerV1>,
     windows: Vec<LayerWin>,
-    monitors: Vec<MonitorInfo>,
+    monitors: Vec<Monitor>,
     shm_ptr: Option<NonNull<u8>>,
     shm_len: usize,
     shm_fd: Option<OwnedFd>,
@@ -126,13 +126,13 @@ impl WlrBackend {
             layer_shell,
             vptr,
             windows: Vec::new(),
-            monitors: vec![(
-                "WL-1".into(),
-                0,
-                0,
-                crate::config::FALLBACK_WIDTH,
-                crate::config::FALLBACK_HEIGHT,
-            )],
+            monitors: vec![Monitor {
+                name: "WL-1".into(),
+                x: 0,
+                y: 0,
+                w: crate::config::FALLBACK_WIDTH,
+                h: crate::config::FALLBACK_HEIGHT,
+            }],
             shm_ptr: None,
             shm_len: 0,
             shm_fd: None,
@@ -142,7 +142,7 @@ impl WlrBackend {
 
     // Signatures must match `x11::X11Backend` for the `delegate!` dispatch.
     #[allow(clippy::unnecessary_wraps)]
-    pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
+    pub fn named_monitors(&self) -> Result<Vec<Monitor>> {
         Ok(self.monitors.clone())
     }
 
@@ -241,8 +241,8 @@ impl WlrBackend {
         let Some(ref v) = self.vptr else {
             return Ok(());
         };
-        let sx = u32::from(self.monitors[0].3);
-        let sy = u32::from(self.monitors[0].4);
+        let sx = u32::from(self.monitors[0].w);
+        let sy = u32::from(self.monitors[0].h);
         v.motion_absolute(0, x as u32, y as u32, sx, sy);
         v.frame();
         self.conn.flush()?;

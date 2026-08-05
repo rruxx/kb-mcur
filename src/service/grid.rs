@@ -126,7 +126,6 @@ impl Grid {
 pub(crate) mod base;
 pub(crate) mod display;
 pub(crate) mod env;
-pub(crate) mod handle;
 pub mod init;
 pub(crate) mod process;
 pub(crate) mod selection;
@@ -134,6 +133,4 @@ pub mod state;
 pub(crate) mod watchdog;
 
 pub(crate) use env::GridEnv;
-pub(crate) use handle::{handle_navigating, handle_selecting};
-pub(crate) use init::{GridPhase, GridStateMut};
 pub(crate) use watchdog::watchdog;

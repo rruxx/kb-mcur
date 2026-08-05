@@ -1,6 +1,7 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) mod dir;
 pub(crate) mod glide_alpha;
 pub(crate) mod glide_num;
 pub(crate) mod grid;
@@ -13,9 +14,7 @@ use log::{info, warn};
 
 use crate::service::glide_alpha::{GlideAlpha, do_direction_alpha_tick, handle_alpha_event};
 use crate::service::glide_num::{GlideNum, do_direction_num_tick, handle_key_event};
-use crate::service::grid::{
-    GridEnv, GridPhase, GridStateMut, handle_navigating, handle_selecting, watchdog,
-};
+use crate::service::grid::{GridEnv, watchdog};
 
 use crate::{
     config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE},
@@ -262,35 +261,5 @@ fn handle_grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState)
     if !grid.active() || !is_grid_key(code) || value == 0 {
         return false;
     }
-    let state = GridStateMut {
-        overlay: &mut grid.overlay,
-        cfg: &mut grid.cfg,
-        cache: &mut grid.cache,
-        font_size: &mut grid.font_size,
-        states: &mut grid.states,
-        ctx: &mut grid.ctx,
-        mouse: &mut grid.mouse,
-    };
-    if grid.phase == GridPhase::Selecting {
-        let monitors = &grid.monitors;
-        handle_selecting(
-            code,
-            state,
-            &mut grid.monitor_idx,
-            &mut grid.phase,
-            monitors,
-            mods,
-            &mut grid.select_hint,
-        );
-    } else {
-        handle_navigating(
-            code,
-            state,
-            &grid.monitors,
-            &mut grid.monitor_idx,
-            mods,
-            grid.phase,
-        );
-    }
-    true
+    grid.handle_input(code, value, mods)
 }

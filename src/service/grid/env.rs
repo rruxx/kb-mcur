@@ -5,30 +5,31 @@ use anyhow::Result;
 use log::{info, warn};
 
 use super::GridConfig;
-use super::init::{GridPhase, enter_grid, init_grid_monitor};
+use super::init::enter_grid;
 use super::selection::show_selection;
-use super::state::{DrawState, GridCtx};
-use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA};
+use super::state::DrawState;
+use super::state::{GridCtx, GridPhase, GridStateMut, MonitorList, init_grid_monitor};
+use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 use crate::uinput::Mouse;
 use crate::uinput::{EV_KEY, EV_SYN, SYN_REPORT, write_event};
 
-// ── Grid state ───────────────────────────────────────────────────────
+// ── Grid session state ──────────────────────────────────────────────
 
 pub(crate) struct GridEnv {
-    pub(crate) active: bool,
-    pub(crate) phase: GridPhase,
-    pub(crate) overlay: Option<Overlay>,
-    pub(crate) mouse: Option<Mouse>,
-    pub(crate) cfg: Option<GridConfig>,
-    pub(crate) cache: Option<TextCache>,
-    pub(crate) font_size: f32,
-    pub(crate) states: Option<Vec<DrawState>>,
-    pub(crate) ctx: Option<GridCtx>,
-    pub(crate) monitors: super::init::MonitorList,
-    pub(crate) monitor_idx: usize,
-    pub(crate) select_hint: String,
+    active: bool,
+    phase: GridPhase,
+    overlay: Option<Overlay>,
+    mouse: Option<Mouse>,
+    cfg: Option<GridConfig>,
+    cache: Option<TextCache>,
+    font_size: f32,
+    states: Option<Vec<DrawState>>,
+    ctx: Option<GridCtx>,
+    monitors: MonitorList,
+    monitor_idx: usize,
+    select_hint: String,
 }
 
 impl GridEnv {
@@ -76,7 +77,7 @@ impl GridEnv {
             warn!("[grid OFF]");
         } else {
             match enter_grid() {
-                Ok((init_overlay_conn, monitors_list, init_mouse)) => {
+                Ok((init_overlay_conn, monitors_list)) => {
                     self.monitors = monitors_list;
                     self.monitor_idx = 0;
                     self.active = true;
@@ -94,20 +95,21 @@ impl GridEnv {
                                 (b'a' + (self.monitors.len() - 1) as u8) as char
                             );
                         }
-                    } else {
-                        self.overlay = Some(init_overlay_conn);
-                        self.mouse = init_mouse;
-                        if let Ok(state) = init_grid_monitor(0, &self.monitors) {
-                            self.overlay = Some(state.overlay);
-                            self.mouse = state.mouse;
-                            self.cfg = Some(state.cfg);
-                            self.cache = Some(state.cache);
-                            self.font_size = state.font_size;
-                            self.states = Some(state.draw_states);
-                        }
+                    } else if let Ok(state) =
+                        init_grid_monitor(0, &self.monitors, Some(init_overlay_conn))
+                    {
+                        self.overlay = Some(state.overlay);
+                        self.mouse = state.mouse;
+                        self.cfg = Some(state.cfg);
+                        self.cache = Some(state.cache);
+                        self.font_size = state.font_size;
+                        self.states = Some(state.draw_states);
                         self.ctx = Some(GridCtx::new());
                         self.phase = GridPhase::Navigating;
                         warn!("[grid ON]");
+                    } else {
+                        self.active = false;
+                        warn!("[grid] init failed");
                     }
                 }
                 Err(e) => warn!("[grid] init failed: {e}"),
@@ -118,5 +120,40 @@ impl GridEnv {
         }
         write_event(kbd_out, EV_SYN, SYN_REPORT, 0)?;
         Ok(true)
+    }
+
+    /// Dispatch one grid key event. Returns `true` if it was consumed.
+    pub(crate) fn handle_input(&mut self, code: u16, value: i32, mods: &ModState) -> bool {
+        if !self.active || value == 0 {
+            return false;
+        }
+        let mut state = GridStateMut::new(
+            &mut self.overlay,
+            &mut self.cfg,
+            &mut self.cache,
+            &mut self.font_size,
+            &mut self.states,
+            &mut self.ctx,
+            &mut self.mouse,
+        );
+        if self.phase == GridPhase::Selecting {
+            state.handle_selecting(
+                code,
+                &mut self.monitor_idx,
+                &mut self.phase,
+                &self.monitors,
+                mods,
+                &mut self.select_hint,
+            );
+        } else {
+            state.handle_navigating(
+                code,
+                &self.monitors,
+                &mut self.monitor_idx,
+                mods,
+                self.phase,
+            );
+        }
+        true
     }
 }

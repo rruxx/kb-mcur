@@ -12,7 +12,7 @@ use x11rb::protocol::xproto::{
 };
 use x11rb::rust_connection::RustConnection;
 
-type MonitorInfo = (String, i32, i32, u16, u16);
+use crate::overlay::Monitor;
 
 struct WindowState {
     window: u32,
@@ -48,7 +48,7 @@ impl X11Backend {
         })
     }
 
-    pub fn named_monitors(&self) -> Result<Vec<MonitorInfo>> {
+    pub fn named_monitors(&self) -> Result<Vec<Monitor>> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let resources = randr::get_screen_resources(&self.conn, screen.root)?.reply()?;
         let mut out = Vec::new();
@@ -62,13 +62,13 @@ impl X11Backend {
                 continue;
             }
             let name = String::from_utf8_lossy(&info.name).into_owned();
-            out.push((
+            out.push(Monitor {
                 name,
-                i32::from(crtc.x),
-                i32::from(crtc.y),
-                crtc.width,
-                crtc.height,
-            ));
+                x: i32::from(crtc.x),
+                y: i32::from(crtc.y),
+                w: crtc.width,
+                h: crtc.height,
+            });
         }
         Ok(out)
     }
@@ -186,12 +186,13 @@ pub fn query_screen_size() -> (u16, u16) {
             continue;
         };
         if info.width > 0 && info.height > 0 {
-            monitors.push((
-                i32::from(info.x),
-                i32::from(info.y),
-                info.width,
-                info.height,
-            ));
+            monitors.push(Monitor {
+                name: String::new(),
+                x: i32::from(info.x),
+                y: i32::from(info.y),
+                w: info.width,
+                h: info.height,
+            });
         }
     }
     if monitors.is_empty() {
@@ -199,12 +200,12 @@ pub fn query_screen_size() -> (u16, u16) {
     }
     let max_w = monitors
         .iter()
-        .map(|m| m.0 + i32::from(m.2))
+        .map(|m| m.x + i32::from(m.w))
         .max()
         .unwrap_or(i32::from(crate::config::FALLBACK_WIDTH)) as u16;
     let max_h = monitors
         .iter()
-        .map(|m| m.1 + i32::from(m.3))
+        .map(|m| m.y + i32::from(m.h))
         .max()
         .unwrap_or(i32::from(crate::config::FALLBACK_HEIGHT)) as u16;
     (max_w, max_h)

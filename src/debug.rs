@@ -3,6 +3,7 @@
 
 // Debug helpers — controlled via environment variables.
 
+use crate::overlay::Monitor;
 use log::info;
 
 /// When `KURSOR_DEBUG_MONITORS=N` (N > 1) and a single real monitor
@@ -13,15 +14,15 @@ use log::info;
 /// KURSOR_DEBUG_MONITORS=3 cargo run -- service
 /// ```
 #[must_use]
-pub fn clone_monitors(monitors: Vec<(i32, i32, u16, u16)>) -> Vec<(i32, i32, u16, u16)> {
+pub fn clone_monitors(monitors: &[Monitor]) -> Vec<Monitor> {
     let debug_n: usize = debug_monitor_count();
 
     if debug_n > 1 && monitors.len() == 1 {
         info!("debug: cloning monitor to {debug_n} displays");
-        let m = monitors[0];
-        (0..debug_n).map(|_i| (m.0, m.1, m.2, m.3)).collect()
+        let m = &monitors[0];
+        (0..debug_n).map(|_i| Monitor { ..m.clone() }).collect()
     } else {
-        monitors
+        monitors.to_vec()
     }
 }
 

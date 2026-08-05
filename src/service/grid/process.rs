@@ -4,143 +4,14 @@
 use anyhow::Result;
 use log::info;
 
-use super::display::display_update;
-use super::state::{DrawState, GridCtx, MONITOR_NAME};
-use super::{GridConfig, GridFilter};
-use crate::config::{action_key, l1_key_pos, l2_key_pos, l3_key_pos};
-use crate::overlay::Overlay;
-use crate::render::TextCache;
+use super::GridFilter;
+use super::state::{DrawState, GridCtx};
+use crate::config::l3_key_pos;
 use crate::uinput::Mouse;
-
-// ── Grid-mode byte handler ──────────────────────────────────────────
-
-/// Single-byte input handler for interactive grid mode.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn process_byte(
-    byte: u8,
-    overlay: &mut Overlay,
-    mouse: &mut Option<Mouse>,
-    cfg: &GridConfig,
-    cache: &TextCache,
-    font_size: f32,
-    draw_states: &mut [DrawState],
-    ctx: &mut GridCtx,
-) -> Result<bool> {
-    match byte {
-        b'\r' | b'\n' => {
-            cursor_warp(mouse, &ctx.filter, draw_states, ctx)?;
-            if let Some((cx, cy)) = region_center(&ctx.filter, draw_states, ctx) {
-                overlay.pointer_warp(cx as i16, cy as i16)?;
-            }
-            ctx.filter.clear();
-            ctx.repeat = 0;
-            display_update(
-                overlay,
-                draw_states,
-                cfg,
-                cache,
-                font_size,
-                &ctx.filter,
-                Some((ctx.l4_dx, ctx.l4_dy)),
-            )?;
-            return Ok(false);
-        }
-
-        0x1b => {
-            ctx.filter.clear();
-            ctx.repeat = 0;
-            display_update(
-                overlay,
-                draw_states,
-                cfg,
-                cache,
-                font_size,
-                &ctx.filter,
-                Some((ctx.l4_dx, ctx.l4_dy)),
-            )?;
-        }
-
-        0x7f | b'\x08' => {
-            ctx.filter.pop();
-            if ctx.filter.len() >= 2 {
-                ctx.filter.pop();
-            }
-            ctx.repeat = 0;
-            display_update(
-                overlay,
-                draw_states,
-                cfg,
-                cache,
-                font_size,
-                &ctx.filter,
-                Some((ctx.l4_dx, ctx.l4_dy)),
-            )?;
-        }
-
-        ch => {
-            let c = ch as char;
-
-            if !ctx.filter.is_empty() && c.is_ascii_digit() {
-                ctx.repeat = ctx
-                    .repeat
-                    .saturating_mul(10)
-                    .saturating_add(u32::from(c as u8 - b'0'));
-                return Ok(false);
-            }
-
-            if ctx.filter.len() >= 2
-                && let Some(btn) = action_key(c)
-            {
-                cursor_action(mouse, &ctx.filter, draw_states, btn, ctx.repeat, ctx)?;
-                if let Some((cx, cy)) = region_center(&ctx.filter, draw_states, ctx) {
-                    overlay.pointer_warp(cx as i16, cy as i16)?;
-                }
-                ctx.filter.clear();
-                ctx.repeat = 0;
-                display_update(
-                    overlay,
-                    draw_states,
-                    cfg,
-                    cache,
-                    font_size,
-                    &ctx.filter,
-                    Some((ctx.l4_dx, ctx.l4_dy)),
-                )?;
-                return Ok(false);
-            }
-
-            let valid = match ctx.filter.len() {
-                0 => l1_key_pos(c).is_some(),
-                1 => l2_key_pos(c).is_some(),
-                2 | 3 => l3_key_pos(c).is_some(),
-                _ => return Ok(false),
-            };
-            if !valid {
-                return Ok(false);
-            }
-
-            if ctx.filter.len() >= 3 {
-                ctx.filter.pop();
-            }
-            ctx.filter.push(c);
-            ctx.repeat = 0;
-            display_update(
-                overlay,
-                draw_states,
-                cfg,
-                cache,
-                font_size,
-                &ctx.filter,
-                Some((ctx.l4_dx, ctx.l4_dy)),
-            )?;
-        }
-    }
-    Ok(false)
-}
 
 // ── Cursor & button actions ────────────────────────────────────────
 
-fn cursor_warp(
+pub(crate) fn cursor_warp(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
@@ -153,13 +24,13 @@ fn cursor_warp(
         m.warp(cx as i16, cy as i16)?;
         info!(
             "=> {} ({cx:.0}, {cy:.0})",
-            MONITOR_NAME.get().map_or("?", |s| s.as_str())
+            states.first().map_or("?", |ds| ds.name.as_str())
         );
     }
     Ok(())
 }
 
-fn cursor_action(
+pub(crate) fn cursor_action(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
@@ -174,7 +45,7 @@ fn cursor_action(
     if let Some((cx, cy)) = center {
         m.warp(cx as i16, cy as i16)?;
     }
-    let name = MONITOR_NAME.get().map_or("?", |s| s.as_str());
+    let name = states.first().map_or("?", |ds| ds.name.as_str());
     let n = if repeat == 0 { 1 } else { repeat };
     m.click(button, n)?;
     if let Some((cx, cy)) = center {
@@ -185,7 +56,7 @@ fn cursor_action(
 
 // ── Region geometry ─────────────────────────────────────────────────
 
-fn region_rect(
+pub(crate) fn region_rect(
     filter: &GridFilter,
     states: &[DrawState],
     ctx: &GridCtx,
@@ -217,7 +88,11 @@ fn region_rect(
     }
 }
 
-fn region_center(filter: &GridFilter, states: &[DrawState], ctx: &GridCtx) -> Option<(f32, f32)> {
+pub(crate) fn region_center(
+    filter: &GridFilter,
+    states: &[DrawState],
+    ctx: &GridCtx,
+) -> Option<(f32, f32)> {
     let (x, y, w, h) = region_rect(filter, states, ctx)?;
     Some((x + w * 0.5, y + h * 0.5))
 }

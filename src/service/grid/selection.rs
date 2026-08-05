@@ -6,22 +6,16 @@ use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader,
 
 use super::init::connect_as_user;
 use crate::font;
-use crate::overlay::Overlay;
+use crate::overlay::{Monitor, Overlay};
 use crate::render::TextCache;
 
-// ── 多屏选屏 ──────────────────────────────────────────────────────
+// ── Multi-monitor selection ──────────────────────────────────────────
 
-pub fn show_selection(
-    overlay: &mut Option<Overlay>,
-    monitors: &[(i32, i32, u16, u16)],
-) -> Result<()> {
-    let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
-    let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
-    let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
-    let bbox_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(0) - bbox_y;
+pub fn show_selection(overlay: &mut Option<Overlay>, monitors: &[Monitor]) -> Result<()> {
+    let (bbox_x, bbox_y, bbox_w, bbox_h) = Monitor::bbox(monitors);
 
     let mut new_overlay = connect_as_user()?;
-    new_overlay.add_window(bbox_x, bbox_y, bbox_w as u16, bbox_h as u16)?;
+    new_overlay.add_window(bbox_x, bbox_y, bbox_w, bbox_h)?;
     new_overlay.show_all()?;
     redraw_select_hint(&mut new_overlay, monitors, "")?;
     *overlay = Some(new_overlay);
@@ -30,13 +24,10 @@ pub fn show_selection(
 
 pub(crate) fn redraw_select_hint(
     overlay: &mut Overlay,
-    monitors: &[(i32, i32, u16, u16)],
+    monitors: &[Monitor],
     hint: &str,
 ) -> Result<()> {
-    let bbox_x = monitors.iter().map(|m| m.0).min().unwrap_or(0);
-    let bbox_y = monitors.iter().map(|m| m.1).min().unwrap_or(0);
-    let bbox_w = monitors.iter().map(|m| m.0 + m.2 as i32).max().unwrap_or(0) - bbox_x;
-    let bbox_h = monitors.iter().map(|m| m.1 + m.3 as i32).max().unwrap_or(0) - bbox_y;
+    let (bbox_x, bbox_y, bbox_w, bbox_h) = Monitor::bbox(monitors);
 
     let mut pixmap = Pixmap::new(bbox_w as u32, bbox_h as u32).context("pixmap")?;
     pixmap
@@ -55,13 +46,13 @@ pub(crate) fn redraw_select_hint(
     let pw = font_size * 1.8;
     let ph = font_size * 1.8;
 
-    for (i, &(mx, my, mw, mh)) in monitors.iter().enumerate() {
+    for (i, m) in monitors.iter().enumerate() {
         let label = format!("{}", (b'a' + i as u8) as char);
         if !hint.is_empty() && !label.starts_with(hint) {
             continue;
         }
-        let cx = (mx - bbox_x) as f32 + mw as f32 * 0.5;
-        let cy = (my - bbox_y) as f32 + mh as f32 * 0.5;
+        let cx = (m.x - bbox_x) as f32 + m.w as f32 * 0.5;
+        let cy = (m.y - bbox_y) as f32 + m.h as f32 * 0.5;
         let x = cx - pw * 0.5;
         let y = cy - ph * 0.5;
 
