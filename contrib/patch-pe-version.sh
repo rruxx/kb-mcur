@@ -1,10 +1,10 @@
 #!/bin/sh
-# Patch PE optional-header OS/subsystem version to 10.0.
+# Patch PE optional-header OS/subsystem version to 6.1 (Windows 7 minimum).
 #
 # zig cc (cargo-zigbuild's linker) does not forward --major-subsystem-version
 # to its internal lld-link, so the linked .exe ships with the lld default
-# (6.0). This post-link step rewrites the four version fields so kursor.exe
-# declares Windows 10/11 as its minimum, matching the x86-64-v3 baseline.
+# (6.0). This post-link step rewrites the four version fields to declare
+# Windows 7 (NT 6.1) as the minimum supported system.
 #
 # Usage: contrib/patch-pe-version.sh path/to/kursor.exe [more.exe ...]
 set -eu
@@ -25,13 +25,13 @@ with open(path, "r+b") as fh:
     if magic not in (0x10B, 0x20B):
         raise SystemExit(f"{path}: bad optional-header magic")
     fh.seek(opt + 0x28)
-    fh.write(struct.pack("<H", 10))  # MajorOperatingSystemVersion
+    fh.write(struct.pack("<H", 6))  # MajorOperatingSystemVersion
     fh.seek(opt + 0x2A)
-    fh.write(struct.pack("<H", 0))  # MinorOperatingSystemVersion
+    fh.write(struct.pack("<H", 1))  # MinorOperatingSystemVersion
     fh.seek(opt + 0x30)
-    fh.write(struct.pack("<H", 10))  # MajorSubsystemVersion
+    fh.write(struct.pack("<H", 6))  # MajorSubsystemVersion
     fh.seek(opt + 0x32)
-    fh.write(struct.pack("<H", 0))  # MinorSubsystemVersion
-print(f"{path}: OS/subsystem version set to 10.0")
+    fh.write(struct.pack("<H", 1))  # MinorSubsystemVersion
+print(f"{path}: OS/subsystem version set to 6.1")
 EOF
 done

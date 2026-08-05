@@ -10,6 +10,7 @@ use kursor::query_screen_size;
 #[derive(Parser)]
 #[command(
     name = env!("CARGO_PKG_NAME"),
+    version,
     about = "Keyboard-driven mouse-cursor control.",
 )]
 struct Cli {

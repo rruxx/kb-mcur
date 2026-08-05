@@ -2,8 +2,8 @@
 
 [中文](README.d/README-zh.md)
 
-Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), single-shot CLI commands (move / moveto / click).
-X11 / wlroots / KDE / GNOME.
+Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click).
+Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI).
 
 ## Motivation
 
@@ -16,58 +16,49 @@ kursor is a single binary that runs everywhere.
 
 ## Install
 
+### Linux
+
 ```sh
-git clone https://github.com/rruxx/kursor.git    # GitHub
-git clone https://gitee.com/rruxx/kursor.git     # Gitee
+git clone https://github.com/rruxx/kursor.git   # or https://gitee.com/rruxx/kursor.git
 cd kursor
 cargo build --release
 sudo install -m755 target/release/kursor /usr/bin/
 ```
 
-## Dependencies
+### Windows
 
-| Category | Requirement |
+Download `kursor-v{VERSION}-x86_64_v3-pc-windows-gnu.7z` from Releases — a single `kursor.exe`, no install.
+(Cross-build from source: see `AGENTS.md`.)
+
+## Requirements
+
+| | |
 | --- | --- |
-| Build | Rust toolchain ≥ 1.80 |
-| Kernel | Linux ≥ 5.0 (`/dev/uinput`) |
-| CPU | x86-64-v3 (Zen3+) — release builds are tuned for it |
-| Permissions | `sudo usermod -aG input $USER` |
-| Overlay transparency | X11 with compositor; Wayland native |
+| Rust | ≥ 1.80 |
+| CPU | x86-64-v3 (Zen3+ / AVX2) |
+| Linux | ≥ 5.0 (`/dev/uinput`), `sudo usermod -aG input $USER` |
+| Windows | 7+ (subsystem 6.1) |
+| Overlay | X11 with compositor; Wayland native |
 
 ## Usage
 
-### service — Triple-mode daemon (glide-num + glide-alpha + grid)
+### service — glide-num + glide-alpha + grid (Linux)
 
-Start once as a systemd service. Three orthogonal modes:
+Start once as a systemd service; three orthogonal modes:
 
-**glide-num (NumPad):**
-Mouse emulation with acceleration. NumLock+KPEnter toggle.
-Hold direction keys to auto-accelerate (3→50 px).
-/ * - = switch btn5 (L/M/R). NumLock + / 8 7 9 = scroll; * - = back/forward.
+**glide-num (NumPad):** NumLock+KPEnter toggle. Direction keys move with acceleration (3→50 px). `/ * -` switch btn5 (L/M/R). NumLock+`/ 8 7 9` scroll, NumLock+`* -` back/forward.
 
-**glide-alpha (Main keyboard):**
-meta+shift+capslock toggle. ctrl+h/j/k/l = move,
-shift+h/j/k/l = scroll, ctrl+u/i = back/forward,
-Space/;/' = left/right/middle click.
+**glide-alpha (Main keyboard):** meta+shift+capslock toggle. `ctrl+h/j/k/l` move, `shift+h/j/k/l` scroll, `ctrl+u/i` back/forward, `Space/;/'` left/right/middle.
 
-**grid (meta+capslock):**
-Three-layer progressive grid (L1: 9×3, L2: 3×9 clockwise‑90°, L3: 5×3 left-half keyboard).
-L4: subdivide the selected L3 cell 7×7; alt+h/j/k/l nudge from center.
-Multi-monitor: type a letter (a, b, …) to select display; tab switches monitors.
-j/k/l click, Enter warp. 0-9 prefix for repeat (e.g. 3j).
-Backspace: L3 → L2, L2 → L1.
-After each click/warp, the filter resets — grid stays open.
-
-#### systemd
+**grid (meta+capslock):** 27×27 grid in three progressive layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` click, Enter warp, 0-9 prefix repeats, Backspace goes up a layer, Esc resets. Multi-monitor: `a-z` selects display, Tab switches. L4: alt+h/j/k/l nudges within the L3 cell.
 
 ```sh
 sudo setcap cap_sys_admin+ep /usr/bin/kursor
 sudo cp contrib/systemd/kursord.service /lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now kursord
+sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 ```
 
-### CLI
+### CLI (Linux & Windows)
 
 | Command | Description |
 | --- | --- |
@@ -75,7 +66,7 @@ sudo systemctl enable --now kursord
 | `kursor moveto 500 300` | Absolute warp |
 | `kursor click -r 3 M` | Click with repeat |
 
-`--help` prints full key maps for every command.
+`--help` prints full key maps. `service` is Linux-only.
 
 ## Architecture
 
@@ -83,33 +74,41 @@ sudo systemctl enable --now kursord
 src/
 ├── main.rs        CLI entry
 ├── lib.rs         Module declarations
-├── service.rs     Main event loop + dispatch
-├── service/
-│   ├── glide_num.rs   NumPad glide-num (direction + acceleration)
-│   ├── glide_alpha.rs Main-keyboard glide-alpha
-│   ├── grid.rs        Grid data model + re-exports
-│   └── grid/
-│       ├── base.rs       Base-layer rendering (BG + L1 + labels)
-│       ├── state.rs      Grid state + input handlers (GridStateMut)
-│       ├── display.rs    Display update + L2/L3/L4 rendering
-│       ├── process.rs    Cursor actions + region geometry
-│       ├── init.rs       Grid service init + connection
-│       ├── device_perm.rs Session detection + device permission fix
-│       ├── selection.rs  Multi-monitor selection UI
-│       └── env.rs        GridEnv state + toggle/input API
-│   ├── dir.rs            Shared direction bitmask + glide ticks
- ├── config.rs      Project identity, key mappings, grid config
- ├── debug.rs       Debug helpers (multi-monitor simulation)
- ├── device.rs      Device layer: kernel ABI + physical/virtual clients
- │   ├── abi.rs     Kernel input ABI: InputEvent + evdev/uinput ioctls
- │   ├── input.rs   Physical input: EVIOCGRAB keyboard grab + hot-plug
- │   └── uinput.rs  /dev/uinput virtual pointer (Mouse)
- ├── render.rs      Overlay rendering + text drawing
- ├── overlay.rs     X11/Wayland overlay backends (enum dispatch)
- ├── overlay/
- │   ├── x11.rs     X11 RandR + SHAPE overlay
- │   └── wlr.rs     wlr-layer-shell Wayland overlay
- ├── keymap.rs      US-QWERTY keycode → ASCII map
+├── config.rs      Project identity, key mappings, grid config
+├── keymap.rs      US-QWERTY keycode → ASCII map
+├── font.rs        Embedded font (assets/font.ttf)
+├── render.rs      Overlay rendering + text drawing
+├── debug.rs       Debug helpers (multi-monitor simulation)
+├── device.rs      Device layer entry: platform-split pointer
+├── device/
+│   ├── linux.rs       Linux pointer re-exports
+│   ├── linux/
+│   │   ├── abi.rs     Kernel input ABI: structs + ioctls
+│   │   ├── input.rs   Physical keyboard grab + hot-plug
+│   │   └── uinput.rs  Virtual pointer (Mouse)
+│   ├── windows.rs     Windows pointer re-exports
+│   └── windows/
+│       └── mouse.rs   SendInput / SetCursorPos virtual pointer
+├── overlay.rs     OverlayBackend trait + platform connect()
+├── overlay/
+│   ├── x11.rs     X11 RandR + SHAPE overlay
+│   ├── wlr.rs     wlr-layer-shell Wayland overlay
+│   └── windows.rs Screen-size query (stage 1)
+├── service.rs     Main event loop + dispatch (Linux)
+└── service/       (Linux)
+    ├── glide_num.rs   NumPad glide-num
+    ├── glide_alpha.rs Main-keyboard glide-alpha
+    ├── dir.rs         Shared direction bitmask + glide ticks
+    ├── grid.rs        Grid data model + re-exports
+    └── grid/
+        ├── base.rs        Base-layer rendering (BG + L1 + labels)
+        ├── device_perm.rs Session detection + device permission fix
+        ├── display.rs     Display update + L2/L3/L4 rendering
+        ├── env.rs         GridEnv state + toggle/input API
+        ├── init.rs        Grid service init + connection
+        ├── process.rs     Cursor actions + region geometry
+        ├── selection.rs   Multi-monitor selection UI
+        └── state.rs       Grid state + input handlers (GridStateMut)
 ```
 
 ## License
@@ -119,7 +118,7 @@ AGPL-3.0-or-later
 ## See also
 
 - [wl-kbptr](https://sr.ht/~q3cpma/wl-kbptr/) — keyboard-driven pointer for wlroots
-- [keynav](https://github.com/jordansissel/keynav) — X11 keyboard-driven pointer (retire your mouse)
+- [keynav](https://github.com/jordansissel/keynav) — X11 keyboard-driven pointer
 - [warpd](https://github.com/rvaiya/warpd) — modal keyboard-driven mouse
 - [mouseless](https://github.com/jbensmann/mouseless) — keyboard-driven mouse control
 - [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation
