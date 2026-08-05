@@ -4,7 +4,7 @@
 use anyhow::{Context, Result};
 
 use super::GridConfig;
-use super::state::{DrawState, FONT_DATA, init_overlay};
+use super::state::{DrawState, init_overlay};
 use super::watchdog::{display_session_uid, setup_display_env};
 use crate::debug;
 use crate::overlay::Overlay;
@@ -91,12 +91,9 @@ pub(crate) fn init_grid_monitor(
     idx: usize,
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<GridState> {
-    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
-        .map_err(|e| anyhow::anyhow!("failed to parse embedded font: {e}"))?;
-
     let single = vec![monitors[idx]];
     let mut overlay = connect_as_user()?;
-    let (cfg, font_size, cache, draw_states) = init_overlay(&mut overlay, &font, &single)?;
+    let (cfg, font_size, cache, draw_states) = init_overlay(&mut overlay, &single)?;
 
     Ok(GridState {
         overlay,

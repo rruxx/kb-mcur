@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
 use super::init::connect_as_user;
-use super::state::FONT_DATA;
+use super::state::font;
 use crate::overlay::Overlay;
 use crate::render::TextCache;
 
@@ -43,10 +43,8 @@ pub(crate) fn redraw_select_hint(
         .pixels_mut()
         .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
 
-    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
-        .map_err(|e| anyhow::anyhow!("font: {e}"))?;
     let font_size = 128.0;
-    let cache = TextCache::new(&font, font_size);
+    let cache = TextCache::new(font(), font_size);
 
     let bg = Color::from_rgba8(0, 0, 0, 144);
     let paint = Paint {

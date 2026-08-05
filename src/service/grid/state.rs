@@ -14,6 +14,16 @@ use crate::render::TextCache;
 
 pub const FONT_DATA: &[u8] = include_bytes!("../../../assets/font.ttf");
 
+/// Parsed once per process; `Font` is `Send + Sync` (plain data).
+pub(crate) static FONT: OnceLock<Font> = OnceLock::new();
+
+pub(crate) fn font() -> &'static Font {
+    FONT.get_or_init(|| {
+        fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
+            .expect("embedded font data corrupted")
+    })
+}
+
 pub(crate) static MONITOR_NAME: OnceLock<String> = OnceLock::new();
 
 /// Per-monitor state: the 27×27 grid, its base-layer RGBA bytes, and a
@@ -24,11 +34,13 @@ pub struct DrawState {
     pub(crate) bg_pixel: tiny_skia::PremultipliedColorU8,
     pub(crate) mask_idx: Vec<usize>,
     pub(crate) mask_px: Vec<tiny_skia::PremultipliedColorU8>,
+    /// L3 glyph cache — shares the `DrawState` lifetime, so it always
+    /// matches the current `font_size`.
+    pub(crate) l3_cache: Option<TextCache>,
 }
 
 pub fn init_overlay(
     overlay: &mut Overlay,
-    font: &Font,
     monitors: &[(i32, i32, u16, u16)],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
     let cfg = GridConfig::default();
@@ -42,7 +54,7 @@ pub fn init_overlay(
         / FONT_ROW_DIVISOR)
         .clamp(FONT_SIZE_MIN, FONT_SIZE_MAX)
         .round();
-    let cache = TextCache::new(font, font_size);
+    let cache = TextCache::new(font(), font_size);
 
     let mut draw_states = Vec::new();
     for (idx, &(x, y, w, h)) in monitors.iter().enumerate() {
@@ -70,6 +82,7 @@ pub fn init_overlay(
             bg_pixel,
             mask_idx,
             mask_px,
+            l3_cache: None,
         });
         MONITOR_NAME.get_or_init(|| format!("mon {idx}"));
     }

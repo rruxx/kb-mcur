@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 
-use super::state::{DrawState, FONT_DATA};
+use super::state::{DrawState, font};
 use super::{GridConfig, GridFilter};
 use crate::config::{L3_KEYS, l1_key_pos};
 use crate::overlay::Overlay;
@@ -80,7 +80,14 @@ pub(crate) fn display_update(
             render_l2_grid(&mut ds.pixmap, (x, y, w, h), cfg);
         }
         if let Some((x, y, w, h)) = l3_rect {
-            render_l3_overlay(&mut ds.pixmap, (x, y, w, h), cfg, font_size * 0.75, l3_sel);
+            render_l3_overlay(
+                &mut ds.pixmap,
+                (x, y, w, h),
+                cfg,
+                font_size * 0.75,
+                l3_sel,
+                &mut ds.l3_cache,
+            );
             if let Some((dx, dy)) = l4_offset
                 && let Some((r, c)) = l3_sel
                 && (dx != 0 || dy != 0)
@@ -174,15 +181,13 @@ fn render_l3_overlay(
     cfg: &GridConfig,
     font_size: f32,
     sel: Option<(usize, usize)>,
+    l3_cache: &mut Option<TextCache>,
 ) {
-    use crate::render::TextCache;
     use tiny_skia::{Color, Paint, PathBuilder, Shader, Stroke, Transform};
 
     let (x, y, w, h) = rect;
 
-    let font = fontdue::Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
-        .expect("embedded font data corrupted");
-    let cache = TextCache::new(&font, font_size);
+    let cache = l3_cache.get_or_insert_with(|| TextCache::new(font(), font_size));
 
     let pw = pixmap.width() as usize;
     let ph = pixmap.height() as usize;
@@ -275,7 +280,7 @@ fn render_l3_overlay(
                 &ch.to_string(),
                 cx,
                 cy,
-                &cache,
+                cache,
                 font_size,
                 label_color,
             );
