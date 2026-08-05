@@ -97,19 +97,18 @@ src/
 │       ├── selection.rs  多屏选择 UI
 │       └── env.rs        GridEnv 状态 + 开关/输入 API
 │   ├── dir.rs            共享方向位掩码 + 渐动步进
-├── config.rs      项目标识、按键映射、网格配置
-├── debug.rs       调试辅助（多屏模拟）
-├── render.rs      叠加层渲染 + 文字绘制
-├── overlay.rs     X11/Wayland 双后端（枚举分发）
-├── overlay/
-│   ├── x11.rs     X11 RandR + SHAPE 叠加层
-│   └── wlr.rs     wlr-layer-shell Wayland 叠加层
-├── keyboard.rs    EVIOCGRAB 键盘接管 + inotify 热插拔
-├── uinput.rs      虚拟设备层（re-export）
-├── uinput/
-│   ├── raw.rs     Uinput 结构体、ioctl 定义、设备创建
-│   └── mouse.rs   /dev/uinput 虚拟指针（Mouse）
-├── keymap.rs      US-QWERTY 键码映射
+ ├── config.rs      项目标识、按键映射、网格配置
+ ├── debug.rs       调试辅助（多屏模拟）
+ ├── device.rs      设备层：内核 ABI + 物理/虚拟客户端
+ │   ├── abi.rs     内核 input ABI：InputEvent + evdev/uinput ioctls
+ │   ├── input.rs   物理输入：EVIOCGRAB 键盘接管 + 热插拔
+ │   └── uinput.rs  /dev/uinput 虚拟指针（Mouse）
+ ├── render.rs      叠加层渲染 + 文字绘制
+ ├── overlay.rs     X11/Wayland 双后端（枚举分发）
+ ├── overlay/
+ │   ├── x11.rs     X11 RandR + SHAPE 叠加层
+ │   └── wlr.rs     wlr-layer-shell Wayland 叠加层
+ ├── keymap.rs      US-QWERTY 键码映射
 ```
 
 ## 许可证

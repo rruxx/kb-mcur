@@ -8,12 +8,12 @@ use std::fs::File;
 use anyhow::Result;
 
 use crate::config::{BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
+use crate::device::abi::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 use crate::keymap::{
     KEY_APOSTROPHE, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTSHIFT, KEY_RIGHTCTRL,
     KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
 };
 use crate::service::dir::{Dir, direction_tick, update_dir};
-use crate::uinput::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 
 // ── glide-alpha state ═══════════════════════════════════════════════
 

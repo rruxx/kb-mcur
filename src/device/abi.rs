@@ -1,7 +1,8 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// Shared uinput I/O: structs, ioctl definitions, device-creation helpers.
+//! Kernel input ABI layer: shared event structs + evdev/uinput ioctls + event-write helpers.
+//! Both the physical read (`input`) and virtual write (`uinput`) clients share this layer.
 
 use std::fs::File;
 use std::io::Write;
@@ -14,7 +15,7 @@ use nix::fcntl::OFlag;
 
 use crate::config::{UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN};
 
-// ── Structs ──────────────────────────────────────────────────────────
+// ── Kernel input event ──────────────────────────────────────────────
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -29,6 +30,14 @@ pub struct InputEvent {
 // every bit pattern is a valid value on Linux.
 unsafe impl Zeroable for InputEvent {}
 unsafe impl Pod for InputEvent {}
+
+// ── evdev ioctls (physical input, generated via nix) ────────────────
+
+nix::ioctl_write_int!(eviocgrab, b'E', 0x90);
+nix::ioctl_read!(eviocgname, b'E', 0x06, [u8; 80]);
+nix::ioctl_read!(eviocgkey, b'E', 0x21, [u8; 96]);
+
+// ── uinput structs (virtual output) ─────────────────────────────────
 
 #[repr(C)]
 pub struct UinputSetup {
@@ -54,7 +63,7 @@ pub struct InputAbsinfo {
     pub resolution: i32,
 }
 
-// ── ioctl definitions (generated via nix, no magic numbers) ──────────
+// ── uinput ioctls (virtual output, generated via nix) ───────────────
 
 nix::ioctl_write_int!(ui_set_evbit, b'U', 0x64);
 nix::ioctl_write_int!(ui_set_keybit, b'U', 0x65);

@@ -97,19 +97,18 @@ src/
 │       ├── selection.rs  Multi-monitor selection UI
 │       └── env.rs        GridEnv state + toggle/input API
 │   ├── dir.rs            Shared direction bitmask + glide ticks
-├── config.rs      Project identity, key mappings, grid config
-├── debug.rs       Debug helpers (multi-monitor simulation)
-├── render.rs      Overlay rendering + text drawing
-├── overlay.rs     X11/Wayland overlay backends (enum dispatch)
-├── overlay/
-│   ├── x11.rs     X11 RandR + SHAPE overlay
-│   └── wlr.rs     wlr-layer-shell Wayland overlay
-├── keyboard.rs    EVIOCGRAB keyboard grab + inotify hot-plug
-├── uinput.rs      Virtual device layer (re-exports)
-├── uinput/
-│   ├── raw.rs     Uinput structs, ioctl definitions, device creation
-│   └── mouse.rs   /dev/uinput virtual pointer (Mouse)
-├── keymap.rs      US-QWERTY keycode → ASCII map
+ ├── config.rs      Project identity, key mappings, grid config
+ ├── debug.rs       Debug helpers (multi-monitor simulation)
+ ├── device.rs      Device layer: kernel ABI + physical/virtual clients
+ │   ├── abi.rs     Kernel input ABI: InputEvent + evdev/uinput ioctls
+ │   ├── input.rs   Physical input: EVIOCGRAB keyboard grab + hot-plug
+ │   └── uinput.rs  /dev/uinput virtual pointer (Mouse)
+ ├── render.rs      Overlay rendering + text drawing
+ ├── overlay.rs     X11/Wayland overlay backends (enum dispatch)
+ ├── overlay/
+ │   ├── x11.rs     X11 RandR + SHAPE overlay
+ │   └── wlr.rs     wlr-layer-shell Wayland overlay
+ ├── keymap.rs      US-QWERTY keycode → ASCII map
 ```
 
 ## License

@@ -14,11 +14,11 @@ use crate::config::{
     FALLBACK_HEIGHT, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, action_key, l1_key_pos,
     l2_key_pos, l3_key_pos,
 };
+use crate::device::uinput::Mouse;
 use crate::font;
 use crate::keymap::{KEY_H, KEY_J, KEY_K, KEY_L, KEY_TAB, ModState, key_map};
 use crate::overlay::{Monitor, Overlay};
 use crate::render::TextCache;
-use crate::uinput::Mouse;
 
 /// Ordered list of active monitors.
 pub type MonitorList = Vec<Monitor>;

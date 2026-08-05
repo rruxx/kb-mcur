@@ -9,11 +9,11 @@ use super::init::enter_grid;
 use super::selection::show_selection;
 use super::state::DrawState;
 use super::state::{GridCtx, GridPhase, GridStateMut, MonitorList, init_grid_monitor};
+use crate::device::abi::{EV_KEY, EV_SYN, SYN_REPORT, write_event};
+use crate::device::uinput::Mouse;
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
 use crate::overlay::Overlay;
 use crate::render::TextCache;
-use crate::uinput::Mouse;
-use crate::uinput::{EV_KEY, EV_SYN, SYN_REPORT, write_event};
 
 // ── Grid session state ──────────────────────────────────────────────
 

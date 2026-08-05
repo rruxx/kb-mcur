@@ -9,11 +9,11 @@ use std::fs::File;
 use anyhow::Result;
 
 use crate::config;
+use crate::device::abi::{EV_REL, EV_SYN, REL_X, REL_Y, SYN_REPORT, write_event};
 use crate::keymap::{
     KEY_H, KEY_J, KEY_K, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9,
     KEY_L,
 };
-use crate::uinput::{EV_REL, EV_SYN, REL_X, REL_Y, SYN_REPORT, write_event};
 
 // ── Direction ════════════════════════════════════════════════════════
 

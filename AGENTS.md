@@ -11,7 +11,7 @@ kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots).
 - Use `bytemuck` for `#[repr(C)]` struct byte casts. Never `std::mem::zeroed()`.
 - Use `log` (`info!`/`warn!`/`error!`). Never `eprintln!`.
 - Constants in `src/config.rs`. No magic numbers.
-- `src/uinput/raw.rs` is the single source for uinput structs, ioctl defs, device creation.
+- `src/device/abi.rs` is the single source for kernel input structs, ioctl defs, device creation.
 
 ## QA && Build
 

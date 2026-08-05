@@ -16,15 +16,14 @@
 
 pub mod config;
 pub mod debug;
+pub mod device;
 pub mod font;
-pub mod keyboard;
 pub mod keymap;
 pub mod overlay;
 pub mod render;
 pub mod service;
-pub mod uinput;
 
+pub use device::uinput::Mouse;
 pub use overlay::{Monitor, Overlay, query_screen_size};
 pub use service::grid::state::{DrawState, GridCtx, GridPhase, GridStateMut, MonitorList};
 pub use service::grid::{Grid, GridConfig, GridFilter};
-pub use uinput::Mouse;

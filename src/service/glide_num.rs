@@ -7,12 +7,12 @@ use anyhow::Result;
 use log::info;
 
 use crate::config::{self, BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE};
+use crate::device::abi::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 use crate::keymap::{
     KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPMINUS,
     KEY_KPPLUS, KEY_KPSLASH,
 };
 use crate::service::dir::{Dir, direction_tick, update_dir};
-use crate::uinput::{EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, SYN_REPORT, write_event};
 
 // ── glide-num state ═════════════════════════════════════════════════
 

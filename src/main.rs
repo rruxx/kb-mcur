@@ -4,8 +4,8 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use kursor::config::MOVE_WAIT_MS;
+use kursor::device::uinput::Mouse;
 use kursor::overlay::query_screen_size;
-use kursor::uinput::Mouse;
 
 #[derive(Parser)]
 #[command(

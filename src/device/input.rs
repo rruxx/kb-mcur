@@ -6,18 +6,13 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use bytemuck::Zeroable;
 use log::info;
 use nix::fcntl::OFlag;
 use nix::sys::inotify::{AddWatchFlags, InitFlags, Inotify};
 
-use crate::uinput::raw::InputEvent;
-use bytemuck::Zeroable;
-
-// ── evdev ioctl definitions (generated via nix) ─────────────────────
-
-nix::ioctl_write_int!(eviocgrab, b'E', 0x90);
-nix::ioctl_read!(eviocgname, b'E', 0x06, [u8; 80]);
-nix::ioctl_read!(eviocgkey, b'E', 0x21, [u8; 96]);
+use super::abi::{InputEvent, eviocgkey, eviocgname, eviocgrab};
+use crate::keymap::{KEY_A, KEY_KP0, KEY_KPDOT, KEY_KPENTER, KEY_L, KEY_M, KEY_P, KEY_Q, KEY_Z};
 
 fn is_own_device(fd: &OwnedFd) -> bool {
     let mut buf = [0u8; 80];
@@ -29,85 +24,24 @@ fn is_own_device(fd: &OwnedFd) -> bool {
 
 // ── Keyboard detection ─────────────────────────────────────────────
 
-use crate::keymap::{
-    KEY_0, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_A, KEY_B,
-    KEY_BACKSPACE, KEY_C, KEY_D, KEY_E, KEY_ENTER, KEY_ESC, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
-    KEY_K, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8,
-    KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_L,
-    KEY_M, KEY_N, KEY_NUMLOCK, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_SPACE, KEY_T, KEY_U, KEY_V,
-    KEY_W, KEY_X, KEY_Y, KEY_Z,
-};
-
-/// a-z, 0-9, space, enter, backspace, esc
-const GRID_REQUIRED: &[u16] = &[
-    KEY_ESC,
-    KEY_BACKSPACE,
-    KEY_ENTER,
-    KEY_SPACE,
-    // 0-9
-    KEY_1,
-    KEY_2,
-    KEY_3,
-    KEY_4,
-    KEY_5,
-    KEY_6,
-    KEY_7,
-    KEY_8,
-    KEY_9,
-    KEY_0,
-    // Q-P
-    KEY_Q,
-    KEY_W,
-    KEY_E,
-    KEY_R,
-    KEY_T,
-    KEY_Y,
-    KEY_U,
-    KEY_I,
-    KEY_O,
-    KEY_P,
-    // A-L
-    KEY_A,
-    KEY_S,
-    KEY_D,
-    KEY_F,
-    KEY_G,
-    KEY_H,
-    KEY_J,
-    KEY_K,
-    KEY_L,
-    // Z-M
-    KEY_Z,
-    KEY_X,
-    KEY_C,
-    KEY_V,
-    KEY_B,
-    KEY_N,
-    KEY_M,
-];
-const GRID_MIN_KEYS: u32 = 40;
-
-/// numpad 0-9, /*-+., numlock, numpad enter
-const PAD_REQUIRED: &[u16] = &[
-    KEY_KPASTERISK,
-    KEY_NUMLOCK,
-    KEY_KP7,
-    KEY_KP8,
-    KEY_KP9, // KP7-KP9
-    KEY_KPMINUS,
-    KEY_KP4,
-    KEY_KP5,
-    KEY_KP6, // KP4-KP6
-    KEY_KPPLUS,
-    KEY_KP1,
-    KEY_KP2,
-    KEY_KP3, // KP1-KP3
-    KEY_KP0,
-    KEY_KPDOT,
-    KEY_KPENTER,
-    KEY_KPSLASH,
-];
-const PAD_MIN_KEYS: u32 = 17;
+/// Whether a device is worth grabbing: a main keyboard (≥51 keys with all letters)
+/// or a numpad (≥17 keys with all KP keys).
+fn is_suitable(fd: &OwnedFd) -> bool {
+    let Some(bits) = read_key_bits(fd) else {
+        return false;
+    };
+    let n = count_keys(&bits);
+    // Main keyboard: ≥51 keys (26 letters + 10 digits + 5 punctuation + 10 function keys)
+    // with all 26 letters present.
+    let grid_ok = n >= 51
+        && (KEY_Q..=KEY_P).all(|c| has_key(&bits, c))
+        && (KEY_A..=KEY_L).all(|c| has_key(&bits, c))
+        && (KEY_Z..=KEY_M).all(|c| has_key(&bits, c));
+    // Numpad: ≥17 keys (10 digits + 4 operators + `.` + numlock/enter) with all KP keys present.
+    let pad_ok =
+        n >= 17 && (KEY_KP0..=KEY_KPDOT).all(|c| has_key(&bits, c)) && has_key(&bits, KEY_KPENTER);
+    grid_ok || pad_ok
+}
 
 fn read_key_bits(fd: &OwnedFd) -> Option<[u8; 96]> {
     let mut bits = [0u8; 96];
@@ -124,17 +58,6 @@ fn has_key(bits: &[u8; 96], code: u16) -> bool {
 
 fn count_keys(bits: &[u8; 96]) -> u32 {
     bits.iter().map(|&byte| byte.count_ones()).sum()
-}
-
-fn is_suitable(fd: &OwnedFd) -> bool {
-    let Some(bits) = read_key_bits(fd) else {
-        return false;
-    };
-    let grid_ok =
-        count_keys(&bits) >= GRID_MIN_KEYS && GRID_REQUIRED.iter().all(|&c| has_key(&bits, c));
-    let pad_ok =
-        count_keys(&bits) >= PAD_MIN_KEYS && PAD_REQUIRED.iter().all(|&c| has_key(&bits, c));
-    grid_ok || pad_ok
 }
 
 // ── Device management ──────────────────────────────────────────────
