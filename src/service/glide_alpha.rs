@@ -171,3 +171,9 @@ fn scroll_code(code: u16) -> Option<(u16, i32)> {
         _ => None,
     }
 }
+
+impl Default for GlideAlpha {
+    fn default() -> Self {
+        Self::new()
+    }
+}

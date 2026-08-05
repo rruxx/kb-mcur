@@ -5,7 +5,8 @@ use std::ffi::CString;
 
 // ── Watchdog ─────────────────────────────────────────────────────
 
-pub(crate) fn display_session_uid() -> Option<u32> {
+#[must_use]
+pub fn display_session_uid() -> Option<u32> {
     if let Ok(dir) = std::fs::read_dir("/run/user") {
         for entry in dir.flatten() {
             let uid_str = entry.file_name().to_string_lossy().into_owned();
@@ -26,7 +27,7 @@ pub(crate) fn display_session_uid() -> Option<u32> {
     None
 }
 
-pub(crate) fn setup_display_env(uid: u32) {
+pub fn setup_display_env(uid: u32) {
     let run_user = format!("/run/user/{uid}");
 
     for wn in ["wayland-1", "wayland-0"] {

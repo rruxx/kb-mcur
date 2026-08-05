@@ -39,6 +39,15 @@ impl GridFilter {
             input: String::new(),
         }
     }
+}
+
+impl Default for GridFilter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl GridFilter {
     #[must_use]
     pub fn input(&self) -> &str {
         &self.input
@@ -124,14 +133,14 @@ impl Grid {
 
 // ── Sub-modules ────────────────────────────────────────────────────
 
-pub(crate) mod base;
-pub(crate) mod display;
-pub(crate) mod env;
-pub(crate) mod init;
-pub(crate) mod process;
-pub(crate) mod selection;
-pub(crate) mod state;
-pub(crate) mod device_perm;
+pub mod base;
+pub mod display;
+pub mod env;
+pub mod init;
+pub mod process;
+pub mod selection;
+pub mod state;
+pub mod device_perm;
 
-pub(crate) use env::GridEnv;
-pub(crate) use device_perm::fix_device_permissions;
+pub use env::GridEnv;
+pub use device_perm::fix_device_permissions;

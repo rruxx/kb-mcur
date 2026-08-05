@@ -17,7 +17,7 @@ use crate::uinput::{EV_KEY, EV_SYN, SYN_REPORT, write_event};
 
 // ── Grid session state ──────────────────────────────────────────────
 
-pub(crate) struct GridEnv {
+pub struct GridEnv {
     active: bool,
     phase: GridPhase,
     overlay: Option<Overlay>,
@@ -32,8 +32,15 @@ pub(crate) struct GridEnv {
     select_hint: String,
 }
 
+impl Default for GridEnv {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GridEnv {
-    pub(crate) fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             active: false,
             phase: GridPhase::Navigating,
@@ -50,13 +57,14 @@ impl GridEnv {
         }
     }
 
-    pub(crate) fn active(&self) -> bool {
+    #[must_use]
+    pub fn active(&self) -> bool {
         self.active
     }
 
     /// Toggle grid mode on/off via CapsLock+Meta.
     /// Returns `Ok(true)` if the key was consumed.
-    pub(crate) fn toggle(
+    pub fn toggle(
         &mut self,
         code: u16,
         is_press: bool,
@@ -123,7 +131,7 @@ impl GridEnv {
     }
 
     /// Dispatch one grid key event. Returns `true` if it was consumed.
-    pub(crate) fn handle_input(&mut self, code: u16, value: i32, mods: &ModState) -> bool {
+    pub fn handle_input(&mut self, code: u16, value: i32, mods: &ModState) -> bool {
         if !self.active || value == 0 {
             return false;
         }

@@ -30,7 +30,7 @@ pub enum GridPhase {
 }
 
 /// Fully-initialized grid session state for a single monitor.
-pub(crate) struct GridState {
+pub struct GridState {
     pub(crate) overlay: Overlay,
     pub(crate) mouse: Option<Mouse>,
     pub(crate) cfg: GridConfig,
@@ -41,7 +41,7 @@ pub(crate) struct GridState {
 
 /// Per-monitor state: the 27×27 grid, its base-layer RGBA bytes, and a
 /// persistent pixmap that is re-uploaded on every redraw.
-pub(crate) struct DrawState {
+pub struct DrawState {
     pub(crate) name: String,
     pub(crate) grid: Grid,
     pub(crate) pixmap: Pixmap,
@@ -53,7 +53,7 @@ pub(crate) struct DrawState {
     pub(crate) l3_cache: Option<TextCache>,
 }
 
-pub(crate) fn init_overlay(
+pub fn init_overlay(
     overlay: &mut Overlay,
     monitors: &[Monitor],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
@@ -107,7 +107,7 @@ pub(crate) fn init_overlay(
     Ok((cfg, font_size, cache, draw_states))
 }
 
-pub(crate) fn init_grid_monitor(
+pub fn init_grid_monitor(
     idx: usize,
     monitors: &[Monitor],
     overlay: Option<Overlay>,
@@ -162,6 +162,12 @@ impl GridCtx {
             l4_dx: 0,
             l4_dy: 0,
         }
+    }
+}
+
+impl Default for GridCtx {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

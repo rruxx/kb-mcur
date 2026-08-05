@@ -22,7 +22,7 @@ pub fn show_selection(overlay: &mut Option<Overlay>, monitors: &[Monitor]) -> Re
     Ok(())
 }
 
-pub(crate) fn redraw_select_hint(
+pub fn redraw_select_hint(
     overlay: &mut Overlay,
     monitors: &[Monitor],
     hint: &str,

@@ -8,13 +8,13 @@ use tiny_skia::{
     Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Rect, Shader, Stroke, Transform,
 };
 
-pub(crate) struct TextCache {
+pub struct TextCache {
     glyphs: HashMap<char, (Metrics, Vec<u8>)>,
 }
 
 impl TextCache {
     #[must_use]
-    pub(crate) fn new(font: &Font, size: f32) -> Self {
+    pub fn new(font: &Font, size: f32) -> Self {
         let mut glyphs = HashMap::new();
         for ch in 'a'..='z' {
             glyphs.insert(ch, font.rasterize(ch, size));
@@ -25,18 +25,20 @@ impl TextCache {
         Self { glyphs }
     }
 
-    pub(crate) fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
+    #[must_use]
+    pub fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
         self.glyphs.get(&ch)
     }
 }
 
 // ── Glyph metrics & drawing ─────────────────────────────────────────
 
-pub(crate) fn char_width(cache: &TextCache, ch: char) -> f32 {
+#[must_use]
+pub fn char_width(cache: &TextCache, ch: char) -> f32 {
     cache.get(ch).map_or(0.0, |(m, _)| m.advance_width)
 }
 
-pub(crate) fn draw_char_glyph(
+pub fn draw_char_glyph(
     pixmap: &mut Pixmap,
     ch: char,
     cx: f32,
@@ -57,11 +59,12 @@ pub(crate) fn draw_char_glyph(
 
 // ── Low-level draw ─────────────────────────────────────────────────
 
-pub(crate) fn rgba(color: [u8; 4]) -> Color {
+#[must_use]
+pub fn rgba(color: [u8; 4]) -> Color {
     Color::from_rgba8(color[0], color[1], color[2], color[3])
 }
 
-pub(crate) fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
+pub fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, color: Color) {
     pixmap.fill_path(
         &PathBuilder::from_rect(Rect::from_xywh(x, y, w, h).unwrap()),
         &Paint {
@@ -74,7 +77,7 @@ pub(crate) fn fill_rect(pixmap: &mut Pixmap, x: f32, y: f32, w: f32, h: f32, col
     );
 }
 
-pub(crate) fn draw_line(
+pub fn draw_line(
     pixmap: &mut Pixmap,
     x1: f32,
     y1: f32,
@@ -119,7 +122,7 @@ fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rg
     }
 }
 
-pub(crate) fn draw_text(
+pub fn draw_text(
     pixmap: &mut Pixmap,
     text: &str,
     cx: f32,

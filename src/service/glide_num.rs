@@ -217,3 +217,9 @@ impl GlideNum {
         }
     }
 }
+
+impl Default for GlideNum {
+    fn default() -> Self {
+        Self::new()
+    }
+}

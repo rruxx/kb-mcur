@@ -10,7 +10,7 @@ use crate::overlay::Overlay;
 
 // ── Grid initialization ─────────────────────────────────────────────
 
-pub(crate) fn connect_as_user() -> Result<Overlay> {
+pub fn connect_as_user() -> Result<Overlay> {
     let Some(session_uid) = display_session_uid() else {
         anyhow::bail!("no display session detected");
     };

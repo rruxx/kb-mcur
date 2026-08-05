@@ -1,8 +1,8 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-pub(crate) mod wlr;
-pub(crate) mod x11;
+pub mod wlr;
+pub mod x11;
 
 use anyhow::Result;
 use log::warn;
@@ -41,7 +41,7 @@ impl Monitor {
 }
 
 /// Runtime polypick between X11 and wlr-layer-shell backends.
-pub(crate) enum Overlay {
+pub enum Overlay {
     X11(Box<x11::X11Backend>),
     Wlr(Box<wlr::WlrBackend>),
 }

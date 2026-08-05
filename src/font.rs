@@ -11,7 +11,7 @@ const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
 static FONT: OnceLock<Font> = OnceLock::new();
 
 /// Access the embedded font, parsed lazily on first use.
-pub(crate) fn font() -> &'static Font {
+pub fn font() -> &'static Font {
     FONT.get_or_init(|| {
         Font::from_bytes(FONT_DATA, fontdue::FontSettings::default())
             .expect("embedded font data corrupted")

@@ -107,7 +107,7 @@ fn release_grab(raw: i32) {
 }
 
 /// Holds all grabbed keyboard devices.  Hot-plug via inotify on /dev/input/.
-pub(crate) struct KeyboardDev {
+pub struct KeyboardDev {
     fds: Vec<DeviceFd>,
     inotify: Option<Inotify>,
     suspended: bool,

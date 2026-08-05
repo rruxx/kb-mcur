@@ -13,7 +13,7 @@ use crate::render::{TextCache, draw_text};
 
 // ── Display update ──────────────────────────────────────────────────
 
-pub(crate) fn display_update(
+pub fn display_update(
     overlay: &Overlay,
     states: &mut [DrawState],
     cfg: &GridConfig,

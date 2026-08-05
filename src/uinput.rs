@@ -3,11 +3,11 @@
 
 //! uinput virtual device layer.
 
-pub(crate) mod mouse;
-pub(crate) mod raw;
+pub mod mouse;
+pub mod raw;
 
 pub use mouse::Mouse;
-pub(crate) use raw::{
+pub use raw::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, create_virt_device,
     write_event, write_event_raw,
 };

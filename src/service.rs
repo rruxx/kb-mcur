@@ -1,10 +1,10 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-pub(crate) mod dir;
-pub(crate) mod glide_alpha;
-pub(crate) mod glide_num;
-pub(crate) mod grid;
+pub mod dir;
+pub mod glide_alpha;
+pub mod glide_num;
+pub mod grid;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;

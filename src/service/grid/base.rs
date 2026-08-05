@@ -11,7 +11,7 @@ use crate::render::{
 // ── Base layer (background + grid lines + labels) ───────────────────
 
 /// Fill pixmap with `BG_COLOR`, return the premultiplied pixel value.
-pub(crate) fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 {
+pub fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedColorU8 {
     pixmap
         .pixels_mut()
         .fill(PremultipliedColorU8::from_rgba(0, 0, 0, 0).unwrap());
@@ -23,7 +23,7 @@ pub(crate) fn render_bg(pixmap: &mut Pixmap, cfg: &GridConfig) -> PremultipliedC
 }
 
 /// Draw L1 grid lines (9×3) onto a pixmap pre-filled with `BG_COLOR`.
-pub(crate) fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
+pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
     let w = pixmap.width() as f32;
     let h = pixmap.height() as f32;
     let line = rgba(cfg.line_color);
@@ -41,7 +41,7 @@ pub(crate) fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
     }
 }
 
-pub(crate) fn render_labels(
+pub fn render_labels(
     pixmap: &mut Pixmap,
     grid: &Grid,
     cfg: &GridConfig,

@@ -15,11 +15,16 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod config;
-pub(crate) mod debug;
-pub(crate) mod font;
-pub(crate) mod keyboard;
-pub(crate) mod keymap;
+pub mod debug;
+pub mod font;
+pub mod keyboard;
+pub mod keymap;
 pub mod overlay;
-pub(crate) mod render;
+pub mod render;
 pub mod service;
 pub mod uinput;
+
+pub use overlay::{Monitor, Overlay, query_screen_size};
+pub use service::grid::state::{DrawState, GridCtx, GridPhase, GridStateMut, MonitorList};
+pub use service::grid::{Grid, GridConfig, GridFilter};
+pub use uinput::Mouse;

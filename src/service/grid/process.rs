@@ -11,7 +11,7 @@ use crate::uinput::Mouse;
 
 // ── Cursor & button actions ────────────────────────────────────────
 
-pub(crate) fn cursor_warp(
+pub fn cursor_warp(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
@@ -30,7 +30,7 @@ pub(crate) fn cursor_warp(
     Ok(())
 }
 
-pub(crate) fn cursor_action(
+pub fn cursor_action(
     mouse: &mut Option<Mouse>,
     filter: &GridFilter,
     states: &[DrawState],
@@ -56,7 +56,8 @@ pub(crate) fn cursor_action(
 
 // ── Region geometry ─────────────────────────────────────────────────
 
-pub(crate) fn region_rect(
+#[must_use]
+pub fn region_rect(
     filter: &GridFilter,
     states: &[DrawState],
     ctx: &GridCtx,
@@ -88,7 +89,8 @@ pub(crate) fn region_rect(
     }
 }
 
-pub(crate) fn region_center(
+#[must_use]
+pub fn region_center(
     filter: &GridFilter,
     states: &[DrawState],
     ctx: &GridCtx,
