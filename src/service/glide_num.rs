@@ -62,6 +62,7 @@ impl GlideNum {
             && !mods.alt
         {
             self.active = !self.active;
+            self.reset_input();
             info!(
                 "{}",
                 if self.active {
@@ -86,8 +87,16 @@ impl GlideNum {
     }
 
     /// One per-frame movement step while a direction is held.
-    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+    pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<bool> {
         direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
+    }
+
+    /// Clear held directions/buttons (e.g. on mode toggle or a stuck state).
+    pub(crate) fn reset_input(&mut self) {
+        self.dir_held = 0;
+        self.dir_mask = Dir::empty();
+        self.dir_count = 0;
+        self.btn_held = false;
     }
 
     // ── Event handling ──

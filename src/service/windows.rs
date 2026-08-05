@@ -239,6 +239,7 @@ pub fn run() -> Result<()> {
                 DispatchMessageW(&raw const msg);
             }
         }
+
         if let Err(e) = SVC.with(|svc| {
             MOUSE.with(|m| {
                 let mut svc = svc.borrow_mut();
@@ -246,7 +247,7 @@ pub fn run() -> Result<()> {
                 let (Some(svc), Some(m)) = (svc.as_mut(), m.as_mut()) else {
                     return Ok(());
                 };
-                svc.direction_tick(m)
+                svc.direction_tick(m).map(|_| ())
             })
         }) {
             result = Err(e);
