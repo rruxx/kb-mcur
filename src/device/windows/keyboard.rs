@@ -19,9 +19,11 @@ use crate::keymap::{
 };
 
 /// Map a Windows virtual-key code + scan code to an evdev keycode.
+/// `extended` is the low-level-hook `LLKHF_EXTENDED` flag (set for numpad
+/// Enter, arrows, etc.) — combined with the 0xE0 scan-code prefix for safety.
 #[must_use]
-pub fn vk_to_evdev(vk: u32, scan: u32) -> Option<u16> {
-    let ext = scan >> 8 == 0xE0; // extended-key prefix (0xE0 in the high byte)
+pub fn vk_to_evdev(vk: u32, scan: u32, extended: bool) -> Option<u16> {
+    let ext = extended || scan >> 8 == 0xE0;
     match vk {
         // Backspace / Tab / Enter / Esc / Space
         0x08 => Some(KEY_BACKSPACE),

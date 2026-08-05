@@ -14,9 +14,9 @@ pub mod windows;
 use anyhow::Result;
 
 use crate::device::pointer::{KeyboardOut, Pointer};
-use crate::keymap::{
-    KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_NUMLOCK, KEY_RIGHTMETA, ModState,
-};
+#[cfg(target_os = "linux")]
+use crate::keymap::{KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_RIGHTMETA};
+use crate::keymap::{KEY_NUMLOCK, ModState};
 #[cfg(target_os = "linux")]
 use crate::keymap::{KEY_TAB, key_map};
 use crate::service::glide_alpha::GlideAlpha;
@@ -34,7 +34,9 @@ pub struct Service {
     grid: GridEnv,
     mods: ModState,
     /// A held modifier (Meta/NumLock) whose key-down has not yet been forwarded.
-    /// Consumed when a mode-toggle chord follows; replayed otherwise.
+    /// Linux-only: the evdev grab can replay it later. Windows forwards modifiers
+    /// immediately so `Win+key` chords reach the desktop.
+    #[cfg(target_os = "linux")]
     pending: Option<u16>,
 }
 
@@ -47,6 +49,7 @@ impl Service {
             #[cfg(target_os = "linux")]
             grid: GridEnv::new(),
             mods: ModState::default(),
+            #[cfg(target_os = "linux")]
             pending: None,
         }
     }
@@ -65,31 +68,33 @@ impl Service {
             self.glide_num.set_numlock(value != 0);
         }
 
-        // Precisely match a mode-toggle chord so extra modifiers
-        // (e.g. meta+ctrl+capslock) are not mistaken for one.
-        let chord = is_press
-            && match code {
-                KEY_CAPSLOCK => self.mods.meta && !self.mods.ctrl && !self.mods.alt,
-                KEY_KPENTER => {
-                    self.glide_num.numlock_held()
-                        && !self.mods.meta
-                        && !self.mods.shift
-                        && !self.mods.ctrl
-                        && !self.mods.alt
-                }
-                _ => false,
-            };
-        if let Some(p) = self.pending.take()
-            && !chord
+        // Linux (evdev grab): hold Meta/NumLock presses and replay them only if
+        // no mode-toggle chord follows. Windows forwards modifiers immediately
+        // so system `Win+key` chords work; toggle chords still match via `ModState`.
+        #[cfg(target_os = "linux")]
         {
-            kbd.key(p, 1)?;
-            kbd.sync()?;
-        }
-
-        // Hold Meta/NumLock presses: forward only if no chord follows.
-        if is_press && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA || code == KEY_NUMLOCK) {
-            self.pending = Some(code);
-            return Ok(true);
+            let chord = is_press
+                && match code {
+                    KEY_CAPSLOCK => self.mods.meta && !self.mods.ctrl && !self.mods.alt,
+                    KEY_KPENTER => {
+                        self.glide_num.numlock_held()
+                            && !self.mods.meta
+                            && !self.mods.shift
+                            && !self.mods.ctrl
+                            && !self.mods.alt
+                    }
+                    _ => false,
+                };
+            if let Some(p) = self.pending.take()
+                && !chord
+            {
+                kbd.key(p, 1)?;
+                kbd.sync()?;
+            }
+            if is_press && (code == KEY_LEFTMETA || code == KEY_RIGHTMETA || code == KEY_NUMLOCK) {
+                self.pending = Some(code);
+                return Ok(true);
+            }
         }
 
         if self

@@ -21,7 +21,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetSystemMetrics, HC_ACTION, KBDLLHOOKSTRUCT, MSG, PM_REMOVE,
     PeekMessageW, SM_CXSCREEN, SM_CYSCREEN, SetWindowsHookExW, TranslateMessage,
-    UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYDOWN, WM_QUIT, WM_SYSKEYDOWN,
+    UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
 };
 
 use crate::device::pointer::KeyboardOut;
@@ -34,6 +34,8 @@ const TICK_MS: u64 = 20; // direction-tick period (~50 Hz)
 
 // LLKHF_INJECTED — the low-level hook was not injected by SendInput.
 const LLKHF_INJECTED: u32 = 0x10;
+// LLKHF_EXTENDED — extended key (numpad Enter, arrows, …).
+const LLKHF_EXTENDED: u32 = 0x01;
 
 // VK codes for replayed modifiers (pending passthrough).
 const VK_LWIN: u16 = 0x5B;
@@ -43,11 +45,29 @@ const VK_NUMLOCK: u16 = 0x90;
 thread_local! {
     static SVC: RefCell<Option<Service>> = const { RefCell::new(None) };
     static MOUSE: RefCell<Option<Mouse>> = const { RefCell::new(None) };
+    static HOOK: RefCell<HookState> = const { RefCell::new(HookState::new()) };
 }
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
 // ── Hook callback ────────────────────────────────────────────────────
+
+/// Per-VK pressed/swallowed tracking. Windows auto-repeats `WM_KEYDOWN` while a
+/// key is held (unlike evdev, which emits one press); repeats must be suppressed
+/// or `dir_held` overflows. A swallowed key keeps its repeats swallowed.
+struct HookState {
+    pressed: [bool; 256],
+    swallowed: [bool; 256],
+}
+
+impl HookState {
+    const fn new() -> Self {
+        Self {
+            pressed: [false; 256],
+            swallowed: [false; 256],
+        }
+    }
+}
 
 /// `KeyboardOut` for the hook: swallowing is implicit (return 1 from the hook),
 /// so `key(v, >0)` only replays a previously swallowed modifier.
@@ -91,32 +111,78 @@ fn replay_key(code: u16) -> Result<()> {
 }
 
 unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -> isize {
-    if n_code == HC_ACTION as i32 {
-        let kb = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
-        if kb.flags & LLKHF_INJECTED != 0 {
-            return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
-        }
-        let value = match wparam as u32 {
-            WM_KEYDOWN | WM_SYSKEYDOWN => 1,
-            _ => 0, // WM_KEYUP / WM_SYSKEYUP
-        };
-        if let Some(code) = vk_to_evdev(kb.vkCode, kb.scanCode) {
-            let consumed = SVC.with(|svc| {
-                MOUSE.with(|m| {
-                    let mut svc = svc.borrow_mut();
-                    let mut m = m.borrow_mut();
-                    let (Some(svc), Some(m)) = (svc.as_mut(), m.as_mut()) else {
-                        return false;
-                    };
-                    svc.dispatch(code, value, m, &mut HookKbd).unwrap_or(false)
-                })
-            });
-            if consumed {
-                return 1;
-            }
-        }
+    if n_code != HC_ACTION as i32 {
+        return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
     }
-    unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) }
+    let kb = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
+    if kb.flags & LLKHF_INJECTED != 0 {
+        return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
+    }
+
+    let key_down = matches!(wparam as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
+    let key_up = matches!(wparam as u32, WM_KEYUP | WM_SYSKEYUP);
+    let vk = kb.vkCode as usize;
+    if !(key_down || key_up) || vk >= 256 {
+        return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
+    }
+
+    // Suppress auto-repeat: only the first press dispatches.
+    if key_down {
+        let repeat = HOOK.with(|s| {
+            let mut s = s.borrow_mut();
+            if s.pressed[vk] {
+                true
+            } else {
+                s.pressed[vk] = true;
+                false
+            }
+        });
+        if repeat {
+            let swallowed = HOOK.with(|s| s.borrow().swallowed[vk]);
+            return if swallowed {
+                1
+            } else {
+                unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) }
+            };
+        }
+    } else {
+        HOOK.with(|s| {
+            let mut s = s.borrow_mut();
+            s.pressed[vk] = false;
+            s.swallowed[vk] = false;
+        });
+    }
+
+    let Some(code) = vk_to_evdev(kb.vkCode, kb.scanCode, kb.flags & LLKHF_EXTENDED != 0) else {
+        return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
+    };
+    let value = i32::from(key_down);
+
+    // try_borrow_mut: a re-entrant callback (e.g. our own SendInput replay) must
+    // not panic — just let the key through.
+    let consumed = SVC.with(|svc| {
+        MOUSE.with(|m| {
+            let Ok(mut svc) = svc.try_borrow_mut() else {
+                return false;
+            };
+            let Ok(mut m) = m.try_borrow_mut() else {
+                return false;
+            };
+            let (Some(svc), Some(m)) = (svc.as_mut(), m.as_mut()) else {
+                return false;
+            };
+            svc.dispatch(code, value, m, &mut HookKbd).unwrap_or(false)
+        })
+    });
+
+    if key_down {
+        HOOK.with(|s| s.borrow_mut().swallowed[vk] = consumed);
+    }
+    if consumed {
+        1
+    } else {
+        unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) }
+    }
 }
 
 // ── Shutdown ─────────────────────────────────────────────────────────
