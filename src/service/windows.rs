@@ -47,15 +47,13 @@ thread_local! {
 
 static SHUTDOWN: AtomicBool = AtomicBool::new(false);
 
-/// Wall-clock ms of the last hook call — proves the hook is alive. The liveness
-/// probe reads it; if a probe is not answered, the OS has stalled the hook.
-static LAST_HOOK_MS: AtomicU64 = AtomicU64::new(0);
-
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as u64)
-}
+/// Set by any hook call — proves the hook is alive. The liveness probe clears it
+/// before injecting, then checks it: an unanswered probe means the OS stalled
+/// the hook (slow-callback timeout) and we reinstall it.
+static PROBE_ANSWERED: AtomicBool = AtomicBool::new(true);
+/// Diagnostics: how many probes were injected vs. received by the hook.
+static PROBE_INJECTED: AtomicU64 = AtomicU64::new(0);
+static PROBE_RECEIVED: AtomicU64 = AtomicU64::new(0);
 
 // ── Shared state access ───────────────────────────────────────────────
 
@@ -89,10 +87,13 @@ fn pump_messages(msg: &mut MSG) {
 // ── Liveness probe ────────────────────────────────────────────────────
 
 /// Inject a no-function key (`VK_NONAME`) down+up as a liveness probe.
-/// It passes through the hook (`LLKHF_INJECTED`), updating `LAST_HOOK_MS`.
+/// The hook receives it flagged `LLKHF_INJECTED` and marks `PROBE_ANSWERED`.
 fn inject_probe() -> Result<()> {
     const KEYEVENTF_KEYUP: u32 = 0x0002;
     const VK_NONAME: u16 = 0xFF;
+    // Reset before injecting: SendInput invokes the hook synchronously, so it
+    // must observe the cleared flag *before* the injected events arrive.
+    PROBE_ANSWERED.store(false, Ordering::Relaxed);
     let inputs = [
         key_input(VK_NONAME, 0),
         key_input(VK_NONAME, KEYEVENTF_KEYUP),
@@ -100,6 +101,7 @@ fn inject_probe() -> Result<()> {
     if unsafe { SendInput(2, &raw const inputs[0], std::mem::size_of::<INPUT>() as i32) } != 2 {
         bail!("SendInput probe failed");
     }
+    PROBE_INJECTED.fetch_add(1, Ordering::Relaxed);
     Ok(())
 }
 
@@ -120,13 +122,12 @@ fn key_input(vk: u16, flags: u32) -> INPUT {
 }
 
 /// Liveness-probe state machine: arm a probe on an interval, then declare the
-/// hook stalled if it does not answer within a timeout.
+/// hook stalled if `PROBE_ANSWERED` was not set within a timeout.
 struct Probe {
     interval: Duration,
     timeout: Duration,
     last: Instant,
     pending: bool,
-    before: u64,
 }
 
 impl Probe {
@@ -136,7 +137,6 @@ impl Probe {
             timeout: PROBE_TIMEOUT,
             last: Instant::now(),
             pending: false,
-            before: 0,
         }
     }
 
@@ -145,7 +145,6 @@ impl Probe {
     }
 
     fn arm(&mut self, now: Instant) {
-        self.before = LAST_HOOK_MS.load(Ordering::Relaxed);
         self.last = now;
         self.pending = true;
     }
@@ -156,7 +155,7 @@ impl Probe {
             return false;
         }
         self.pending = false;
-        LAST_HOOK_MS.load(Ordering::Relaxed) <= self.before
+        !PROBE_ANSWERED.load(Ordering::Relaxed)
     }
 }
 
@@ -207,10 +206,11 @@ unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -
     if n_code != HC_ACTION as i32 {
         return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
     }
-    // Every hook call (including our own injected probe) proves liveness.
-    LAST_HOOK_MS.store(now_ms(), Ordering::Relaxed);
+    // Any hook call (including our own injected probe) proves liveness.
+    PROBE_ANSWERED.store(true, Ordering::Relaxed);
     let kb = unsafe { &*(lparam as *const KBDLLHOOKSTRUCT) };
     if kb.flags & LLKHF_INJECTED != 0 {
+        PROBE_RECEIVED.fetch_add(1, Ordering::Relaxed);
         return unsafe { CallNextHookEx(std::ptr::null_mut(), n_code, wparam, lparam) };
     }
 
@@ -333,7 +333,11 @@ pub fn run() -> Result<()> {
             probe.arm(now);
         }
         if probe.check(now) {
-            warn!("hook stalled — reinstalling");
+            warn!(
+                "hook stalled — reinstalling (probes injected={} received={})",
+                PROBE_INJECTED.load(Ordering::Relaxed),
+                PROBE_RECEIVED.load(Ordering::Relaxed),
+            );
             if let Err(e) = reinstall_hook(&mut hook) {
                 error!("hook reinstall failed: {e}");
                 result = Err(e);
