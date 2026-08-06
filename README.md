@@ -3,7 +3,7 @@
 [中文](README.d/README-zh.md)
 
 Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click).
-Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI + glide service).
+Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI + service).
 
 ## Motivation
 
@@ -44,17 +44,17 @@ Download `kursor-v{VERSION}-x86_64_v3-pc-windows-gnu.7z` from Releases — a sin
 
 ### service — glide-num + glide-alpha + grid
 
-Linux runs all three modes (grid needs an overlay backend); Windows runs glide-num + glide-alpha (the grid overlay is stage 2). Three orthogonal modes:
+All three modes run on Linux and Windows; `--help` prints full key maps.
 
-**glide-num (NumPad):** NumLock+KPEnter toggle. Direction keys move with acceleration (3→50 px). `/ * -` switch btn5 (L/M/R). NumLock+`/ 8 7 9` scroll, NumLock+`* -` back/forward.
+**glide-num (NumPad):** NumLock+KPEnter toggles. Direction keys move (accelerated); `/ * -` switch the button, NumLock+`/ 8 7 9` scrolls, NumLock+`* -` back/forward.
 
-**glide-alpha (Main keyboard):** meta+shift+capslock toggle. `ctrl+h/j/k/l` move, `shift+h/j/k/l` scroll, `ctrl+u/i` back/forward, `Space/;/'` left/right/middle.
+**glide-alpha (Main keyboard):** meta+shift+capslock toggles. `ctrl+h/j/k/l` moves, `shift+h/j/k/l` scrolls, `ctrl+u/i` back/forward, `Space/;/'` clicks.
 
-**grid (meta+capslock):** 27×27 grid in three progressive layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` click, Enter warp, 0-9 prefix repeats, Backspace goes up a layer, Esc resets. Multi-monitor: `a-z` selects display, Tab switches. L4: alt+h/j/k/l nudges within the L3 cell.
+**grid (meta+capslock):** 27×27 grid in three layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` clicks, Enter warps, 0-9 repeats, Backspace/Esc reset; multi-monitor via `a-z`/Tab.
 
-#### Windows (glide)
+#### Windows
 
-Windows `service` uses a low-level keyboard hook (`WH_KEYBOARD_LL`), which is **not fully reliable**: the OS may silently freeze it on a slow callback, and **elevated (UIPI)** input from admin windows is missed unless kursor itself runs elevated (needs UAC, a security trade-off). **Secure-desktop** input (Ctrl+Alt+Del, UAC prompts, logon) cannot be captured by any app-level hook — a platform limitation. kursor auto-detects a frozen hook and reinstalls it.
+`service` uses `WH_KEYBOARD_LL`, which the OS may silently freeze (auto-reinstalled) and cannot see elevated (UIPI) or secure-desktop input — platform limitations. The grid overlay draws into transparent click-through layered windows.
 
 #### Linux (systemd)
 
@@ -72,7 +72,7 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 | `kursor moveto 500 300` | Absolute warp |
 | `kursor click -r 3 M` | Click with repeat |
 
-`--help` prints full key maps. `service` runs on Linux (all three modes) and on Windows (glide-num + glide-alpha; grid overlay is stage 2).
+`--help` prints full key maps.
 
 ## Architecture
 
