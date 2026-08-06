@@ -15,12 +15,13 @@ pub struct TextCache {
 impl TextCache {
     #[must_use]
     pub fn new(font: &Font, size: f32) -> Self {
+        let ss = crate::config::FONT_SUPERSAMPLE as f32;
         let mut glyphs = HashMap::new();
         for ch in 'a'..='z' {
-            glyphs.insert(ch, font.rasterize(ch, size));
+            glyphs.insert(ch, supersample_glyph(font, ch, size, ss));
         }
         for ch in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '.'] {
-            glyphs.insert(ch, font.rasterize(ch, size));
+            glyphs.insert(ch, supersample_glyph(font, ch, size, ss));
         }
         Self { glyphs }
     }
@@ -29,6 +30,23 @@ impl TextCache {
     pub fn get(&self, ch: char) -> Option<&(Metrics, Vec<u8>)> {
         self.glyphs.get(&ch)
     }
+}
+
+/// Rasterize `ch` at `size × ss` and normalize the metrics back to 1× scale
+/// (`xmin`/`ymin`/advance ÷ ss); the bitmap keeps the ss× size so `blit_glyph`
+/// can box-filter it down.
+fn supersample_glyph(font: &Font, ch: char, size: f32, ss: f32) -> (Metrics, Vec<u8>) {
+    let (m, bmp) = font.rasterize(ch, size * ss);
+    let m = Metrics {
+        advance_width: m.advance_width / ss,
+        advance_height: m.advance_height / ss,
+        xmin: (m.xmin as f32 / ss).round() as i32,
+        ymin: (m.ymin as f32 / ss).round() as i32,
+        width: m.width,
+        height: m.height,
+        bounds: m.bounds,
+    };
+    (m, bmp)
 }
 
 // ── Glyph metrics & drawing ─────────────────────────────────────────
@@ -52,8 +70,9 @@ pub fn draw_char_glyph(
     if bmp.is_empty() {
         return;
     }
+    let ss = crate::config::FONT_SUPERSAMPLE as f32;
     let gx = cx + m.xmin as f32 - m.advance_width * 0.5;
-    let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
+    let gy = cy - m.ymin as f32 - m.height as f32 / ss * 0.5;
     blit_glyph(pixmap, bmp, m, gx, gy, rgba);
 }
 
@@ -99,26 +118,45 @@ pub fn draw_line(
 }
 
 fn blit_glyph(pixmap: &mut Pixmap, bmp: &[u8], m: &Metrics, gx: f32, gy: f32, rgba: [u8; 4]) {
+    let ss = crate::config::FONT_SUPERSAMPLE as usize;
     let pw = pixmap.width() as usize;
     let pixels = pixmap.pixels_mut();
-    for row in 0..m.height {
-        let off = row * m.width;
-        for col in 0..m.width {
-            let cov = bmp[off + col];
-            if cov == 0 {
-                continue;
+    // The bitmap is ss×; each target pixel averages the ss×ss source block.
+    let mut row = 0usize;
+    while row < m.height {
+        let mut col = 0usize;
+        while col < m.width {
+            let mut sum = 0u32;
+            let mut cnt = 0u32;
+            for dy in 0..ss {
+                let r = row + dy;
+                if r >= m.height {
+                    break;
+                }
+                let off = r * m.width;
+                for dx in 0..ss {
+                    let c = col + dx;
+                    if c >= m.width {
+                        break;
+                    }
+                    sum += u32::from(bmp[off + c]);
+                    cnt += 1;
+                }
             }
-            let ix = (gx + col as f32) as i32;
-            let iy = (gy + row as f32) as i32;
-            if ix < 0 || iy < 0 || ix as usize >= pw {
-                continue;
+            let cov = (sum / cnt.max(1)) as u8;
+            if cov != 0 {
+                let ix = (gx + col as f32 / ss as f32) as i32;
+                let iy = (gy + row as f32 / ss as f32) as i32;
+                if ix >= 0 && iy >= 0 && (ix as usize) < pw {
+                    let i = iy as usize * pw + ix as usize;
+                    if i < pixels.len() {
+                        blend(&mut pixels[i], cov, rgba);
+                    }
+                }
             }
-            let i = iy as usize * pw + ix as usize;
-            if i >= pixels.len() {
-                continue;
-            }
-            blend(&mut pixels[i], cov, rgba);
+            col += ss;
         }
+        row += ss;
     }
 }
 
@@ -156,7 +194,8 @@ pub fn draw_text(
             continue;
         }
         let gx = pen + m.xmin as f32;
-        let gy = cy - m.ymin as f32 - m.height as f32 * 0.5;
+        let gy =
+            cy - m.ymin as f32 - m.height as f32 / crate::config::FONT_SUPERSAMPLE as f32 * 0.5;
         blit_glyph(pixmap, bmp, m, gx, gy, rgba);
         pen += m.advance_width + space;
     }

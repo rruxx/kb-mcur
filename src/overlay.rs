@@ -45,6 +45,24 @@ impl Monitor {
             - by;
         (bx, by, bw as u16, bh as u16)
     }
+
+    /// Font-scaling baseline: the limiting logical height across all monitors,
+    /// with logical width folded in by the glyph aspect ratio so text density
+    /// stays balanced on narrow/vertical layouts. Usually resolves to the height.
+    #[must_use]
+    pub fn font_scale_base(monitors: &[Monitor]) -> f32 {
+        let min_w = monitors
+            .iter()
+            .map(|m| m.w)
+            .min()
+            .unwrap_or(crate::config::FALLBACK_WIDTH) as f32;
+        let min_h = monitors
+            .iter()
+            .map(|m| m.h)
+            .min()
+            .unwrap_or(crate::config::FALLBACK_HEIGHT) as f32;
+        (min_w * crate::config::FONT_ASPECT_RATIO).min(min_h)
+    }
 }
 
 /// Platform-specific overlay backend.

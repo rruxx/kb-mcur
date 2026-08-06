@@ -43,9 +43,21 @@ pub const LINE_WIDTH: f32 = 1.0;
 
 // ── Font sizing ──────────────────────────────────────────────────────
 
+/// Logical screen height at which `FONT_BASE_SIZE` / `SELECT_BASE_SIZE` apply.
+pub const FONT_BASE_HEIGHT: f32 = 1080.0;
+/// Glyph aspect (height / advance) of the embedded mono font (Hack,
+/// 0.602:1.164 em), used to fold logical width into a comparable height for
+/// font scaling.
+pub const FONT_ASPECT_RATIO: f32 = 1.93;
+/// L1/L2/L3 label font size at the base height.
+pub const FONT_BASE_SIZE: f32 = 14.0;
+/// Multi-monitor selection hint font size at the base height.
+pub const SELECT_BASE_SIZE: f32 = 128.0;
 pub const FONT_SIZE_MIN: f32 = 6.0;
-pub const FONT_SIZE_MAX: f32 = 14.0;
-pub const FONT_ROW_DIVISOR: f32 = 1.8;
+/// Supersampling factor for glyph rasterization: glyphs are rendered at
+/// `size × FONT_SUPERSAMPLE` and box-filtered down, keeping edges crisp when
+/// the overlay is displayed scaled (e.g. 150% desktop zoom).
+pub const FONT_SUPERSAMPLE: u32 = 2;
 
 // ── Two-layer grid key layouts ────────────────────────────────────────
 

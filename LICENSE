@@ -1,10 +1,12 @@
-key-mcursor — Keyboard-driven mouse-cursor control
 Copyright (C) 2026 明雅流风
 
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
+SPDX-License-Identifier: AGPL-3.0-or-later
 
-The full license text is in the file COPYING,
-or see <https://www.gnu.org/licenses/agpl-3.0.html>.
+This project is licensed under the GNU Affero General Public License,
+version 3 or (at your option) any later version.
+Full text: COPYING
+Official text: https://www.gnu.org/licenses/agpl-3.0.html
+SPDX: https://spdx.org/licenses/AGPL-3.0-or-later.html
+
+Third-party components (fonts etc.): see THIRD_PARTY_LICENSES.
+Bundled Hack font license: see assets/LICENSE-Hack.

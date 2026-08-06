@@ -11,8 +11,7 @@ use super::process::{cursor_action, cursor_warp, region_center};
 use super::selection::redraw_select_hint;
 use super::{Grid, GridConfig, GridFilter};
 use crate::config::{
-    FALLBACK_HEIGHT, FONT_ROW_DIVISOR, FONT_SIZE_MAX, FONT_SIZE_MIN, action_key, l1_key_pos,
-    l2_key_pos, l3_key_pos,
+    FONT_BASE_HEIGHT, FONT_BASE_SIZE, FONT_SIZE_MIN, action_key, l1_key_pos, l2_key_pos, l3_key_pos,
 };
 use crate::device::Mouse;
 use crate::font;
@@ -58,15 +57,9 @@ pub fn init_overlay(
     monitors: &[Monitor],
 ) -> Result<(GridConfig, f32, TextCache, Vec<DrawState>)> {
     let cfg = GridConfig::default();
-    let font_size = (f32::from(
-        monitors
-            .iter()
-            .map(|m| m.h)
-            .min()
-            .unwrap_or(FALLBACK_HEIGHT),
-    ) / cfg.rows as f32
-        / FONT_ROW_DIVISOR)
-        .clamp(FONT_SIZE_MIN, FONT_SIZE_MAX)
+    let base = Monitor::font_scale_base(monitors);
+    let font_size = (FONT_BASE_SIZE * base / FONT_BASE_HEIGHT)
+        .max(FONT_SIZE_MIN)
         .round();
     let cache = TextCache::new(font::font(), font_size);
 
