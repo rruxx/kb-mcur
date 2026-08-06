@@ -186,9 +186,9 @@ impl MouseButton {
 }
 
 pub const CLICK_KEYS: [(char, MouseButton); 3] = [
-    ('j', MouseButton::Left),
-    ('k', MouseButton::Middle),
-    ('l', MouseButton::Right),
+    ('u', MouseButton::Left),
+    ('i', MouseButton::Middle),
+    ('o', MouseButton::Right),
 ];
 
 #[must_use]

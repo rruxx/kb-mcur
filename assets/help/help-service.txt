@@ -27,8 +27,8 @@ grid (Main keyboard):
   shift+h/j/k/l      L4: subdivide L3 cell 7×7, nudge from center
   p                  L3 → L2, L2 → L1
   ;                  Warp & reset
-  j/k/l              Click L/M/R & reset
-  0-9 prefix         Repeat (e.g. 3j)
+  u/i/o              Click L/M/R & reset
+  0-9 prefix         Repeat (e.g. 3u)
 
 Exit:
   Windows            tray icon (right-click -> Exit) or Task Manager
