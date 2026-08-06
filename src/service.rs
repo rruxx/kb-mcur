@@ -4,7 +4,6 @@
 pub mod dir;
 pub mod glide_alpha;
 pub mod glide_num;
-#[cfg(target_os = "linux")]
 pub mod grid;
 #[cfg(target_os = "linux")]
 pub mod linux;
@@ -16,12 +15,9 @@ use anyhow::Result;
 use crate::device::pointer::{KeyboardOut, Pointer};
 #[cfg(target_os = "linux")]
 use crate::keymap::{KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_RIGHTMETA};
-use crate::keymap::{KEY_NUMLOCK, ModState};
-#[cfg(target_os = "linux")]
-use crate::keymap::{KEY_TAB, key_map};
+use crate::keymap::{KEY_NUMLOCK, KEY_TAB, ModState, key_map};
 use crate::service::glide_alpha::GlideAlpha;
 use crate::service::glide_num::GlideNum;
-#[cfg(target_os = "linux")]
 use crate::service::grid::GridEnv;
 
 // ── Cross-mode service state ─────────────────────────────────────────
@@ -30,7 +26,6 @@ use crate::service::grid::GridEnv;
 pub struct Service {
     glide_num: GlideNum,
     glide_alpha: GlideAlpha,
-    #[cfg(target_os = "linux")]
     grid: GridEnv,
     mods: ModState,
     /// A held modifier (Meta/NumLock) whose key-down has not yet been forwarded.
@@ -46,7 +41,6 @@ impl Service {
         Self {
             glide_num: GlideNum::new(),
             glide_alpha: GlideAlpha::new(),
-            #[cfg(target_os = "linux")]
             grid: GridEnv::new(),
             mods: ModState::default(),
             #[cfg(target_os = "linux")]
@@ -117,7 +111,6 @@ impl Service {
         {
             return Ok(true);
         }
-        #[cfg(target_os = "linux")]
         if self.grid.toggle(code, value, is_press, &self.mods, kbd)? {
             return Ok(true);
         }
@@ -127,7 +120,6 @@ impl Service {
         if glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr)? {
             return Ok(true);
         }
-        #[cfg(target_os = "linux")]
         if grid_input(code, value, &mut self.grid, &self.mods) {
             return Ok(true);
         }
@@ -181,7 +173,6 @@ fn glide_alpha_input(
     glide_alpha.handle_event(ptr, code, value, is_press)
 }
 
-#[cfg(target_os = "linux")]
 fn grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {
     if !grid.active() || !is_grid_key(code) || value == 0 {
         return false;
@@ -189,7 +180,6 @@ fn grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> boo
     grid.handle_input(code, value, mods)
 }
 
-#[cfg(target_os = "linux")]
 fn is_grid_key(code: u16) -> bool {
     key_map(code, &ModState::default()).is_some() || code == KEY_TAB
 }

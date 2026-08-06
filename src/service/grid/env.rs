@@ -9,7 +9,7 @@ use super::init::enter_grid;
 use super::selection::show_selection;
 use super::state::DrawState;
 use super::state::{GridCtx, GridPhase, GridStateMut, MonitorList, init_grid_monitor};
-use crate::device::linux::uinput::Mouse;
+use crate::device::Mouse;
 use crate::device::pointer::KeyboardOut;
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
 use crate::overlay::Overlay;

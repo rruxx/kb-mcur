@@ -7,7 +7,7 @@ use log::info;
 use super::GridFilter;
 use super::state::{DrawState, GridCtx};
 use crate::config::{MouseButton, l3_key_pos};
-use crate::device::linux::uinput::Mouse;
+use crate::device::Mouse;
 
 // ── Cursor & button actions ────────────────────────────────────────
 

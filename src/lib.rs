@@ -15,14 +15,11 @@
 #![allow(clippy::too_many_lines)]
 
 pub mod config;
-#[cfg(target_os = "linux")]
 pub mod debug;
 pub mod device;
-#[cfg(target_os = "linux")]
 pub mod font;
 pub mod keymap;
 pub mod overlay;
-#[cfg(target_os = "linux")]
 pub mod render;
 pub mod service;
 

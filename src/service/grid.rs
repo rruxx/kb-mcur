@@ -134,6 +134,7 @@ impl Grid {
 // ── Sub-modules ────────────────────────────────────────────────────
 
 pub mod base;
+#[cfg(target_os = "linux")]
 pub mod device_perm;
 pub mod display;
 pub mod env;
@@ -142,5 +143,6 @@ pub mod process;
 pub mod selection;
 pub mod state;
 
+#[cfg(target_os = "linux")]
 pub use device_perm::fix_device_permissions;
 pub use env::GridEnv;
