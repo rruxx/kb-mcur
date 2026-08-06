@@ -32,9 +32,8 @@ impl TextCache {
     }
 }
 
-/// Rasterize `ch` at `size × ss` and normalize the metrics back to 1× scale
-/// (`xmin`/`ymin`/advance ÷ ss); the bitmap keeps the ss× size so `blit_glyph`
-/// can box-filter it down.
+/// Rasterize `ch` at `size × ss`, normalizing the metrics back to 1× (`xmin`/
+/// `ymin`/advance ÷ ss) while keeping the ss× bitmap for `blit_glyph`.
 fn supersample_glyph(font: &Font, ch: char, size: f32, ss: f32) -> (Metrics, Vec<u8>) {
     let (m, bmp) = font.rasterize(ch, size * ss);
     let m = Metrics {
@@ -173,7 +172,8 @@ pub fn draw_text(
     if chars.is_empty() {
         return;
     }
-    let space = size * 0.12;
+    let ss = crate::config::FONT_SUPERSAMPLE as f32;
+    let space = size * crate::config::CHAR_SPACE_RATIO;
 
     let mut entries: Vec<&(Metrics, Vec<u8>)> = Vec::with_capacity(chars.len());
     let mut total_w = 0.0_f32;
@@ -194,8 +194,7 @@ pub fn draw_text(
             continue;
         }
         let gx = pen + m.xmin as f32;
-        let gy =
-            cy - m.ymin as f32 - m.height as f32 / crate::config::FONT_SUPERSAMPLE as f32 * 0.5;
+        let gy = cy - m.ymin as f32 - m.height as f32 / ss * 0.5;
         blit_glyph(pixmap, bmp, m, gx, gy, rgba);
         pen += m.advance_width + space;
     }

@@ -248,10 +248,8 @@ impl WlrBackend {
 }
 
 /// Screen size (bounding box over all outputs) for CLI use.
-///
-/// Uses the `wl_output` geometry/mode collected during connect, so it works on
-/// any Wayland compositor with layer-shell (KDE, wlroots, niri). Returns `None`
-/// when no display is reachable so the caller can fall back.
+/// Uses the `wl_output` geometry/mode collected during connect; `None` when
+/// no display is reachable.
 #[must_use]
 pub fn screen_size() -> Option<(u16, u16)> {
     let backend = WlrBackend::connect().ok()?;
@@ -434,11 +432,9 @@ fn shm_fd(size: u32) -> Result<OwnedFd> {
 
 /// Query the global cursor position on any wlr-layer-shell compositor.
 ///
-/// Wayland has no pointer-query request. We map a full-screen layer surface on
-/// every output (recording each output's global origin from `wl_output`
-/// geometry), then poke the pointer with a zero-size `virtual_pointer` motion
-/// so the compositor re-runs its hit test and delivers an `enter` event for
-/// the surface under the cursor. `global = output_origin + surface_local`.
+/// Wayland has no pointer-query request: map a full-screen layer surface on
+/// every output, poke a zero-size `virtual_pointer` motion so the compositor
+/// re-runs its hit test, and read the `enter` event's global position.
 pub fn cursor_pos() -> Result<(i32, i32)> {
     let conn = Connection::connect_to_env().context("Wayland connection")?;
     let (globals, mut eq) = registry_queue_init::<CursorQuery>(&conn)?;

@@ -87,8 +87,8 @@ pub fn region_rect(
         let sy = py + r as f32 * ph / L3_KEYS.len() as f32;
         let sw = pw / L3_KEYS[0].len() as f32;
         let sh = ph / L3_KEYS.len() as f32;
-        let dx = ctx.l4_dx as f32 * sw / 7.0;
-        let dy = ctx.l4_dy as f32 * sh / 7.0;
+        let dx = ctx.l4_dx as f32 * sw / crate::config::L4_SUBDIV;
+        let dy = ctx.l4_dy as f32 * sh / crate::config::L4_SUBDIV;
         Some((sx + dx, sy + dy, sw, sh))
     } else {
         Some((px, py, pw, ph))

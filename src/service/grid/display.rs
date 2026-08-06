@@ -83,7 +83,7 @@ pub fn display_update(
                 &mut ds.pixmap,
                 (x, y, w, h),
                 cfg,
-                font_size * 0.75,
+                font_size * crate::config::FONT_L3_SCALE,
                 l3_sel,
                 &mut ds.l3_cache,
             );
@@ -93,9 +93,11 @@ pub fn display_update(
             {
                 let sub_w = w / L3_KEYS[0].len() as f32;
                 let sub_h = h / L3_KEYS.len() as f32;
-                let cx = x + (c as f32 + 0.5) * sub_w + dx as f32 * sub_w / 7.0;
-                let cy = y + (r as f32 + 0.5) * sub_h + dy as f32 * sub_h / 7.0;
-                let r = font_size * 0.15;
+                let cx =
+                    x + (c as f32 + 0.5) * sub_w + dx as f32 * sub_w / crate::config::L4_SUBDIV;
+                let cy =
+                    y + (r as f32 + 0.5) * sub_h + dy as f32 * sub_h / crate::config::L4_SUBDIV;
+                let r = font_size * crate::config::L4_DOT_RATIO;
                 render_l4_dot(&mut ds.pixmap, (cx, cy, r));
             }
         }

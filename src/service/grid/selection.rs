@@ -42,8 +42,8 @@ pub fn redraw_select_hint(overlay: &mut Overlay, monitors: &[Monitor], hint: &st
         anti_alias: true,
         ..Default::default()
     };
-    let pw = font_size * 1.8;
-    let ph = font_size * 1.8;
+    let pw = font_size * crate::config::SELECT_OVAL_SCALE;
+    let ph = font_size * crate::config::SELECT_OVAL_SCALE;
 
     for (i, m) in monitors.iter().enumerate() {
         let label = format!("{}", (b'a' + i as u8) as char);

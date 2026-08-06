@@ -122,7 +122,9 @@ impl GlideAlpha {
         }
 
         // ctrl + w/a/s/d = scroll up/left/down/right.
-        if c && let Some((axis, dir)) = scroll_code(code) {
+        if c && !s
+            && let Some((axis, dir)) = scroll_code(code)
+        {
             if is_press {
                 ptr.scroll(axis, dir)?;
             }

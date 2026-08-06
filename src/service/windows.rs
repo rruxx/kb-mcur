@@ -81,8 +81,7 @@ fn with_service<T>(f: impl FnOnce(&mut Service, &mut Mouse) -> T) -> Option<T> {
 }
 
 /// Drain pending window messages so the low-level hook fires on this thread.
-/// `msg` is only dereferenced after `PeekMessageW` reports a message, so
-/// `MaybeUninit` memory is never read before the OS writes it.
+/// `msg` is only read after `PeekMessageW` reports a message.
 fn pump_messages(msg: *mut MSG) {
     while unsafe { PeekMessageW(msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
         if unsafe { (*msg).message } == WM_QUIT {

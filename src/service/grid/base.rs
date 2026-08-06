@@ -29,7 +29,7 @@ pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
     let h = pixmap.height() as f32;
     let line = rgba(cfg.line_color);
     let stroke = Stroke {
-        width: 3.0,
+        width: crate::config::L1_LINE_WIDTH,
         ..Default::default()
     };
     for col in 1..L1_KEYS[0].len() {

@@ -34,12 +34,17 @@ pub const FALLBACK_HEIGHT: u16 = 1080;
 pub const GRID_ROWS: u32 = 27;
 pub const GRID_COLS: u32 = 27;
 
+/// L4 micro-adjustment subdivides an L3 cell into this many parts.
+pub const L4_SUBDIV: f32 = 7.0;
+
 // ── Colours ──────────────────────────────────────────────────────────
 
 pub const LINE_COLOR: [u8; 4] = [255, 255, 255, 40];
 pub const LABEL_COLOR: [u8; 4] = [192, 255, 192, 192];
 pub const BG_COLOR: [u8; 4] = [0, 0, 0, 144];
 pub const LINE_WIDTH: f32 = 1.0;
+/// L1 grid-line stroke width (the base layer's wide separators).
+pub const L1_LINE_WIDTH: f32 = 3.0;
 
 // ── Font sizing ──────────────────────────────────────────────────────
 
@@ -53,11 +58,20 @@ pub const FONT_ASPECT_RATIO: f32 = 1.93;
 pub const FONT_BASE_SIZE: f32 = 14.0;
 /// Multi-monitor selection hint font size at the base height.
 pub const SELECT_BASE_SIZE: f32 = 128.0;
+/// Minimum font size regardless of screen size.
 pub const FONT_SIZE_MIN: f32 = 6.0;
 /// Supersampling factor for glyph rasterization: glyphs are rendered at
 /// `size × FONT_SUPERSAMPLE` and box-filtered down, keeping edges crisp when
 /// the overlay is displayed scaled (e.g. 150% desktop zoom).
 pub const FONT_SUPERSAMPLE: u32 = 2;
+/// Character gap ratio for multi-character labels (`draw_text`).
+pub const CHAR_SPACE_RATIO: f32 = 0.12;
+/// Selection-hint oval size as a multiple of the selection font size.
+pub const SELECT_OVAL_SCALE: f32 = 1.8;
+/// L3 overlay label font size as a fraction of the base grid font size.
+pub const FONT_L3_SCALE: f32 = 0.75;
+/// L4 cursor-dot radius as a fraction of the base grid font size.
+pub const L4_DOT_RATIO: f32 = 0.15;
 
 // ── Two-layer grid key layouts ────────────────────────────────────────
 

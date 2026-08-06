@@ -9,7 +9,13 @@ kursor — keyboard-driven mouse cursor control. Linux (X11 + wlroots), Windows 
 - Rust edition 2024, `#![warn(clippy::pedantic)]`, allowed categories in `src/lib.rs`.
 - `nix` for syscalls (Linux only); never raw `libc::` for ioctl/poll/stat/read/close/mmap.
 - `bytemuck` for `#[repr(C)]` casts; never `std::mem::zeroed()`.
-- `log`, never `eprintln!`. Constants in `src/config.rs`; no magic numbers.
+- `log`, never `eprintln!`. Constants in `src/config.rs` — but only major /
+  tunable / repeated / user-facing values; trivial one-off literals stay local.
+- Glide scroll direction: wheel `+1` = up, `-1` = down (glide-alpha `ctrl+w`=up=+1,
+  glide-num NumLock+`/`=up=+1). Direction signs are easy to misread — when touching
+  keys/directions cross-check `assets/help/help-service.txt`.
+- Doc comments: keep mechanism/safety notes (hook liveness, tray, supersampling,
+  `MaybeUninit`); trim redundant prose.
 - `src/device/linux/abi.rs` — single source for kernel input structs/ioctls/device creation.
 - `src/keymap.rs` — keycode truth table: unused keys stay commented (commented = not used); enable a key only when the code needs it. Main-keyboard grab needs ≥45 keys (26 letters + `,` `.` `/` `;` + 0-9 + Tab/Caps/Shift/Ctrl/Meta) — see `src/device/linux/input.rs`.
 - Platform split under `src/device/{linux,windows}/` and `src/overlay/`; core (grid/glide/render) platform-neutral.
