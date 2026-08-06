@@ -8,7 +8,7 @@
 pub const KEYCODE_MAX: u16 = 255;
 
 // pub const KEY_RESERVED: u16 = 0;
-pub const KEY_ESC: u16 = 1;
+// pub const KEY_ESC: u16 = 1;
 pub const KEY_1: u16 = 2;
 pub const KEY_2: u16 = 3;
 pub const KEY_3: u16 = 4;
@@ -21,7 +21,7 @@ pub const KEY_9: u16 = 10;
 pub const KEY_0: u16 = 11;
 // pub const KEY_MINUS: u16 = 12;
 // pub const KEY_EQUAL: u16 = 13;
-pub const KEY_BACKSPACE: u16 = 14;
+// pub const KEY_BACKSPACE: u16 = 14;
 pub const KEY_TAB: u16 = 15;
 pub const KEY_Q: u16 = 16;
 pub const KEY_W: u16 = 17;
@@ -35,7 +35,7 @@ pub const KEY_O: u16 = 24;
 pub const KEY_P: u16 = 25;
 // pub const KEY_LEFTBRACE: u16 = 26;
 // pub const KEY_RIGHTBRACE: u16 = 27;
-pub const KEY_ENTER: u16 = 28;
+// pub const KEY_ENTER: u16 = 28;
 pub const KEY_LEFTCTRL: u16 = 29;
 pub const KEY_A: u16 = 30;
 pub const KEY_S: u16 = 31;
@@ -60,11 +60,11 @@ pub const KEY_N: u16 = 49;
 pub const KEY_M: u16 = 50;
 pub const KEY_COMMA: u16 = 51;
 pub const KEY_DOT: u16 = 52;
-// pub const KEY_SLASH: u16 = 53;
+pub const KEY_SLASH: u16 = 53;
 pub const KEY_RIGHTSHIFT: u16 = 54;
 pub const KEY_KPASTERISK: u16 = 55;
-pub const KEY_LEFTALT: u16 = 56;
-pub const KEY_SPACE: u16 = 57;
+// pub const KEY_LEFTALT: u16 = 56;
+// pub const KEY_SPACE: u16 = 57;
 pub const KEY_CAPSLOCK: u16 = 58;
 // pub const KEY_F1: u16 = 59;
 // pub const KEY_F2: u16 = 60;
@@ -110,7 +110,7 @@ pub const KEY_KPENTER: u16 = 96;
 pub const KEY_RIGHTCTRL: u16 = 97;
 pub const KEY_KPSLASH: u16 = 98;
 // pub const KEY_SYSRQ: u16 = 99;
-pub const KEY_RIGHTALT: u16 = 100;
+// pub const KEY_RIGHTALT: u16 = 100;
 
 // pub const KEY_LINEFEED: u16 = 101;
 
@@ -143,14 +143,13 @@ pub const KEY_LEFTMETA: u16 = 125;
 pub const KEY_RIGHTMETA: u16 = 126;
 // pub const KEY_COMPOSE: u16 = 127;
 
-/// Modifier-key state (shift/ctrl/meta/alt), one bool per key.
+/// Modifier-key state (shift/ctrl/meta), one bool per key.
 #[derive(Default)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct ModState {
     pub shift: bool,
     pub ctrl: bool,
     pub meta: bool,
-    pub alt: bool,
 }
 
 impl ModState {
@@ -159,7 +158,6 @@ impl ModState {
             KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = pressed,
             KEY_LEFTCTRL | KEY_RIGHTCTRL => self.ctrl = pressed,
             KEY_LEFTMETA | KEY_RIGHTMETA => self.meta = pressed,
-            KEY_LEFTALT | KEY_RIGHTALT => self.alt = pressed,
             _ => {}
         }
     }
@@ -205,9 +203,6 @@ pub fn key_map(code: u16, mods: &ModState) -> Option<u8> {
     }
 
     match code {
-        KEY_ENTER => Some(b'\n'),
-        KEY_BACKSPACE => Some(0x7f),
-        KEY_ESC => Some(0x1b),
         KEY_COMMA => Some(b','),
         KEY_DOT => Some(b'.'),
         KEY_SEMICOLON => Some(b';'),

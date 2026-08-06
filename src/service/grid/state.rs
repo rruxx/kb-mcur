@@ -238,12 +238,6 @@ impl<'a> GridStateMut<'a> {
                 }
             }
         }
-        if byte == Some(b'\x1b')
-            && let Some(o) = self.sel_overlay.as_mut()
-        {
-            select_hint.clear();
-            let _ = redraw_select_hint(o, monitors, "");
-        }
     }
 
     // ── Navigating phase ──
@@ -342,19 +336,6 @@ impl<'a> GridStateMut<'a> {
                 if let Some((cx, cy)) = region_center(&gctx.filter, &s.draw_states, gctx) {
                     s.overlay.pointer_warp(cx as i32, cy as i32)?;
                 }
-                gctx.filter.clear();
-                gctx.repeat = 0;
-                Self::redraw(
-                    &s.overlay,
-                    &s.cfg,
-                    &s.cache,
-                    &mut s.draw_states,
-                    s.font_size,
-                    gctx,
-                )?;
-            }
-
-            0x1b => {
                 gctx.filter.clear();
                 gctx.repeat = 0;
                 Self::redraw(

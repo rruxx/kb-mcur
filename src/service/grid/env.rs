@@ -62,7 +62,7 @@ impl GridEnv {
         mods: &ModState,
         kbd: &mut dyn KeyboardOut,
     ) -> Result<bool> {
-        if code != KEY_CAPSLOCK || !is_press || !mods.meta || mods.shift || mods.ctrl || mods.alt {
+        if code != KEY_CAPSLOCK || !is_press || !mods.meta || mods.shift || mods.ctrl {
             return Ok(false);
         }
         if self.active() {

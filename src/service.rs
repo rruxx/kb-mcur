@@ -77,13 +77,12 @@ impl Service {
         {
             let chord = is_press
                 && match code {
-                    KEY_CAPSLOCK => self.mods.meta && !self.mods.ctrl && !self.mods.alt,
+                    KEY_CAPSLOCK => self.mods.meta && !self.mods.ctrl,
                     KEY_KPENTER => {
                         self.glide_num.numlock_held()
                             && !self.mods.meta
                             && !self.mods.shift
                             && !self.mods.ctrl
-                            && !self.mods.alt
                     }
                     _ => false,
                 };

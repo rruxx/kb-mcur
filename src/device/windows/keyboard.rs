@@ -9,13 +9,12 @@
 //! numpad Enter vs. the main Enter.
 
 use crate::keymap::{
-    KEY_0, KEY_A, KEY_APOSTROPHE, KEY_B, KEY_BACKSPACE, KEY_C, KEY_CAPSLOCK, KEY_COMMA, KEY_D,
-    KEY_DOT, KEY_E, KEY_ENTER, KEY_ESC, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_KP0, KEY_KP1,
-    KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5, KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK,
-    KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, KEY_L, KEY_LEFTALT, KEY_LEFTCTRL,
-    KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_M, KEY_N, KEY_NUMLOCK, KEY_O, KEY_P, KEY_Q, KEY_R,
-    KEY_RIGHTALT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_S, KEY_SEMICOLON, KEY_SPACE,
-    KEY_T, KEY_TAB, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
+    KEY_0, KEY_A, KEY_APOSTROPHE, KEY_B, KEY_C, KEY_CAPSLOCK, KEY_COMMA, KEY_D, KEY_DOT, KEY_E,
+    KEY_F, KEY_G, KEY_H, KEY_I, KEY_J, KEY_K, KEY_KP0, KEY_KP1, KEY_KP2, KEY_KP3, KEY_KP4, KEY_KP5,
+    KEY_KP6, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER, KEY_KPMINUS,
+    KEY_KPPLUS, KEY_KPSLASH, KEY_L, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_M, KEY_N,
+    KEY_NUMLOCK, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_S,
+    KEY_SEMICOLON, KEY_T, KEY_TAB, KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z,
 };
 
 /// Map a Windows virtual-key code + scan code to an evdev keycode.
@@ -63,13 +62,15 @@ pub fn vk_to_evdev(vk: u32, scan: u32, extended: bool) -> Option<u16> {
     }
 
     match vk {
-        // Backspace / Tab / Enter / Esc / Space
-        0x08 => Some(KEY_BACKSPACE),
+        // Tab / Caps / Num lock
         0x09 => Some(KEY_TAB),
-        0x0D => Some(if ext { KEY_KPENTER } else { KEY_ENTER }),
-        0x1B => Some(KEY_ESC),
-        0x20 => Some(KEY_SPACE),
-        // Caps / Num lock
+        0x0D => {
+            if ext {
+                Some(KEY_KPENTER)
+            } else {
+                None
+            }
+        } // numpad Enter only
         0x14 => Some(KEY_CAPSLOCK),
         0x90 => Some(KEY_NUMLOCK),
         // Win (meta)
@@ -80,8 +81,6 @@ pub fn vk_to_evdev(vk: u32, scan: u32, extended: bool) -> Option<u16> {
         0xA1 => Some(KEY_RIGHTSHIFT),
         0xA2 => Some(KEY_LEFTCTRL),
         0xA3 => Some(KEY_RIGHTCTRL),
-        0xA4 => Some(KEY_LEFTALT),
-        0xA5 => Some(KEY_RIGHTALT),
         // Generic modifier VK codes — disambiguate via scan code
         0x10 => Some(if scan == 0x36 {
             KEY_RIGHTSHIFT
@@ -89,7 +88,6 @@ pub fn vk_to_evdev(vk: u32, scan: u32, extended: bool) -> Option<u16> {
             KEY_LEFTSHIFT
         }),
         0x11 => Some(if ext { KEY_RIGHTCTRL } else { KEY_LEFTCTRL }),
-        0x12 => Some(if ext { KEY_RIGHTALT } else { KEY_LEFTALT }),
         // Letters
         0x41..=0x5A => letter_key(vk),
         // Main digit row

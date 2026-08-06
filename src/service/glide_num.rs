@@ -55,7 +55,6 @@ impl GlideNum {
             && !mods.meta
             && !mods.shift
             && !mods.ctrl
-            && !mods.alt
         {
             self.active = !self.active;
             self.reset_input();
