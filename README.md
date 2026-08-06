@@ -2,7 +2,7 @@
 
 [中文](README.d/README-zh.md)
 
-Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click).
+Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click / pos).
 Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI + service).
 
 ## Motivation
@@ -34,11 +34,24 @@ Download `kursor-v{VERSION}-x86_64_v3-pc-windows-gnu.7z` from Releases — a sin
 
 | | |
 | --- | --- |
+| CPU | x86-64-v3+ (Zen3+ / AVX2) |
+| OS | Linux / Windows |
 | Rust | ≥ 1.80 |
-| CPU | x86-64-v3 (Zen3+ / AVX2) |
 | Linux | ≥ 5.0 (`/dev/uinput`), `sudo usermod -aG input $USER` |
 | Windows | 7+ (subsystem 6.1) |
-| Overlay | X11 with compositor; Wayland native |
+
+## Platform support
+
+| Desktop | Support |
+| --- | --- |
+| wlroots / X11 | Full (native); X11 grid transparency needs a compositor |
+| KDE / GNOME | Via XWayland |
+
+**Tested:**
+- **wlroots (niri, Sway):** everything works.
+- **X11 (openbox):** works, except the grid overlay is opaque without a compositor.
+- **KDE:** works via XWayland.
+- **GNOME:** untested — expected to work via XWayland, but `kursor pos` may not.
 
 ## Usage
 
@@ -71,50 +84,43 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 | `kursor move -- 10 -5` | Relative move |
 | `kursor moveto 500 300` | Absolute warp |
 | `kursor click -r 3 M` | Click with repeat |
+| `kursor pos` | Print cursor position and screen |
+
+`kursor pos` is native on Windows/X11; on KDE Wayland it queries via KWin
+scripting (`workspace.cursorPos`), and on wlroots/niri (Sway, Hyprland, …) via
+per-output layer surfaces + a virtual-pointer poke — global coordinates on any
+monitor, no external tools. (GNOME, see *Platform support*.)
 
 `--help` prints full key maps.
 
 ## Architecture
 
+Three layers on top of a thin CLI shell: `device/` (virtual pointer), `overlay/`
+(rendering + cursor/screen query), `service/` (cross-mode state machine + main loops).
+
 ```
 src/
-├── main.rs        CLI entry
-├── lib.rs         Module declarations
-├── config.rs      Project identity, key mappings, grid config
-├── keymap.rs      US-QWERTY keycode → ASCII map
-├── font.rs        Embedded font (assets/font.ttf)
-├── render.rs      Overlay rendering + text drawing
+├── main.rs        CLI entry (parses, dispatches)
+├── lib.rs         Module declarations + re-exports
+├── cli/           Command enum + one file per command (move/moveto/click/pos/service)
+├── config.rs      Identity, key layouts, grid config, constants
+├── keymap.rs      evdev keycodes, ModState, key map
+├── font.rs        Embedded font
+├── render.rs      Overlay rendering + text cache
 ├── debug.rs       Debug helpers (multi-monitor simulation)
-├── device.rs      Device layer entry: platform-split pointer
-├── device/
-│   ├── linux.rs       Linux pointer re-exports
-│   ├── linux/
-│   │   ├── abi.rs     Kernel input ABI: structs + ioctls
-│   │   ├── input.rs   Physical keyboard grab + hot-plug
-│   │   └── uinput.rs  Virtual pointer (Mouse)
-│   ├── windows.rs     Windows pointer re-exports
-│   └── windows/
-│       └── mouse.rs   SendInput / SetCursorPos virtual pointer
-├── overlay.rs     OverlayBackend trait + platform connect()
-├── overlay/
+├── device/        Virtual pointer per platform (Pointer/KeyboardOut traits)
+│   ├── linux/     Kernel input ABI, keyboard grab, uinput Mouse
+│   └── windows/   SendInput/SetCursorPos Mouse, VK→evdev map
+├── overlay/       OverlayBackend trait + per-platform overlay + pos/screen query
 │   ├── x11.rs     X11 RandR + SHAPE overlay
-│   ├── wlr.rs     wlr-layer-shell Wayland overlay
-│   └── windows.rs Screen-size query (stage 1)
-├── service.rs     Main event loop + dispatch (Linux)
-└── service/       (Linux)
-    ├── glide_num.rs   NumPad glide-num
-    ├── glide_alpha.rs Main-keyboard glide-alpha
-    ├── dir.rs         Shared direction bitmask + glide ticks
-    ├── grid.rs        Grid data model + re-exports
-    └── grid/
-        ├── base.rs        Base-layer rendering (BG + L1 + labels)
-        ├── device_perm.rs Session detection + device permission fix
-        ├── display.rs     Display update + L2/L3/L4 rendering
-        ├── env.rs         GridEnv state + toggle/input API
-        ├── init.rs        Grid service init + connection
-        ├── process.rs     Cursor actions + region geometry
-        ├── selection.rs   Multi-monitor selection UI
-        └── state.rs       Grid state + input handlers (GridStateMut)
+│   ├── wlr.rs     wlr-layer-shell overlay + virtual-pointer
+│   ├── kde.rs     KDE Wayland pos (KWin scripting)
+│   └── windows/   Per-monitor layered windows
+└── service/       Cross-mode state machine + platform main loops
+    ├── linux.rs   evdev grab loop
+    ├── windows.rs WH_KEYBOARD_LL loop + liveness probe
+    ├── glide_num.rs / glide_alpha.rs / dir.rs
+    └── grid/      Grid model, rendering, state
 ```
 
 ## License
@@ -127,4 +133,5 @@ AGPL-3.0-or-later
 - [keynav](https://github.com/jordansissel/keynav) — X11 keyboard-driven pointer
 - [warpd](https://github.com/rvaiya/warpd) — modal keyboard-driven mouse
 - [mouseless](https://github.com/jbensmann/mouseless) — keyboard-driven mouse control
+- [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation
 - [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation

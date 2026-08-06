@@ -2,7 +2,7 @@
 
 [English](../README.md)
 
-三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）与一次性 CLI 命令（move / moveto / click）。
+三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）与一次性 CLI 命令（move / moveto / click / pos）。
 支持 Linux（X11 / wlroots / KDE / GNOME）与 Windows（CLI + service）。
 
 ## 初衷
@@ -34,11 +34,24 @@ sudo install -m755 target/release/kursor /usr/bin/
 
 | | |
 | --- | --- |
+| CPU | x86-64-v3+（Zen3+ / AVX2） |
+| OS | Linux / Windows |
 | Rust | ≥ 1.80 |
-| CPU | x86-64-v3（Zen3+ / AVX2） |
 | Linux | ≥ 5.0（`/dev/uinput`），`sudo usermod -aG input $USER` |
 | Windows | 7+（子系统 6.1） |
-| 叠加层 | X11 搭配合成器；Wayland 原生 |
+
+## 平台支持
+
+| 桌面环境 | 支持 |
+| --- | --- |
+| wlroots / X11 | 完整（原生）；X11 grid 半透明需合成器 |
+| KDE / GNOME | 借助 XWayland |
+
+**测试情况：**
+- **wlroots（niri、Sway）：** 一切正常。
+- **X11（openbox）：** 正常，但 grid 遮罩无法半透明（需合成器）。
+- **KDE：** 借助 XWayland，一切正常。
+- **GNOME：** 未测试——理论上可借助 XWayland 运行，但 `kursor pos` 可能无法正常工作。
 
 ## 用法
 
@@ -71,50 +84,42 @@ sudo systemctl daemon-reload && sudo systemctl enable --now kursord
 | `kursor move -- 10 -5` | 相对移动 |
 | `kursor moveto 500 300` | 绝对定位 |
 | `kursor click -r 3 M` | 连击 |
+| `kursor pos` | 打印光标位置与所在屏幕 |
+
+`kursor pos` 在 Windows / X11 原生支持；KDE Wayland 通过 KWin scripting
+（`workspace.cursorPos`）查询；wlroots/niri（Sway、Hyprland 等）通过每输出
+layer-surface + virtual-pointer 触发读取——任意屏全局坐标，无需外部工具。
+（GNOME，见"平台支持"）
 
 各命令加 `--help` 查看完整键表。
 
 ## 架构
 
+三层结构 + 薄 CLI 壳：`device/`（虚拟指针）、`overlay/`（渲染 + 光标/屏幕查询）、`service/`（跨模式状态机 + 平台主循环）。
+
 ```
 src/
-├── main.rs        CLI 入口
-├── lib.rs         模块声明
-├── config.rs      项目标识、按键映射、网格配置
-├── keymap.rs      US-QWERTY 键码映射
-├── font.rs        内嵌字体（assets/font.ttf）
-├── render.rs      叠加层渲染 + 文字绘制
+├── main.rs        CLI 入口（解析、派发）
+├── lib.rs         模块声明 + 重导出
+├── cli/           命令枚举 + 每命令一文件（move/moveto/click/pos/service）
+├── config.rs      项目标识、按键布局、网格配置、常量
+├── keymap.rs      evdev 键码、ModState、键映射
+├── font.rs        内嵌字体
+├── render.rs      叠加层渲染 + 文字缓存
 ├── debug.rs       调试辅助（多屏模拟）
-├── device.rs      设备层入口：平台分目录虚拟指针
-├── device/
-│   ├── linux.rs       Linux 指针 re-export
-│   ├── linux/
-│   │   ├── abi.rs     内核 input ABI：结构体 + ioctls
-│   │   ├── input.rs   物理键盘接管 + 热插拔
-│   │   └── uinput.rs  虚拟指针（Mouse）
-│   ├── windows.rs     Windows 指针 re-export
-│   └── windows/
-│       └── mouse.rs   SendInput / SetCursorPos 虚拟指针
-├── overlay.rs     OverlayBackend trait + 平台 connect()
-├── overlay/
+├── device/        每平台虚拟指针（Pointer/KeyboardOut trait）
+│   ├── linux/     内核 input ABI、键盘接管、uinput Mouse
+│   └── windows/   SendInput/SetCursorPos Mouse、VK→evdev 映射
+├── overlay/       OverlayBackend trait + 每平台叠加层 + pos/screen 查询
 │   ├── x11.rs     X11 RandR + SHAPE 叠加层
-│   ├── wlr.rs     wlr-layer-shell Wayland 叠加层
-│   └── windows.rs 屏幕尺寸查询（阶段 1）
-├── service.rs     主事件循环 + 派发（Linux）
-└── service/       （Linux）
-    ├── glide_num.rs   小键盘 glide-num
-    ├── glide_alpha.rs 主键盘 glide-alpha
-    ├── dir.rs         共享方向位掩码 + 渐动步进
-    ├── grid.rs        网格数据模型 + re-export
-    └── grid/
-        ├── base.rs        基础层渲染（背景 + L1 + 标签）
-        ├── device_perm.rs 会话检测 + 设备权限修复
-        ├── display.rs     显示更新 + L2/L3/L4 渲染
-        ├── env.rs         GridEnv 状态 + 开关/输入 API
-        ├── init.rs        网格服务初始化 + 连接
-        ├── process.rs     光标操作 + 区域几何
-        ├── selection.rs   多屏选择 UI
-        └── state.rs       网格状态 + 输入处理（GridStateMut）
+│   ├── wlr.rs     wlr-layer-shell 叠加层 + virtual-pointer
+│   ├── kde.rs     KDE Wayland pos（KWin scripting）
+│   └── windows/   每显示器分层窗口
+└── service/       跨模式状态机 + 平台主循环
+    ├── linux.rs   evdev 接管循环
+    ├── windows.rs WH_KEYBOARD_LL 循环 + 活性检测
+    ├── glide_num.rs / glide_alpha.rs / dir.rs
+    └── grid/      网格模型、渲染、状态
 ```
 
 ## 许可证
