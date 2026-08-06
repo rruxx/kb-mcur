@@ -4,6 +4,7 @@
 use tiny_skia::{Pixmap, PremultipliedColorU8, Stroke};
 
 use super::{Grid, GridConfig, GridFilter};
+use crate::config::L1_KEYS;
 use crate::render::{
     TextCache, char_width, draw_char_glyph, draw_line, draw_text, fill_rect, rgba,
 };
@@ -31,12 +32,12 @@ pub fn render_l1(pixmap: &mut Pixmap, cfg: &GridConfig) {
         width: 3.0,
         ..Default::default()
     };
-    for col in 1..9 {
-        let x = (col as f32 / 9.0) * w;
+    for col in 1..L1_KEYS[0].len() {
+        let x = (col as f32 / L1_KEYS[0].len() as f32) * w;
         draw_line(pixmap, x, 0.0, x, h, &line, &stroke);
     }
-    for row in 1..3 {
-        let y = (row as f32 / 3.0) * h;
+    for row in 1..L1_KEYS.len() {
+        let y = (row as f32 / L1_KEYS.len() as f32) * h;
         draw_line(pixmap, 0.0, y, w, y, &line, &stroke);
     }
 }

@@ -17,8 +17,8 @@ use super::abi::{
     ui_set_keybit,
 };
 use crate::config::{
-    BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, CLICK_INTERVAL_MS, DEV_ABS, DEV_REL,
-    MouseButton, UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
+    BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, DEV_ABS, DEV_REL, MouseButton,
+    UINPUT_CREATE_WAIT_MS, UINPUT_NAME_MAXLEN, hid_button_code as button_hid,
 };
 use crate::device::pointer::{Pointer, ScrollAxis, SideButton};
 
@@ -111,9 +111,9 @@ impl Mouse {
         }
     }
 
-    pub fn warp(&mut self, x: i16, y: i16) -> Result<()> {
-        let abs_x = (f32::from(x) / f32::from(self.screen_w) * f32::from(i16::MAX)) as i32;
-        let abs_y = (f32::from(y) / f32::from(self.screen_h) * f32::from(i16::MAX)) as i32;
+    pub fn warp(&mut self, x: i32, y: i32) -> Result<()> {
+        let abs_x = (x as f32 / f32::from(self.screen_w) * f32::from(i16::MAX)) as i32;
+        let abs_y = (y as f32 / f32::from(self.screen_h) * f32::from(i16::MAX)) as i32;
         self.write_events(&[
             Self::make_event(EV_ABS, ABS_X, abs_x),
             Self::make_event(EV_ABS, ABS_Y, abs_y),
@@ -167,17 +167,6 @@ impl Mouse {
         ])?;
         Ok(())
     }
-
-    pub fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
-        let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
-        for _ in 0..count {
-            self.button_press(button)?;
-            std::thread::sleep(half);
-            self.button_release(button)?;
-            std::thread::sleep(half);
-        }
-        Ok(())
-    }
 }
 
 impl Pointer for Mouse {
@@ -191,10 +180,6 @@ impl Pointer for Mouse {
         } else {
             Mouse::button_release(self, button)
         }
-    }
-
-    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
-        Mouse::click(self, button, count)
     }
 
     fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()> {
@@ -221,7 +206,7 @@ impl Pointer for Mouse {
         ])
     }
 
-    fn warp(&mut self, x: i16, y: i16) -> Result<()> {
+    fn warp(&mut self, x: i32, y: i32) -> Result<()> {
         Mouse::warp(self, x, y)
     }
 }

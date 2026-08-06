@@ -52,27 +52,7 @@ impl X11Backend {
 impl OverlayBackend for X11Backend {
     fn named_monitors(&self) -> Result<Vec<Monitor>> {
         let screen = &self.conn.setup().roots[self.screen_num];
-        let resources = randr::get_screen_resources(&self.conn, screen.root)?.reply()?;
-        let mut out = Vec::new();
-        for &output in &resources.outputs {
-            let info = randr::get_output_info(&self.conn, output, x11rb::CURRENT_TIME)?.reply()?;
-            if info.crtc == 0 || info.connection != randr::Connection::CONNECTED {
-                continue;
-            }
-            let crtc = randr::get_crtc_info(&self.conn, info.crtc, x11rb::CURRENT_TIME)?.reply()?;
-            if crtc.width == 0 || crtc.height == 0 {
-                continue;
-            }
-            let name = String::from_utf8_lossy(&info.name).into_owned();
-            out.push(Monitor {
-                name,
-                x: i32::from(crtc.x),
-                y: i32::from(crtc.y),
-                w: crtc.width,
-                h: crtc.height,
-            });
-        }
-        Ok(out)
+        Ok(randr_monitors(&self.conn, screen.root))
     }
 
     fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
@@ -159,9 +139,48 @@ impl OverlayBackend for X11Backend {
         Ok(())
     }
 
-    fn pointer_warp(&self, _x: i16, _y: i16) -> Result<()> {
+    fn pointer_warp(&self, _x: i32, _y: i32) -> Result<()> {
         Ok(())
     }
+}
+
+/// Enumerate active outputs (`RandR` outputs bound to a `CRTC`) into monitors.
+fn randr_monitors(conn: &impl Connection, root: u32) -> Vec<Monitor> {
+    let Ok(resources) = randr::get_screen_resources(conn, root) else {
+        return Vec::new();
+    };
+    let Ok(resources) = resources.reply() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for &output in &resources.outputs {
+        let Ok(info) = randr::get_output_info(conn, output, x11rb::CURRENT_TIME) else {
+            continue;
+        };
+        let Ok(info) = info.reply() else {
+            continue;
+        };
+        if info.crtc == 0 || info.connection != randr::Connection::CONNECTED {
+            continue;
+        }
+        let Ok(crtc) = randr::get_crtc_info(conn, info.crtc, x11rb::CURRENT_TIME) else {
+            continue;
+        };
+        let Ok(crtc) = crtc.reply() else {
+            continue;
+        };
+        if crtc.width == 0 || crtc.height == 0 {
+            continue;
+        }
+        out.push(Monitor {
+            name: String::from_utf8_lossy(&info.name).into_owned(),
+            x: i32::from(crtc.x),
+            y: i32::from(crtc.y),
+            w: crtc.width,
+            h: crtc.height,
+        });
+    }
+    out
 }
 
 #[must_use]
@@ -173,48 +192,12 @@ pub fn query_screen_size() -> (u16, u16) {
     let Ok((conn, screen_num)) = x11rb::connect(None) else {
         return fallback;
     };
-    let mut monitors = Vec::new();
-    let resources = randr::get_screen_resources(&conn, conn.setup().roots[screen_num].root);
-    let Ok(cookie) = resources else {
-        return fallback;
-    };
-    let reply = cookie.reply();
-    let Ok(reply) = reply else {
-        return fallback;
-    };
-    for &crtc in &reply.crtcs {
-        let r = randr::get_crtc_info(&conn, crtc, x11rb::CURRENT_TIME);
-        let Ok(cookie) = r else {
-            continue;
-        };
-        let info = cookie.reply();
-        let Ok(info) = info else {
-            continue;
-        };
-        if info.width > 0 && info.height > 0 {
-            monitors.push(Monitor {
-                name: String::new(),
-                x: i32::from(info.x),
-                y: i32::from(info.y),
-                w: info.width,
-                h: info.height,
-            });
-        }
-    }
+    let monitors = randr_monitors(&conn, conn.setup().roots[screen_num].root);
     if monitors.is_empty() {
         return fallback;
     }
-    let max_w = monitors
-        .iter()
-        .map(|m| m.x + i32::from(m.w))
-        .max()
-        .unwrap_or(i32::from(crate::config::FALLBACK_WIDTH)) as u16;
-    let max_h = monitors
-        .iter()
-        .map(|m| m.y + i32::from(m.h))
-        .max()
-        .unwrap_or(i32::from(crate::config::FALLBACK_HEIGHT)) as u16;
-    (max_w, max_h)
+    let (_, _, w, h) = Monitor::bbox(&monitors);
+    (w, h)
 }
 
 /// Current cursor position in root (screen) coordinates.

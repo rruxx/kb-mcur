@@ -12,6 +12,9 @@ pub mod service;
 use anyhow::Result;
 use clap::Subcommand;
 
+use crate::device::Mouse;
+use crate::query_screen_size;
+
 /// A CLI subcommand.
 #[derive(Subcommand)]
 pub enum Cmd {
@@ -24,7 +27,7 @@ pub enum Cmd {
         name = "moveto",
         after_help = include_str!("../assets/help-moveto.txt")
     )]
-    MoveTo { x: i16, y: i16 },
+    MoveTo { x: i32, y: i32 },
 
     /// Mouse click: L(eft)|M(iddle)|R(ight), -r N for repeat.
     #[command(after_help = include_str!("../assets/help-click.txt"))]
@@ -52,4 +55,11 @@ pub fn dispatch(cmd: Cmd) -> Result<()> {
         Cmd::Pos => pos::run(),
         Cmd::Service => service::run(),
     }
+}
+
+/// Open a virtual pointer sized to the current screen. Shared by the
+/// `move` / `moveto` / `click` commands.
+pub(crate) fn mouse() -> Result<Mouse> {
+    let (sw, sh) = query_screen_size();
+    Mouse::new(sw, sh)
 }

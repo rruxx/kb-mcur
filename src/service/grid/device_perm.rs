@@ -10,7 +10,9 @@ pub fn display_session_uid() -> Option<u32> {
     if let Ok(dir) = std::fs::read_dir("/run/user") {
         for entry in dir.flatten() {
             let uid_str = entry.file_name().to_string_lossy().into_owned();
-            let uid: u32 = uid_str.parse().ok()?;
+            let Ok(uid) = uid_str.parse::<u32>() else {
+                continue;
+            };
             for wn in ["wayland-0", "wayland-1"] {
                 if entry.path().join(wn).exists() {
                     return Some(uid);
@@ -30,7 +32,7 @@ pub fn display_session_uid() -> Option<u32> {
 pub fn setup_display_env(uid: u32) {
     let run_user = format!("/run/user/{uid}");
 
-    for wn in ["wayland-1", "wayland-0"] {
+    for wn in ["wayland-0", "wayland-1"] {
         if std::path::Path::new(&format!("{run_user}/{wn}")).exists() {
             unsafe {
                 std::env::set_var("WAYLAND_DISPLAY", wn);

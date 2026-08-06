@@ -54,7 +54,7 @@ pub trait OverlayBackend {
     fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()>;
     fn show_all(&self) -> Result<()>;
     fn redraw_all(&self) -> Result<()>;
-    fn pointer_warp(&self, x: i16, y: i16) -> Result<()>;
+    fn pointer_warp(&self, x: i32, y: i32) -> Result<()>;
 }
 
 /// The active overlay backend for the current platform.

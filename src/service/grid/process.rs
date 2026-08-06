@@ -8,6 +8,7 @@ use super::GridFilter;
 use super::state::{DrawState, GridCtx};
 use crate::config::{MouseButton, l3_key_pos};
 use crate::device::Mouse;
+use crate::device::pointer::Pointer;
 
 // ── Cursor & button actions ────────────────────────────────────────
 
@@ -21,7 +22,7 @@ pub fn cursor_warp(
         return Ok(());
     };
     if let Some((cx, cy)) = region_center(filter, states, ctx) {
-        m.warp(cx as i16, cy as i16)?;
+        m.warp(cx as i32, cy as i32)?;
         info!(
             "=> {} ({cx:.0}, {cy:.0})",
             states.first().map_or("?", |ds| ds.name.as_str())
@@ -43,7 +44,7 @@ pub fn cursor_action(
     };
     let center = region_center(filter, states, ctx);
     if let Some((cx, cy)) = center {
-        m.warp(cx as i16, cy as i16)?;
+        m.warp(cx as i32, cy as i32)?;
     }
     let name = states.first().map_or("?", |ds| ds.name.as_str());
     let n = if repeat == 0 { 1 } else { repeat };
@@ -69,6 +70,8 @@ pub fn region_rect(
     if input.len() < 2 {
         return None;
     }
+    // `GridFilter` only ever holds ASCII (its chars come from `key_map`), so a
+    // 2-byte prefix slice is always a char boundary.
     let cell = states
         .iter()
         .find_map(|ds| ds.grid.cell_by_label(&input[..2]))?;

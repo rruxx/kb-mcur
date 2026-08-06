@@ -3,14 +3,12 @@
 
 //! `kursor moveto` — absolute cursor warp.
 
+use crate::cli;
 use crate::config::MOVE_WAIT_MS;
-use crate::device::Mouse;
-use crate::query_screen_size;
 use anyhow::Result;
 
-pub fn run(x: i16, y: i16) -> Result<()> {
-    let (sw, sh) = query_screen_size();
-    let mut m = Mouse::new(sw, sh)?;
+pub fn run(x: i32, y: i32) -> Result<()> {
+    let mut m = cli::mouse()?;
     m.warp(x, y)?;
     std::thread::sleep(std::time::Duration::from_millis(MOVE_WAIT_MS));
     Ok(())

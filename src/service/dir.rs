@@ -77,30 +77,52 @@ impl Dir {
 }
 
 /// Track a direction hold/release on a mask + counter.
-pub fn update_dir(held: &mut u8, mask: &mut Dir, count: &mut u32, flag: Dir, value: i32) {
-    if value == 0 {
-        mask.remove(flag);
-        *held = held.saturating_sub(1);
-        if *held == 0 {
-            *count = 0;
+pub struct DirState {
+    held: u8,
+    mask: Dir,
+    count: u32,
+}
+
+impl DirState {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            held: 0,
+            mask: Dir::empty(),
+            count: 0,
         }
-        debug!("dir release {flag:?} held={held}");
-    } else if value == 1 {
-        mask.insert(flag);
-        *held = held.saturating_add(1);
-        debug!("dir press {flag:?} held={held}");
+    }
+
+    /// Record a key press (`value == 1`) or release (`value == 0`) for a direction.
+    pub fn update(&mut self, flag: Dir, value: i32) {
+        if value == 0 {
+            self.mask.remove(flag);
+            self.held = self.held.saturating_sub(1);
+            if self.held == 0 {
+                self.count = 0;
+            }
+            debug!("dir release {flag:?} held={}", self.held);
+        } else if value == 1 {
+            self.mask.insert(flag);
+            self.held = self.held.saturating_add(1);
+            debug!("dir press {flag:?} held={}", self.held);
+        }
+    }
+
+    /// One per-frame movement step while exactly one direction is held (accelerated).
+    pub fn tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
+        if self.held != 1 {
+            return Ok(());
+        }
+        let (dx, dy) = self.mask.to_vector();
+        self.count = self.count.saturating_add(1);
+        let step = config::cursor_speed(self.count) as f32;
+        ptr.move_rel((dx as f32 * step) as i32, (dy as f32 * step) as i32)
     }
 }
 
-/// One per-frame movement step while a direction is held (accelerated).
-pub fn direction_tick(held: u8, mask: Dir, count: &mut u32, ptr: &mut dyn Pointer) -> Result<()> {
-    if held != 1 {
-        return Ok(());
+impl Default for DirState {
+    fn default() -> Self {
+        Self::new()
     }
-    let (dx, dy) = mask.to_vector();
-    *count = count.saturating_add(1);
-    let step = config::cursor_speed(*count) as f32;
-    let mx = (dx as f32 * step) as i32;
-    let my = (dy as f32 * step) as i32;
-    ptr.move_rel(mx, my)
 }

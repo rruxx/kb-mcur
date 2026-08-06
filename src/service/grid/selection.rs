@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use tiny_skia::{Color, Paint, PathBuilder, Pixmap, PremultipliedColorU8, Shader, Transform};
 
 use super::init::connect_as_user;
+use crate::config::BG_COLOR;
 use crate::font;
 use crate::overlay::{Monitor, Overlay};
 use crate::render::{TextCache, draw_text};
@@ -33,7 +34,7 @@ pub fn redraw_select_hint(overlay: &mut Overlay, monitors: &[Monitor], hint: &st
     let font_size = 128.0;
     let cache = TextCache::new(font::font(), font_size);
 
-    let bg = Color::from_rgba8(0, 0, 0, 144);
+    let bg = Color::from_rgba8(BG_COLOR[0], BG_COLOR[1], BG_COLOR[2], BG_COLOR[3]);
     let paint = Paint {
         shader: Shader::SolidColor(bg),
         anti_alias: true,

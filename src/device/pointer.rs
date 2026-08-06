@@ -3,9 +3,11 @@
 
 //! Platform-neutral virtual pointer output (`Pointer`).
 
+use std::time::Duration;
+
 use anyhow::Result;
 
-use crate::config::MouseButton;
+use crate::config::{CLICK_INTERVAL_MS, MouseButton};
 
 /// Scroll axis for mouse-wheel events.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,10 +28,24 @@ pub enum SideButton {
 pub trait Pointer {
     fn move_rel(&mut self, dx: i32, dy: i32) -> Result<()>;
     fn button(&mut self, button: MouseButton, press: bool) -> Result<()>;
-    fn click(&mut self, button: MouseButton, count: u32) -> Result<()>;
+
+    /// Press and release a button `count` times. The default implementation
+    /// uses the shared [`CLICK_INTERVAL_MS`]; platform implementations may
+    /// override it (e.g. to batch down+up into one syscall).
+    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
+        let half = Duration::from_millis(CLICK_INTERVAL_MS / 2);
+        for _ in 0..count {
+            self.button(button, true)?;
+            std::thread::sleep(half);
+            self.button(button, false)?;
+            std::thread::sleep(half);
+        }
+        Ok(())
+    }
+
     fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()>;
     fn side(&mut self, button: SideButton) -> Result<()>;
-    fn warp(&mut self, x: i16, y: i16) -> Result<()>;
+    fn warp(&mut self, x: i32, y: i32) -> Result<()>;
 }
 
 /// Keyboard passthrough output for mode toggles.

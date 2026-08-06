@@ -11,8 +11,8 @@ use anyhow::Result;
 use log::{info, warn};
 
 use crate::config::{
-    BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, CLICK_INTERVAL_MS, DEV_KBD, DEV_PTR,
-    MouseButton, hid_button_code,
+    BTN_EXTRA, BTN_LEFT, BTN_MIDDLE, BTN_RIGHT, BTN_SIDE, DEV_KBD, DEV_PTR, MouseButton,
+    hid_button_code,
 };
 use crate::device::linux::abi::{
     EV_KEY, EV_REL, EV_SYN, REL_HWHEEL, REL_WHEEL, REL_X, REL_Y, SYN_REPORT, create_virt_device,
@@ -54,17 +54,6 @@ impl Pointer for RelPointer<'_> {
         Ok(())
     }
 
-    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
-        let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
-        for _ in 0..count {
-            self.button(button, true)?;
-            std::thread::sleep(half);
-            self.button(button, false)?;
-            std::thread::sleep(half);
-        }
-        Ok(())
-    }
-
     fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()> {
         let code = match axis {
             ScrollAxis::Vertical => REL_WHEEL,
@@ -87,7 +76,7 @@ impl Pointer for RelPointer<'_> {
         Ok(())
     }
 
-    fn warp(&mut self, _x: i16, _y: i16) -> Result<()> {
+    fn warp(&mut self, _x: i32, _y: i32) -> Result<()> {
         Ok(())
     }
 }

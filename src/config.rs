@@ -77,8 +77,11 @@ pub const L3_KEYS: [[char; 5]; 3] = [
 ];
 
 #[must_use]
-pub fn l3_key_pos(ch: char) -> Option<(usize, usize)> {
-    for (r, row) in L3_KEYS.iter().enumerate() {
+fn key_pos<const R: usize, const C: usize>(
+    keys: &[[char; C]; R],
+    ch: char,
+) -> Option<(usize, usize)> {
+    for (r, row) in keys.iter().enumerate() {
         for (c, &k) in row.iter().enumerate() {
             if k == ch {
                 return Some((r, c));
@@ -86,37 +89,34 @@ pub fn l3_key_pos(ch: char) -> Option<(usize, usize)> {
         }
     }
     None
+}
+
+#[must_use]
+pub fn l3_key_pos(ch: char) -> Option<(usize, usize)> {
+    key_pos(&L3_KEYS, ch)
 }
 
 #[must_use]
 pub fn l1_key_pos(ch: char) -> Option<(usize, usize)> {
-    for (r, row) in L1_KEYS.iter().enumerate() {
-        for (c, &k) in row.iter().enumerate() {
-            if k == ch {
-                return Some((r, c));
-            }
-        }
-    }
-    None
+    key_pos(&L1_KEYS, ch)
 }
 
 #[must_use]
 pub fn l2_key_pos(ch: char) -> Option<(usize, usize)> {
-    for (r, row) in L2_KEYS.iter().enumerate() {
-        for (c, &k) in row.iter().enumerate() {
-            if k == ch {
-                return Some((r, c));
-            }
-        }
-    }
-    None
+    key_pos(&L2_KEYS, ch)
 }
 
 /// Full label for cell at global (row, col) in the 27×27 grid.
+///
+/// L2 is a 9×3 clockwise rotation of L1 (3×9). Each L1 cell spans a 9×3 block
+/// of the grid, indexed by its row/col position; within a block, the 9×3 L2
+/// grid selects the sub-cell. All divisors come from the key layouts so the
+/// mapping stays correct if a layout changes.
 #[must_use]
 pub fn cell_label(row: u32, col: u32) -> String {
-    let l1 = &L1_KEYS[(row / 9) as usize][(col / 3) as usize];
-    let l2 = &L2_KEYS[(row % 9) as usize][(col % 3) as usize];
+    let (r, c) = (row as usize, col as usize);
+    let l1 = &L1_KEYS[r / L2_KEYS.len()][c / L2_KEYS[0].len()];
+    let l2 = &L2_KEYS[r % L2_KEYS.len()][c % L2_KEYS[0].len()];
     format!("{l1}{l2}")
 }
 
@@ -146,7 +146,9 @@ pub enum MouseButton {
 }
 
 impl MouseButton {
-    /// USB HID order used by [`CLICK_KEYS`] (1=left, 2=middle, 3=right).
+    /// Shared 1/2/3 ordering used by [`CLICK_KEYS`] and grid logging
+    /// (1=left, 2=middle, 3=right). Not a Linux `BTN_*` code — see
+    /// [`hid_button_code`].
     #[must_use]
     pub const fn as_u8(self) -> u8 {
         match self {

@@ -12,7 +12,7 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::SetCursorPos;
 
-use crate::config::{CLICK_INTERVAL_MS, MouseButton};
+use crate::config::MouseButton;
 use crate::device::pointer::{Pointer, ScrollAxis, SideButton};
 
 /// `WHEEL_DELTA` — one wheel notch.
@@ -31,8 +31,8 @@ impl Mouse {
     }
 
     /// Warp the cursor to absolute screen coordinates.
-    pub fn warp(&mut self, x: i16, y: i16) -> Result<()> {
-        if unsafe { SetCursorPos(i32::from(x), i32::from(y)) } == 0 {
+    pub fn warp(&mut self, x: i32, y: i32) -> Result<()> {
+        if unsafe { SetCursorPos(x, y) } == 0 {
             anyhow::bail!("SetCursorPos failed");
         }
         Ok(())
@@ -52,19 +52,6 @@ impl Mouse {
     pub fn button_release(&mut self, button: MouseButton) -> Result<()> {
         send(&[mouse_input(button_flag(button, false), 0, 0, 0)])
     }
-
-    /// Press and release a button `count` times.
-    pub fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
-        let half = std::time::Duration::from_millis(CLICK_INTERVAL_MS / 2);
-        for _ in 0..count {
-            send(&[
-                mouse_input(button_flag(button, true), 0, 0, 0),
-                mouse_input(button_flag(button, false), 0, 0, 0),
-            ])?;
-            std::thread::sleep(half);
-        }
-        Ok(())
-    }
 }
 
 impl Pointer for Mouse {
@@ -78,10 +65,6 @@ impl Pointer for Mouse {
         } else {
             Mouse::button_release(self, button)
         }
-    }
-
-    fn click(&mut self, button: MouseButton, count: u32) -> Result<()> {
-        Mouse::click(self, button, count)
     }
 
     fn scroll(&mut self, axis: ScrollAxis, dir: i32) -> Result<()> {
@@ -103,7 +86,7 @@ impl Pointer for Mouse {
         ])
     }
 
-    fn warp(&mut self, x: i16, y: i16) -> Result<()> {
+    fn warp(&mut self, x: i32, y: i32) -> Result<()> {
         Mouse::warp(self, x, y)
     }
 }

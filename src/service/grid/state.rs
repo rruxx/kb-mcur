@@ -356,7 +356,7 @@ impl<'a> GridStateMut<'a> {
             b'\r' | b'\n' => {
                 cursor_warp(self.mouse, &gctx.filter, gstats, gctx)?;
                 if let Some((cx, cy)) = region_center(&gctx.filter, gstats, gctx) {
-                    o.pointer_warp(cx as i16, cy as i16)?;
+                    o.pointer_warp(cx as i32, cy as i32)?;
                 }
                 gctx.filter.clear();
                 gctx.repeat = 0;
@@ -394,7 +394,7 @@ impl<'a> GridStateMut<'a> {
                 {
                     cursor_action(self.mouse, &gctx.filter, gstats, btn, gctx.repeat, gctx)?;
                     if let Some((cx, cy)) = region_center(&gctx.filter, gstats, gctx) {
-                        o.pointer_warp(cx as i16, cy as i16)?;
+                        o.pointer_warp(cx as i32, cy as i32)?;
                     }
                     gctx.filter.clear();
                     gctx.repeat = 0;

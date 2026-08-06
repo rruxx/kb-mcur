@@ -10,7 +10,7 @@ use crate::keymap::{
     KEY_KP0, KEY_KP5, KEY_KP7, KEY_KP8, KEY_KP9, KEY_KPASTERISK, KEY_KPDOT, KEY_KPENTER,
     KEY_KPMINUS, KEY_KPPLUS, KEY_KPSLASH, ModState,
 };
-use crate::service::dir::{Dir, direction_tick, update_dir};
+use crate::service::dir::{Dir, DirState};
 
 // ── glide-num state ═════════════════════════════════════════════════
 
@@ -19,9 +19,7 @@ pub struct GlideNum {
     numlock_held: bool,
     btn5_binding: MouseButton,
     btn_held: bool,
-    dir_held: u8,
-    dir_mask: Dir,
-    dir_count: u32,
+    dir: DirState,
 }
 
 impl GlideNum {
@@ -32,9 +30,7 @@ impl GlideNum {
             btn5_binding: MouseButton::Left,
             btn_held: false,
             numlock_held: false,
-            dir_held: 0,
-            dir_mask: Dir::empty(),
-            dir_count: 0,
+            dir: DirState::new(),
         }
     }
 
@@ -88,14 +84,12 @@ impl GlideNum {
 
     /// One per-frame movement step while a direction is held.
     pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
-        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
+        self.dir.tick(ptr)
     }
 
     /// Clear held directions/buttons (e.g. on mode toggle or a stuck state).
     pub(crate) fn reset_input(&mut self) {
-        self.dir_held = 0;
-        self.dir_mask = Dir::empty();
-        self.dir_count = 0;
+        self.dir = DirState::new();
         self.btn_held = false;
     }
 
@@ -153,13 +147,7 @@ impl GlideNum {
 
         match code {
             c if let Some(flag) = Dir::from_numpad(c) => {
-                update_dir(
-                    &mut self.dir_held,
-                    &mut self.dir_mask,
-                    &mut self.dir_count,
-                    flag,
-                    value,
-                );
+                self.dir.update(flag, value);
                 Ok(true)
             }
             KEY_KP5 => {

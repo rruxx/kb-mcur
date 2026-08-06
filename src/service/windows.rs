@@ -72,14 +72,16 @@ fn with_service<T>(f: impl FnOnce(&mut Service, &mut Mouse) -> T) -> Option<T> {
 }
 
 /// Drain pending window messages so the low-level hook fires on this thread.
-fn pump_messages(msg: &mut MSG) {
-    while unsafe { PeekMessageW(&raw mut *msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
-        if msg.message == WM_QUIT {
+/// `msg` is only dereferenced after `PeekMessageW` reports a message, so
+/// `MaybeUninit` memory is never read before the OS writes it.
+fn pump_messages(msg: *mut MSG) {
+    while unsafe { PeekMessageW(msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) } != 0 {
+        if unsafe { (*msg).message } == WM_QUIT {
             break;
         }
         unsafe {
-            TranslateMessage(&raw const *msg);
-            DispatchMessageW(&raw const *msg);
+            TranslateMessage(msg);
+            DispatchMessageW(msg);
         }
     }
 }
@@ -314,7 +316,7 @@ pub fn run() -> Result<()> {
     }
     info!("hook installed; Ctrl+C to quit");
 
-    let mut msg = unsafe { std::mem::zeroed::<MSG>() };
+    let mut msg = std::mem::MaybeUninit::<MSG>::uninit();
     let tick = Duration::from_millis(TICK_MS);
     let mut probe = Probe::new();
     let mut result = Ok(());
@@ -324,7 +326,7 @@ pub fn run() -> Result<()> {
             break;
         }
         let now = Instant::now();
-        pump_messages(&mut msg);
+        pump_messages(msg.as_mut_ptr());
 
         if probe.due(now) {
             if let Err(e) = inject_probe() {

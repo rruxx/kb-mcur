@@ -117,37 +117,14 @@ impl KeyboardDev {
         }
 
         let nk = self.fds.len();
-        let total = nk + 1;
-        let ino_fd = self.inotify.as_ref().map(|i| i.as_fd().as_raw_fd());
-        if self.pollfds.len() == total {
-            for (i, d) in self.fds.iter().enumerate() {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd.as_raw_fd()) };
-                self.pollfds[i] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
-            }
-            if let Some(fd) = ino_fd {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
-                self.pollfds[nk] = nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN);
-            }
-        } else {
-            self.pollfds.clear();
-            for d in &self.fds {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd.as_raw_fd()) };
-                self.pollfds
-                    .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
-            }
-            if let Some(fd) = ino_fd {
-                let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(fd) };
-                self.pollfds
-                    .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
-            }
-        }
+        self.rebuild_pollfds();
 
         let ret = nix::poll::poll(&mut self.pollfds, timeout_ms as u16)?;
         if ret == 0 {
             return Ok(None);
         }
 
-        for i in 0..total {
+        for i in 0..self.pollfds.len() {
             let revents = self.pollfds[i]
                 .revents()
                 .unwrap_or(nix::poll::PollFlags::empty());
@@ -184,6 +161,24 @@ impl KeyboardDev {
     }
 
     // ── hot-plug ─────────────────────────────────────────────────
+
+    /// Rebuild the poll descriptor list from the current device set. Called on
+    /// every poll so fd/queue changes are always reflected; the cost is a small
+    /// reallocation per 32ms tick.
+    fn rebuild_pollfds(&mut self) {
+        self.pollfds.clear();
+        self.pollfds.reserve(self.fds.len() + 1);
+        for d in &self.fds {
+            let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(d.fd.as_raw_fd()) };
+            self.pollfds
+                .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
+        }
+        if let Some(ino) = &self.inotify {
+            let fd = unsafe { std::os::fd::BorrowedFd::borrow_raw(ino.as_fd().as_raw_fd()) };
+            self.pollfds
+                .push(nix::poll::PollFd::new(fd, nix::poll::PollFlags::POLLIN));
+        }
+    }
 
     fn maybe_rescan(&mut self) {
         if self.suspended {
@@ -225,7 +220,6 @@ impl KeyboardDev {
             fd,
             name: name.to_owned(),
         });
-        self.pollfds.clear(); // force rebuild next poll
     }
 }
 

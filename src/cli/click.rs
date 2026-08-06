@@ -3,14 +3,13 @@
 
 //! `kursor click` — mouse click with optional repeat.
 
+use crate::cli;
 use crate::config::MouseButton;
-use crate::device::Mouse;
-use crate::query_screen_size;
+use crate::device::pointer::Pointer;
 use anyhow::Result;
 
 pub fn run(repeat: u32, btn: String) -> Result<()> {
-    let (sw, sh) = query_screen_size();
-    let mut m = Mouse::new(sw, sh)?;
+    let mut m = cli::mouse()?;
     m.click(parse_button(&btn)?, repeat)?;
     Ok(())
 }

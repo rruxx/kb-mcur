@@ -39,15 +39,7 @@ impl GridFilter {
             input: String::new(),
         }
     }
-}
 
-impl Default for GridFilter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl GridFilter {
     #[must_use]
     pub fn input(&self) -> &str {
         &self.input
@@ -73,6 +65,12 @@ impl GridFilter {
     #[must_use]
     pub fn matches(&self, label: &str) -> bool {
         label.starts_with(&self.input)
+    }
+}
+
+impl Default for GridFilter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

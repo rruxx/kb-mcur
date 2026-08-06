@@ -55,6 +55,8 @@ pub struct WlrBackend {
     shm_len: usize,
     shm_fd: Option<OwnedFd>,
     shm_pool: Option<WlShmPool>,
+    /// `wl_output` geometry, collected while connecting: (x, y, w, h).
+    outputs: HashMap<WlOutput, (i32, i32, i32, i32)>,
 }
 
 macro_rules! dispatch_stub {
@@ -83,7 +85,6 @@ impl Dispatch<WlRegistry, GlobalListContents> for WlrBackend {
     ) {
     }
 }
-dispatch_stub!(WlOutput);
 dispatch_stub!(WlCompositor);
 dispatch_stub!(WlShm);
 dispatch_stub!(ZwlrLayerShellV1);
@@ -109,11 +110,46 @@ impl Dispatch<ZwlrLayerSurfaceV1, ()> for WlrBackend {
     }
 }
 
+impl Dispatch<WlOutput, ()> for WlrBackend {
+    fn event(
+        state: &mut Self,
+        proxy: &WlOutput,
+        event: <WlOutput as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            // Geometry carries the global origin (logical) and physical size in
+            // millimetres — the pixel size arrives via `Mode`.
+            wl_output::Event::Geometry { x, y, .. } => {
+                let (ox, oy, _, _) = state.outputs.entry(proxy.clone()).or_insert((0, 0, 0, 0));
+                *ox = x;
+                *oy = y;
+            }
+            wl_output::Event::Mode {
+                flags,
+                width,
+                height,
+                ..
+            } if flags
+                .into_result()
+                .is_ok_and(|f| f.contains(wl_output::Mode::Current)) =>
+            {
+                let (_, _, w, h) = state.outputs.entry(proxy.clone()).or_insert((0, 0, 0, 0));
+                *w = width;
+                *h = height;
+            }
+            _ => {}
+        }
+    }
+}
+
 impl WlrBackend {
     pub fn connect() -> Result<Self> {
         let conn = Connection::connect_to_env().context("Wayland connection")?;
-        let (globals, evq) = registry_queue_init::<WlrBackend>(&conn)?;
-        let qh = evq.handle();
+        let (globals, mut eq) = registry_queue_init::<WlrBackend>(&conn)?;
+        let qh = eq.handle();
         let compositor: WlCompositor = globals.bind(&qh, 4..=6, ()).context("wl_compositor")?;
         let shm: WlShm = globals.bind(&qh, 1..=1, ()).context("wl_shm")?;
         let layer_shell: ZwlrLayerShellV1 = globals
@@ -123,25 +159,50 @@ impl WlrBackend {
             .bind(&qh, 1..=2, ())
             .ok()
             .map(|mgr: ZwlrVirtualPointerManagerV1| mgr.create_virtual_pointer(None, &qh, ()));
-        Ok(WlrBackend {
+        let outputs: Vec<WlOutput> = globals
+            .contents()
+            .clone_list()
+            .into_iter()
+            .filter(|g| g.interface == "wl_output")
+            .map(|g| globals.registry().bind(g.name, g.version.min(4), &qh, ()))
+            .collect();
+
+        let mut backend = WlrBackend {
             conn,
             compositor,
             shm,
             layer_shell,
             vptr,
             windows: Vec::new(),
-            monitors: vec![Monitor {
-                name: "WL-1".into(),
-                x: 0,
-                y: 0,
-                w: crate::config::FALLBACK_WIDTH,
-                h: crate::config::FALLBACK_HEIGHT,
-            }],
+            monitors: Vec::new(),
             shm_ptr: None,
             shm_len: 0,
             shm_fd: None,
             shm_pool: None,
-        })
+            outputs: HashMap::new(),
+        };
+        // Collect `wl_output` geometry before building the monitor list.
+        eq.roundtrip(&mut backend)?;
+
+        // Note: origin comes from `wl_output` geometry (logical), size from the
+        // current `Mode` (physical pixels). The overlay still maps a single
+        // surface on the focused output, so non-integer scales are approximated.
+        // This matches the pre-existing single-output layout.
+        backend.monitors = outputs
+            .iter()
+            .enumerate()
+            .filter_map(|(i, out)| {
+                let (x, y, w, h) = *backend.outputs.get(out)?;
+                Some(Monitor {
+                    name: format!("WL-{}", i + 1),
+                    x,
+                    y,
+                    w: w as u16,
+                    h: h as u16,
+                })
+            })
+            .collect();
+        Ok(backend)
     }
 }
 
@@ -242,7 +303,7 @@ impl OverlayBackend for WlrBackend {
     fn redraw_all(&self) -> Result<()> {
         Ok(())
     }
-    fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
+    fn pointer_warp(&self, x: i32, y: i32) -> Result<()> {
         let Some(ref v) = self.vptr else {
             return Ok(());
         };

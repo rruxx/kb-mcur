@@ -13,7 +13,7 @@ use crate::keymap::{
     KEY_LEFTSHIFT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
     ModState,
 };
-use crate::service::dir::{Dir, direction_tick, update_dir};
+use crate::service::dir::{Dir, DirState};
 
 // ── glide-alpha state ═══════════════════════════════════════════════
 
@@ -22,9 +22,7 @@ pub struct GlideAlpha {
     ctrl_held: bool,
     shift_held: bool,
     btn_held: Option<MouseButton>,
-    dir_held: u8,
-    dir_mask: Dir,
-    dir_count: u32,
+    dir: DirState,
 }
 
 impl GlideAlpha {
@@ -35,9 +33,7 @@ impl GlideAlpha {
             ctrl_held: false,
             shift_held: false,
             btn_held: None,
-            dir_held: 0,
-            dir_mask: Dir::empty(),
-            dir_count: 0,
+            dir: DirState::new(),
         }
     }
 
@@ -84,14 +80,12 @@ impl GlideAlpha {
 
     /// One per-frame movement step while a direction is held.
     pub fn direction_tick(&mut self, ptr: &mut dyn Pointer) -> Result<()> {
-        direction_tick(self.dir_held, self.dir_mask, &mut self.dir_count, ptr)
+        self.dir.tick(ptr)
     }
 
     /// Clear held directions/buttons/modifiers (e.g. on mode toggle or a stuck state).
     pub(crate) fn reset_input(&mut self) {
-        self.dir_held = 0;
-        self.dir_mask = Dir::empty();
-        self.dir_count = 0;
+        self.dir = DirState::new();
         self.btn_held = None;
         self.ctrl_held = false;
         self.shift_held = false;
@@ -124,13 +118,7 @@ impl GlideAlpha {
         if c && !s
             && let Some(flag) = Dir::from_alpha(code)
         {
-            update_dir(
-                &mut self.dir_held,
-                &mut self.dir_mask,
-                &mut self.dir_count,
-                flag,
-                value,
-            );
+            self.dir.update(flag, value);
             return Ok(true);
         }
 

@@ -98,8 +98,8 @@ impl OverlayBackend for WinBackend {
         Ok(())
     }
 
-    fn pointer_warp(&self, x: i16, y: i16) -> Result<()> {
-        if unsafe { SetCursorPos(i32::from(x), i32::from(y)) } == 0 {
+    fn pointer_warp(&self, x: i32, y: i32) -> Result<()> {
+        if unsafe { SetCursorPos(x, y) } == 0 {
             anyhow::bail!("SetCursorPos failed");
         }
         Ok(())

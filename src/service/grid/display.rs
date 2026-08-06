@@ -40,6 +40,7 @@ pub fn display_update(
     };
     let l3_rect = if filter.len() >= 2 {
         let input = filter.input();
+        // ASCII-only filter (see `process::region_rect`); byte slice is a char boundary.
         states
             .iter()
             .find_map(|ds| ds.grid.cell_by_label(&input[..2]))
