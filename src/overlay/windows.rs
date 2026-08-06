@@ -6,9 +6,9 @@
 
 use anyhow::Result;
 use tiny_skia::Pixmap as SkiaPixmap;
-use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Foundation::{HWND, POINT};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    DestroyWindow, SW_SHOW, SetCursorPos, ShowWindow,
+    DestroyWindow, GetCursorPos, SW_SHOW, SetCursorPos, ShowWindow,
 };
 
 use crate::overlay::{Monitor, OverlayBackend};
@@ -24,6 +24,15 @@ pub fn query_screen_size() -> (u16, u16) {
     let w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
     let h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
     (w as u16, h as u16)
+}
+
+/// Current cursor position in screen coordinates.
+pub fn cursor_pos() -> Result<(i32, i32)> {
+    let mut pt = POINT { x: 0, y: 0 };
+    if unsafe { GetCursorPos(&raw mut pt) } == 0 {
+        anyhow::bail!("GetCursorPos failed");
+    }
+    Ok((pt.x, pt.y))
 }
 
 /// Per-window state: the layered HWND and its backing DIB.

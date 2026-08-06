@@ -14,6 +14,7 @@
 #![allow(clippy::similar_names)]
 #![allow(clippy::too_many_lines)]
 
+pub mod cli;
 pub mod config;
 pub mod debug;
 pub mod device;
@@ -24,9 +25,9 @@ pub mod render;
 pub mod service;
 
 pub use device::Mouse;
-pub use overlay::query_screen_size;
 #[cfg(target_os = "linux")]
 pub use overlay::{Monitor, Overlay};
+pub use overlay::{cursor_pos, query_screen_size};
 #[cfg(target_os = "linux")]
 pub use service::grid::state::{DrawState, GridCtx, GridPhase, GridStateMut, MonitorList};
 #[cfg(target_os = "linux")]

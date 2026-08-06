@@ -1,0 +1,2 @@
+Example:
+  kursor pos   print current screen and cursor position

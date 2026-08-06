@@ -217,6 +217,14 @@ pub fn query_screen_size() -> (u16, u16) {
     (max_w, max_h)
 }
 
+/// Current cursor position in root (screen) coordinates.
+pub fn cursor_pos() -> Result<(i32, i32)> {
+    let (conn, screen_num) = x11rb::connect(None).context("cannot connect to X11 display")?;
+    let root = conn.setup().roots[screen_num].root;
+    let reply = conn.query_pointer(root)?.reply()?;
+    Ok((i32::from(reply.root_x), i32::from(reply.root_y)))
+}
+
 fn find_visual(screen: &Screen) -> (u8, u32) {
     for &d in &[32u8, 24] {
         if let Some(depth) = screen.allowed_depths.iter().find(|dp| dp.depth == d)

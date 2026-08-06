@@ -103,3 +103,19 @@ pub fn query_screen_size() -> (u16, u16) {
         (0, 0)
     }
 }
+
+/// Current cursor position in screen coordinates (for CLI use).
+pub fn cursor_pos() -> Result<(i32, i32)> {
+    #[cfg(target_os = "windows")]
+    {
+        windows::cursor_pos()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        x11::cursor_pos()
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+    {
+        anyhow::bail!("unsupported platform")
+    }
+}
