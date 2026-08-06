@@ -243,8 +243,8 @@ impl<'a> GridStateMut<'a> {
         mods: &ModState,
         grid_phase: GridPhase,
     ) {
-        // L4: shift + hjkl = micro-adjust within L3 cell.
-        if mods.shift && (code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L) {
+        // L4: hjkl = micro-adjust within L3 cell.
+        if code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L {
             let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
                 return;
             };
