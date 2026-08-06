@@ -1,6 +1,6 @@
 [package]
 name = "kursor"
-version = "4.3.9"
+version = "4.3.13"
 edition = "2024"
 
 [dependencies]
