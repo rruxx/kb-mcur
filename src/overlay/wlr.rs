@@ -9,6 +9,7 @@ use std::ptr::NonNull;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use log::info;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use tiny_skia::Pixmap as SkiaPixmap;
 use wayland_client::{
@@ -24,6 +25,10 @@ use wayland_client::{
         wl_shm_pool::WlShmPool,
         wl_surface::WlSurface,
     },
+};
+use wayland_protocols::xdg::xdg_output::zv1::client::{
+    zxdg_output_manager_v1::ZxdgOutputManagerV1,
+    zxdg_output_v1::{self, ZxdgOutputV1},
 };
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1::{self, ZwlrLayerShellV1},
@@ -56,7 +61,11 @@ pub struct WlrBackend {
     shm_fd: Option<OwnedFd>,
     shm_pool: Option<WlShmPool>,
     /// `wl_output` geometry, collected while connecting: (x, y, w, h).
+    /// w/h are overwritten by the `xdg-output` logical size when available,
+    /// otherwise they keep the physical `Mode` size.
     outputs: HashMap<WlOutput, (i32, i32, i32, i32)>,
+    /// Maps each `xdg_output` proxy back to its `wl_output`.
+    xdg_map: HashMap<ZxdgOutputV1, WlOutput>,
 }
 
 macro_rules! dispatch_stub {
@@ -94,6 +103,28 @@ dispatch_stub!(wayland_client::protocol::wl_buffer::WlBuffer);
 dispatch_stub!(wayland_client::protocol::wl_region::WlRegion);
 dispatch_stub!(ZwlrVirtualPointerV1);
 dispatch_stub!(ZwlrVirtualPointerManagerV1);
+dispatch_stub!(ZxdgOutputManagerV1);
+
+impl Dispatch<ZxdgOutputV1, ()> for WlrBackend {
+    fn event(
+        state: &mut Self,
+        proxy: &ZxdgOutputV1,
+        event: <ZxdgOutputV1 as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        // The logical size is the exact desktop pixel size before scaling;
+        // layer surfaces are sized in these logical coordinates.
+        if let zxdg_output_v1::Event::LogicalSize { width, height } = event
+            && let Some(out) = state.xdg_map.get(proxy)
+        {
+            let entry = state.outputs.entry(out.clone()).or_insert((0, 0, 0, 0));
+            entry.2 = width;
+            entry.3 = height;
+        }
+    }
+}
 
 impl Dispatch<ZwlrLayerSurfaceV1, ()> for WlrBackend {
     fn event(
@@ -167,6 +198,16 @@ impl WlrBackend {
             .map(|g| globals.registry().bind(g.name, g.version.min(4), &qh, ()))
             .collect();
 
+        // xdg-output reports exact logical sizes (desktop pixels before scaling);
+        // without it we fall back to the physical `Mode` size.
+        let mut xdg_map = HashMap::new();
+        if let Ok(mgr) = globals.bind::<ZxdgOutputManagerV1, _, _>(&qh, 1..=3, ()) {
+            for out in &outputs {
+                let xo = mgr.get_xdg_output(out, &qh, ());
+                xdg_map.insert(xo, out.clone());
+            }
+        }
+
         let mut backend = WlrBackend {
             conn,
             compositor,
@@ -180,14 +221,13 @@ impl WlrBackend {
             shm_fd: None,
             shm_pool: None,
             outputs: HashMap::new(),
+            xdg_map,
         };
-        // Collect `wl_output` geometry before building the monitor list.
+        // Collect `wl_output` geometry + xdg-output logical sizes.
         eq.roundtrip(&mut backend)?;
 
-        // Note: origin comes from `wl_output` geometry (logical), size from the
-        // current `Mode` (physical pixels). The overlay still maps a single
-        // surface on the focused output, so non-integer scales are approximated.
-        // This matches the pre-existing single-output layout.
+        // Origin comes from `wl_output` geometry (logical); size is the
+        // xdg-output logical size when present, else the physical `Mode` size.
         backend.monitors = outputs
             .iter()
             .enumerate()
@@ -202,6 +242,7 @@ impl WlrBackend {
                 })
             })
             .collect();
+        info!("[overlay] monitors: {:?}", backend.monitors);
         Ok(backend)
     }
 }

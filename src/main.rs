@@ -23,6 +23,18 @@ struct Cli {
 
 fn main() -> Result<()> {
     #[cfg(target_os = "windows")]
+    {
+        // Physical-pixel coordinates on any per-monitor DPI setting, so
+        // grid windows / `SetCursorPos` / `EnumDisplayMonitors` agree.
+        unsafe {
+            use windows_sys::Win32::UI::HiDpi::{
+                DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
+            };
+            let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
     let console = {
         let attached = console::attach_parent_console();
         init_logger(attached);

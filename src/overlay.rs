@@ -12,7 +12,7 @@ pub mod x11;
 
 use anyhow::Result;
 #[cfg(target_os = "linux")]
-use log::warn;
+use log::{info, warn};
 use tiny_skia::Pixmap as SkiaPixmap;
 
 /// A display output: its name, origin and size in screen coordinates.
@@ -70,11 +70,15 @@ pub fn connect() -> Result<Overlay> {
     {
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
             match wlr::WlrBackend::connect() {
-                Ok(b) => return Ok(Box::new(b)),
+                Ok(b) => {
+                    info!("[overlay] backend: wlr layer-shell");
+                    return Ok(Box::new(b));
+                }
                 Err(e) => warn!("Wayland connection failed: {e:#}"),
             }
         }
         if std::env::var("DISPLAY").is_ok() {
+            info!("[overlay] backend: x11");
             return Ok(Box::new(x11::X11Backend::connect()?));
         }
         anyhow::bail!(
