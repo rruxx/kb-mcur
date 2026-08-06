@@ -66,10 +66,7 @@ impl GridEnv {
             return Ok(false);
         }
         if self.active() {
-            self.active = false;
-            self.sel_overlay = None;
-            self.state = None;
-            self.ctx = None;
+            self.deactivate();
             warn!("[grid OFF]");
         } else {
             match enter_grid() {
@@ -111,6 +108,14 @@ impl GridEnv {
         }
         kbd.sync()?;
         Ok(true)
+    }
+
+    /// Turn the grid session off: clear the overlay, session state and ctx.
+    fn deactivate(&mut self) {
+        self.active = false;
+        self.sel_overlay = None;
+        self.state = None;
+        self.ctx = None;
     }
 
     /// Re-check the active monitor's logical size; re-render the grid or the
@@ -167,6 +172,16 @@ impl GridEnv {
             };
             s.overlay.refresh_monitors()?
         };
+        // No displays left — exit the grid session.
+        if monitors.is_empty() {
+            self.deactivate();
+            warn!("[grid OFF] — no displays");
+            return Ok(());
+        }
+        // Guard against a shrunken monitor set (a display was unplugged).
+        if self.monitor_idx >= monitors.len() {
+            self.monitor_idx = monitors.len().saturating_sub(1);
+        }
         let new = monitors
             .get(self.monitor_idx)
             .map(|m| (u32::from(m.w), u32::from(m.h)));
