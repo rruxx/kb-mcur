@@ -2,7 +2,7 @@
 
 ## Project
 
-kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots) and Windows (CLI commands).
+kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots) and Windows (CLI + service, GUI-subsystem background run).
 
 ## Conventions
 
@@ -14,12 +14,19 @@ kursor — keyboard-driven mouse cursor control for Linux (X11 + wlroots) and Wi
 - `src/device/linux/abi.rs` is the single source for Linux kernel input structs, ioctls, device creation.
 - Platform split lives under `src/device/{linux,windows}/` and `src/overlay/`; core logic (grid/glide/render) is platform-neutral.
 - Modern module layout (`linux.rs` + `linux/`), never `mod.rs`.
+- Windows uses `windows-sys`. The GUI-subsystem entry lives in `src/main.rs`:
+  double-click (no args, no console) starts `service` in the background with a
+  tray-icon `Exit` menu; terminal runs attach the parent console (`AttachConsole`)
+  so CLI output stays visible, and background logs go to
+  `%LOCALAPPDATA%\kursor\kursor.log`. Tray and UI strings are English.
 
 ## QA
 
 ```sh
 cargo check --all-targets
 cargo fmt && cargo clippy --all-targets
+# Windows cross-check — also run after any platform change:
+cargo clippy --target x86_64-pc-windows-gnu --all-targets
 ```
 
 ## Build & Pack: Linux
@@ -53,7 +60,14 @@ contrib/patch-pe-version.sh target/x86_64-pc-windows-gnu/release/kursor.exe
 Note: zig prints `ignoring deprecated linker optimization setting '1'` — harmless.
 `patch-pe-version.sh` declares Windows 7 (NT 6.1) as the minimum — zig cc can't forward a
 subsystem version to its internal lld-link. Win32 calls (`SendInput`/`SetCursorPos`/
-`GetSystemMetrics`) are Windows 2000-era, so the real constraint is x86-64-v3 (AVX2).
-CLI (`move`/`moveto`/`click`) works on both platforms. `service` runs on Linux (all three
-modes) and on Windows (stage 1: glide-num + glide-alpha via `WH_KEYBOARD_LL`); the
-Windows grid overlay (Direct2D) is stage 2.
+`GetSystemMetrics`/`Shell_NotifyIconW`/`AttachConsole`) are Windows 2000-era, so the real
+constraint is x86-64-v3 (AVX2).
+
+The Windows binary is a GUI-subsystem app (`#![windows_subsystem = "windows"]` in
+`src/main.rs`): double-clicking starts `service` in the background (no console
+window; tray icon right-click → Exit, or Task Manager, to quit); running from a
+terminal attaches the parent console so CLI output stays visible, and background
+logs go to `%LOCALAPPDATA%\kursor\kursor.log`. `service` runs all three modes on
+both platforms (glide-num + glide-alpha via `WH_KEYBOARD_LL` on Windows, grid via
+per-monitor layered windows with `UpdateLayeredWindow` + DIB). CLI
+(`move`/`moveto`/`click`/`pos`) works on both platforms.
