@@ -145,24 +145,29 @@ impl GlideAlpha {
             return Ok(true);
         }
 
-        // Space / ; / ' = left / right / middle (press→down, release→up).
-        let btn: MouseButton = match code {
-            KEY_SPACE => MouseButton::Left,
-            KEY_SEMICOLON => MouseButton::Right,
-            KEY_APOSTROPHE => MouseButton::Middle,
-            _ => return Ok(false),
-        };
+        // ctrl + space / ; / ' = left / right / middle (press→down,
+        // release→up), mirroring the ctrl+h/j/k/l move keys.
+        if c && !s {
+            let btn: MouseButton = match code {
+                KEY_SPACE => MouseButton::Left,
+                KEY_SEMICOLON => MouseButton::Right,
+                KEY_APOSTROPHE => MouseButton::Middle,
+                _ => return Ok(false),
+            };
 
-        if value > 0 {
-            if self.btn_held.is_none() {
-                ptr.button(btn, true)?;
-                self.btn_held = Some(btn);
+            if value > 0 {
+                if self.btn_held.is_none() {
+                    ptr.button(btn, true)?;
+                    self.btn_held = Some(btn);
+                }
+            } else if self.btn_held == Some(btn) {
+                ptr.button(btn, false)?;
+                self.btn_held = None;
             }
-        } else if self.btn_held == Some(btn) {
-            ptr.button(btn, false)?;
-            self.btn_held = None;
+            return Ok(true);
         }
-        Ok(true)
+
+        Ok(false)
     }
 }
 

@@ -15,9 +15,9 @@ glide-alpha (Main keyboard):
   ctrl+h/j/k/l         Move left/down/up/right
   shift+h/j/k/l        Scroll left/down/up/right
   ctrl+u/i             Back/forward
-  Space                Left button (press=down, release=up)
-  ;                    Right button (press=down, release=up)
-  '                    Middle button (press=down, release=up)
+  ctrl+Space           Left button (press=down, release=up)
+  ctrl+;               Right button (press=down, release=up)
+  ctrl+'               Middle button (press=down, release=up)
 
 grid (Main keyboard):
   meta+capslock     Toggle grid overlay
