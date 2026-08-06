@@ -210,6 +210,7 @@ pub fn key_map(code: u16, mods: &ModState) -> Option<u8> {
         KEY_ESC => Some(0x1b),
         KEY_COMMA => Some(b','),
         KEY_DOT => Some(b'.'),
+        KEY_SEMICOLON => Some(b';'),
 
         // evdev keycodes KEY_1..=KEY_0 (wrapping).
         KEY_1..=KEY_0 => {

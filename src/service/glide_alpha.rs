@@ -9,9 +9,8 @@ use log::info;
 use crate::config::MouseButton;
 use crate::device::pointer::{KeyboardOut, Pointer, ScrollAxis, SideButton};
 use crate::keymap::{
-    KEY_APOSTROPHE, KEY_CAPSLOCK, KEY_H, KEY_I, KEY_J, KEY_K, KEY_L, KEY_LEFTCTRL, KEY_LEFTMETA,
-    KEY_LEFTSHIFT, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_SEMICOLON, KEY_SPACE, KEY_U,
-    ModState,
+    KEY_A, KEY_CAPSLOCK, KEY_D, KEY_I, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_M, KEY_N,
+    KEY_O, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_S, KEY_U, KEY_W, ModState,
 };
 use crate::service::dir::{Dir, DirState};
 
@@ -122,49 +121,45 @@ impl GlideAlpha {
             return Ok(true);
         }
 
-        // shift + h/j/k/l = scroll.
-        if s && !c
-            && let Some((axis, dir)) = scroll_code(code)
-        {
+        // ctrl + w/a/s/d = scroll up/left/down/right.
+        if c && let Some((axis, dir)) = scroll_code(code) {
             if is_press {
                 ptr.scroll(axis, dir)?;
             }
             return Ok(true);
         }
 
-        // ctrl + u/i = back/forward.
+        // ctrl + u/i/o = left/middle/right buttons (press→down, release→up);
+        // ctrl + n/m = back/forward.
         if c && !s {
-            let btn = match code {
-                KEY_U => SideButton::Back,
-                KEY_I => SideButton::Forward,
-                _ => return Ok(false),
-            };
-            if is_press {
-                ptr.side(btn)?;
-            }
-            return Ok(true);
-        }
-
-        // ctrl + space / ; / ' = left / right / middle (press→down,
-        // release→up), mirroring the ctrl+h/j/k/l move keys.
-        if c && !s {
-            let btn: MouseButton = match code {
-                KEY_SPACE => MouseButton::Left,
-                KEY_SEMICOLON => MouseButton::Right,
-                KEY_APOSTROPHE => MouseButton::Middle,
-                _ => return Ok(false),
-            };
-
-            if value > 0 {
-                if self.btn_held.is_none() {
-                    ptr.button(btn, true)?;
-                    self.btn_held = Some(btn);
+            if let Some(btn) = match code {
+                KEY_U => Some(MouseButton::Left),
+                KEY_I => Some(MouseButton::Middle),
+                KEY_O => Some(MouseButton::Right),
+                _ => None,
+            } {
+                if value > 0 {
+                    if self.btn_held.is_none() {
+                        ptr.button(btn, true)?;
+                        self.btn_held = Some(btn);
+                    }
+                } else if self.btn_held == Some(btn) {
+                    ptr.button(btn, false)?;
+                    self.btn_held = None;
                 }
-            } else if self.btn_held == Some(btn) {
-                ptr.button(btn, false)?;
-                self.btn_held = None;
+                return Ok(true);
             }
-            return Ok(true);
+            if let Some(side) = match code {
+                KEY_N => Some(SideButton::Back),
+                KEY_M => Some(SideButton::Forward),
+                _ => None,
+            } {
+                if is_press {
+                    ptr.side(side)?;
+                }
+                return Ok(true);
+            }
+            return Ok(false);
         }
 
         Ok(false)
@@ -183,10 +178,10 @@ fn shift_code(code: u16) -> bool {
 
 fn scroll_code(code: u16) -> Option<(ScrollAxis, i32)> {
     match code {
-        KEY_H => Some((ScrollAxis::Horizontal, -1)),
-        KEY_J => Some((ScrollAxis::Vertical, -1)),
-        KEY_K => Some((ScrollAxis::Vertical, 1)),
-        KEY_L => Some((ScrollAxis::Horizontal, 1)),
+        KEY_W => Some((ScrollAxis::Vertical, 1)),
+        KEY_A => Some((ScrollAxis::Horizontal, -1)),
+        KEY_S => Some((ScrollAxis::Vertical, -1)),
+        KEY_D => Some((ScrollAxis::Horizontal, 1)),
         _ => None,
     }
 }

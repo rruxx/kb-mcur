@@ -256,8 +256,8 @@ impl<'a> GridStateMut<'a> {
         mods: &ModState,
         grid_phase: GridPhase,
     ) {
-        // L4: alt + hjkl = micro-adjust within L3 cell.
-        if mods.alt && (code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L) {
+        // L4: shift + hjkl = micro-adjust within L3 cell.
+        if mods.shift && (code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L) {
             let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
                 return;
             };
@@ -336,7 +336,8 @@ impl<'a> GridStateMut<'a> {
         };
 
         match byte {
-            b'\r' | b'\n' => {
+            // ';' = warp & reset (was Enter).
+            b';' => {
                 cursor_warp(&mut s.mouse, &gctx.filter, &s.draw_states, gctx)?;
                 if let Some((cx, cy)) = region_center(&gctx.filter, &s.draw_states, gctx) {
                     s.overlay.pointer_warp(cx as i32, cy as i32)?;
@@ -366,7 +367,8 @@ impl<'a> GridStateMut<'a> {
                 )?;
             }
 
-            0x7f | b'\x08' => {
+            // 'p' = step back L3 → L2 → L1 (was Backspace).
+            b'p' => {
                 gctx.filter.pop();
                 if gctx.filter.len() >= 2 {
                     gctx.filter.pop();

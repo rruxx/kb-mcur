@@ -13,11 +13,9 @@ glide-num (NumPad):
 glide-alpha (Main keyboard):
   meta+shift+capslock  Toggle glide-alpha
   ctrl+h/j/k/l         Move left/down/up/right
-  shift+h/j/k/l        Scroll left/down/up/right
-  ctrl+u/i             Back/forward
-  ctrl+Space           Left button (press=down, release=up)
-  ctrl+;               Right button (press=down, release=up)
-  ctrl+'               Middle button (press=down, release=up)
+  ctrl+w/a/s/d        Scroll up/left/down/right
+  ctrl+u/i/o           Left/middle/right button (press=down, release=up)
+  ctrl+n/m             Back/forward
 
 grid (Main keyboard):
   meta+capslock     Toggle grid overlay
@@ -26,10 +24,10 @@ grid (Main keyboard):
   layer1 key        9×3 region (main keyboard layout)
   layer2 key        3×9 sub-region (clockwise‑90°)
   layer3 key        5×3 fine (left-half keyboard, q-t/a-g/z-b)
-  alt+h/j/k/l        L4: subdivide L3 cell 7×7, nudge from center
-  Backspace     L3 → L2, L2 → L1
-  Enter              Warp & reset
-  j/k/l              Click L/M/R & reset
+  shift+h/j/k/l        L4: subdivide L3 cell 7×7, nudge from center
+  p                 L3 → L2, L2 → L1
+  ;                 Warp & reset
+  j/k/l             Click L/M/R & reset
   0-9 prefix         Repeat (e.g. 3j)
   Esc                Reset filter
 
