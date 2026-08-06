@@ -19,18 +19,18 @@ use crate::query_screen_size;
 #[derive(Subcommand)]
 pub enum Cmd {
     /// Relative move: x>0 right, y>0 down.
-    #[command(after_help = include_str!("../assets/help-move.txt"))]
+    #[command(after_help = include_str!("../assets/help/help-move.txt"))]
     Move { x: i32, y: i32 },
 
     /// Absolute warp to screen pixels (x, y).
     #[command(
         name = "moveto",
-        after_help = include_str!("../assets/help-moveto.txt")
+        after_help = include_str!("../assets/help/help-moveto.txt")
     )]
     MoveTo { x: i32, y: i32 },
 
     /// Mouse click: L(eft)|M(iddle)|R(ight), -r N for repeat.
-    #[command(after_help = include_str!("../assets/help-click.txt"))]
+    #[command(after_help = include_str!("../assets/help/help-click.txt"))]
     Click {
         #[arg(short = 'r', default_value = "1")]
         repeat: u32,
@@ -38,11 +38,11 @@ pub enum Cmd {
     },
 
     /// Print the current cursor position and the screen it is on.
-    #[command(after_help = include_str!("../assets/help-pos.txt"))]
+    #[command(after_help = include_str!("../assets/help/help-pos.txt"))]
     Pos,
 
     /// Triple-mode daemon: glide-num (`NumPad`) + glide-alpha (main keyboard) + grid.
-    #[command(after_help = include_str!("../assets/service-help.txt"))]
+    #[command(after_help = include_str!("../assets/help/help-service.txt"))]
     Service,
 }
 

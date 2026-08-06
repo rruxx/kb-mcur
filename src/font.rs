@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use fontdue::Font;
 
-const FONT_DATA: &[u8] = include_bytes!("../assets/font.ttf");
+const FONT_DATA: &[u8] = include_bytes!("../assets/font/font.ttf");
 
 /// Parsed once per process; `Font` is `Send + Sync` (plain data).
 static FONT: OnceLock<Font> = OnceLock::new();
