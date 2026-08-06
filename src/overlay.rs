@@ -115,16 +115,14 @@ pub fn cursor_pos() -> Result<(i32, i32)> {
     #[cfg(target_os = "linux")]
     {
         if std::env::var("WAYLAND_DISPLAY").is_ok() {
-            // KDE exposes the cursor position via KWin scripting; other
-            // compositors have no global pointer API and XWayland's pointer is
-            // not synchronized, so report it instead of returning a stale value.
+            // KDE exposes the cursor position via KWin scripting. For other
+            // Wayland compositors there is no global pointer query API; we use
+            // per-output layer surfaces + a virtual-pointer poke to capture an
+            // `enter` event and read the position back.
             if std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.contains("KDE")) {
                 kde::cursor_pos()
             } else {
-                anyhow::bail!(
-                    "no global cursor position on Wayland (unsupported compositor); \
-                     use KDE or an X11 session"
-                )
+                wlr::cursor_pos()
             }
         } else {
             x11::cursor_pos()

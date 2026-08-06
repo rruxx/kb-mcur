@@ -1,2 +1,8 @@
 Example:
   kursor pos   print current screen and cursor position
+
+Platform support:
+  Windows / X11        native pointer query
+  KDE Wayland          KWin scripting (workspace.cursorPos)
+  other Wayland        per-output layer surfaces + virtual-pointer poke
+  (wlroots / niri)     requires layer-shell + virtual-pointer protocols

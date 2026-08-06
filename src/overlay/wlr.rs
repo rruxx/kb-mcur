@@ -3,18 +3,23 @@
 
 //! wlr-layer-shell overlay backend for wlroots-based Wayland compositors.
 
+use std::collections::HashMap;
 use std::os::fd::{AsFd, OwnedFd};
 use std::ptr::NonNull;
+use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use tiny_skia::Pixmap as SkiaPixmap;
 use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
     globals::{GlobalListContents, registry_queue_init},
     protocol::{
         wl_compositor::WlCompositor,
-        wl_output::WlOutput,
+        wl_output::{self, WlOutput},
+        wl_pointer::{self, WlPointer},
         wl_registry::WlRegistry,
+        wl_seat::{self, WlSeat},
         wl_shm::{self, WlShm},
         wl_shm_pool::WlShmPool,
         wl_surface::WlSurface,
@@ -307,4 +312,282 @@ fn shm_fd(size: u32) -> Result<OwnedFd> {
         .context("memfd_create")?;
     nix::unistd::ftruncate(&fd, i64::from(size)).context("ftruncate")?;
     Ok(fd)
+}
+
+/// Query the global cursor position on any wlr-layer-shell compositor.
+///
+/// Wayland has no pointer-query request. We map a full-screen layer surface on
+/// every output (recording each output's global origin from `wl_output`
+/// geometry), then poke the pointer with a zero-size `virtual_pointer` motion
+/// so the compositor re-runs its hit test and delivers an `enter` event for
+/// the surface under the cursor. `global = output_origin + surface_local`.
+pub fn cursor_pos() -> Result<(i32, i32)> {
+    let conn = Connection::connect_to_env().context("Wayland connection")?;
+    let (globals, mut eq) = registry_queue_init::<CursorQuery>(&conn)?;
+    let qh = eq.handle();
+
+    let compositor: WlCompositor = globals.bind(&qh, 1..=4, ()).context("wl_compositor")?;
+    let shm: WlShm = globals.bind(&qh, 1..=1, ()).context("wl_shm")?;
+    let layer_shell: ZwlrLayerShellV1 = globals
+        .bind(&qh, 1..=5, ())
+        .context("zwlr_layer_shell_v1")?;
+    let vpm: ZwlrVirtualPointerManagerV1 = globals
+        .bind(&qh, 1..=2, ())
+        .context("zwlr_virtual_pointer_manager_v1")?;
+    let _seat: WlSeat = globals.bind(&qh, 1..=1, ()).context("wl_seat")?;
+    let outputs: Vec<WlOutput> = globals
+        .contents()
+        .clone_list()
+        .into_iter()
+        .filter(|g| g.interface == "wl_output")
+        .map(|g| globals.registry().bind(g.name, g.version.min(4), &qh, ()))
+        .collect();
+    if outputs.is_empty() {
+        bail!("compositor exposes no wl_output");
+    }
+
+    let mut state = CursorQuery::new();
+    eq.roundtrip(&mut state)?;
+    if state.origins.is_empty() {
+        bail!("no wl_output geometry received");
+    }
+    if state.pointer.is_none() {
+        bail!("compositor seat has no pointer capability");
+    }
+
+    for (out, (ox, oy)) in state.origins.clone() {
+        let surface = compositor.create_surface(&qh, ());
+        let ls = layer_shell.get_layer_surface(
+            &surface,
+            Some(&out),
+            zwlr_layer_shell_v1::Layer::Overlay,
+            crate::config::WLR_NAME.into(),
+            &qh,
+            (),
+        );
+        ls.set_anchor(
+            zwlr_layer_surface_v1::Anchor::Top
+                | zwlr_layer_surface_v1::Anchor::Bottom
+                | zwlr_layer_surface_v1::Anchor::Left
+                | zwlr_layer_surface_v1::Anchor::Right,
+        );
+        ls.set_exclusive_zone(-1);
+        ls.set_keyboard_interactivity(zwlr_layer_surface_v1::KeyboardInteractivity::None);
+        surface.commit();
+        state.surfaces.insert(
+            surface,
+            CursorSurface {
+                origin: (ox, oy),
+                w: 0,
+                h: 0,
+                layer: ls,
+            },
+        );
+    }
+    eq.roundtrip(&mut state)?;
+
+    let vptr = vpm.create_virtual_pointer(None, &qh, ());
+    let (_fd, pool) = shm_pool_for(&conn, &qh, &shm, &state)?;
+    let mut off = 0;
+    for (surface, cs) in &state.surfaces {
+        let stride = cs.w * 4;
+        let buf = pool.create_buffer(off, cs.w, cs.h, stride, wl_shm::Format::Argb8888, &qh, ());
+        surface.attach(Some(&buf), 0, 0);
+        surface.commit();
+        off += cs.h * stride;
+    }
+    conn.flush()?;
+
+    vptr.motion(0, 0.0, 0.0);
+    vptr.frame();
+    conn.flush()?;
+
+    let start = Instant::now();
+    loop {
+        if let Some(pos) = state.result {
+            return Ok(pos);
+        }
+        let Some(remaining) = CURSOR_TIMEOUT.checked_sub(start.elapsed()) else {
+            bail!(
+                "no pointer enter event (compositor may not route events to layer \
+                 surfaces on every output)"
+            );
+        };
+        if let Some(guard) = eq.prepare_read() {
+            let backend = conn.backend();
+            let mut fds = [PollFd::new(backend.poll_fd(), PollFlags::POLLIN)];
+            poll(&mut fds, PollTimeout::from(remaining.as_millis() as u16))?;
+            if fds[0]
+                .revents()
+                .is_some_and(|f| f.contains(PollFlags::POLLIN))
+            {
+                guard.read().context("wayland socket read")?;
+            }
+        }
+        eq.dispatch_pending(&mut state)?;
+    }
+}
+
+const CURSOR_TIMEOUT: Duration = Duration::from_secs(1);
+
+struct CursorSurface {
+    origin: (i32, i32),
+    w: i32,
+    h: i32,
+    layer: ZwlrLayerSurfaceV1,
+}
+
+struct CursorQuery {
+    origins: HashMap<WlOutput, (i32, i32)>,
+    surfaces: HashMap<WlSurface, CursorSurface>,
+    pointer: Option<WlPointer>,
+    result: Option<(i32, i32)>,
+}
+
+impl CursorQuery {
+    fn new() -> Self {
+        Self {
+            origins: HashMap::new(),
+            surfaces: HashMap::new(),
+            pointer: None,
+            result: None,
+        }
+    }
+}
+
+macro_rules! cursor_dispatch_stub {
+    ($ty:ty) => {
+        impl Dispatch<$ty, ()> for CursorQuery {
+            fn event(
+                _: &mut Self,
+                _: &$ty,
+                _: <$ty as Proxy>::Event,
+                _: &(),
+                _: &Connection,
+                _: &QueueHandle<Self>,
+            ) {
+            }
+        }
+    };
+}
+impl Dispatch<WlRegistry, GlobalListContents> for CursorQuery {
+    fn event(
+        _: &mut Self,
+        _: &WlRegistry,
+        _: <WlRegistry as Proxy>::Event,
+        _: &GlobalListContents,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+}
+cursor_dispatch_stub!(WlCompositor);
+cursor_dispatch_stub!(WlShm);
+cursor_dispatch_stub!(ZwlrLayerShellV1);
+cursor_dispatch_stub!(WlSurface);
+cursor_dispatch_stub!(WlShmPool);
+cursor_dispatch_stub!(wayland_client::protocol::wl_buffer::WlBuffer);
+cursor_dispatch_stub!(ZwlrVirtualPointerV1);
+cursor_dispatch_stub!(ZwlrVirtualPointerManagerV1);
+
+impl Dispatch<WlOutput, ()> for CursorQuery {
+    fn event(
+        state: &mut Self,
+        proxy: &WlOutput,
+        event: <WlOutput as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_output::Event::Geometry { x, y, .. } = event {
+            state.origins.insert(proxy.clone(), (x, y));
+        }
+    }
+}
+
+impl Dispatch<WlSeat, ()> for CursorQuery {
+    fn event(
+        state: &mut Self,
+        proxy: &WlSeat,
+        event: <WlSeat as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+    ) {
+        if let wl_seat::Event::Capabilities { capabilities } = event
+            && capabilities
+                .into_result()
+                .is_ok_and(|c| c.contains(wl_seat::Capability::Pointer))
+        {
+            state.pointer = Some(proxy.get_pointer(qh, ()));
+        }
+    }
+}
+
+impl Dispatch<WlPointer, ()> for CursorQuery {
+    fn event(
+        state: &mut Self,
+        _: &WlPointer,
+        event: <WlPointer as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_pointer::Event::Enter {
+            surface,
+            surface_x,
+            surface_y,
+            ..
+        } = event
+            && let Some(cs) = state.surfaces.get(&surface)
+        {
+            state.result = Some((
+                cs.origin.0 + surface_x.round() as i32,
+                cs.origin.1 + surface_y.round() as i32,
+            ));
+        }
+    }
+}
+
+impl Dispatch<ZwlrLayerSurfaceV1, ()> for CursorQuery {
+    fn event(
+        state: &mut Self,
+        proxy: &ZwlrLayerSurfaceV1,
+        event: <ZwlrLayerSurfaceV1 as Proxy>::Event,
+        (): &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let zwlr_layer_surface_v1::Event::Configure {
+            serial,
+            width,
+            height,
+        } = event
+        {
+            proxy.ack_configure(serial);
+            for cs in state.surfaces.values_mut() {
+                if cs.layer == *proxy {
+                    cs.w = width as i32;
+                    cs.h = height as i32;
+                }
+            }
+        }
+    }
+}
+
+fn shm_pool_for(
+    conn: &Connection,
+    qh: &QueueHandle<CursorQuery>,
+    shm: &WlShm,
+    state: &CursorQuery,
+) -> Result<(OwnedFd, WlShmPool)> {
+    let size: u32 = state
+        .surfaces
+        .values()
+        .map(|cs| (cs.w * cs.h * 4).max(1) as u32)
+        .sum();
+    let fd = shm_fd(size)?;
+    let pool = shm.create_pool(fd.as_fd(), size as i32, qh, ());
+    conn.flush()?;
+    Ok((fd, pool))
 }
