@@ -1,6 +1,6 @@
 # kursor — 键驱光标
 
-[English](../README.md)
+[English](README.md)
 
 三层渐进网格、glide-num（小键盘）、glide-alpha（主键盘）与一次性 CLI 命令（move / moveto / click / pos）。
 支持 Linux（X11 / wlroots / KDE / GNOME）与 Windows（CLI + service）。
@@ -61,9 +61,9 @@ Linux 与 Windows 均支持全部三模式；各命令加 `--help` 查看完整�
 
 **glide-num（小键盘）：** NumLock+KPEnter 切换。方向键移动（加速）；`/ * -` 切换按钮，NumLock+`/ 8 7 9` 滚动，NumLock+`* -` 后退/前进。
 
-**glide-alpha（主键盘）：** meta+shift+capslock 切换。`ctrl+h/j/k/l` 移动，`shift+h/j/k/l` 滚动，`ctrl+u/i` 后退/前进，`ctrl+Space/;/'` 点击。
+**glide-alpha（主键盘）：** meta+shift+capslock 切换。`ctrl+h/j/k/l` 移动，`ctrl+w/a/s/d` 滚动，`ctrl+u/i/o` 左/中/右键，`ctrl+n/m` 后退/前进。
 
-**grid（meta+capslock）：** 27×27 三层网格（L1: 9×3，L2: 3×9，L3: 5×3）。`j/k/l` 点击，Enter 定位，0-9 连击，Backspace/Esc 复位；多屏用 `a-z`/Tab。
+**grid（meta+capslock）：** 27×27 三层网格（L1: 9×3，L2: 3×9，L3: 5×3）。`j/k/l` 点击，`;` 定位，0-9 连击，`p` 复位；多屏用 `a-z`/Tab。
 
 #### Windows
 
@@ -126,7 +126,10 @@ src/
 
 ## 许可证
 
-AGPL-3.0-or-later
+AGPL-3.0-or-later（见 `LICENSE`；全文见 `COPYING`）。
+
+内置第三方组件 —— 见 `THIRD_PARTY_LICENSES`：
+- **Hack 字体**（MIT / Bitstream Vera License），裁剪版嵌入为 `assets/font/font.ttf`；完整文本见 `assets/LICENSE-Hack`。
 
 ## 参考
 

@@ -1,6 +1,6 @@
 # kursor — Keyboard-driven mouse-cursor control
 
-[中文](README.d/README-zh.md)
+[中文](README-zh.md)
 
 Three-layer progressive grid, glide-num (NumPad), glide-alpha (main keyboard), and single-shot CLI commands (move / moveto / click / pos).
 Linux (X11 / wlroots / KDE / GNOME) and Windows (CLI + service).
@@ -61,9 +61,9 @@ All three modes run on Linux and Windows; `--help` prints full key maps.
 
 **glide-num (NumPad):** NumLock+KPEnter toggles. Direction keys move (accelerated); `/ * -` switch the button, NumLock+`/ 8 7 9` scrolls, NumLock+`* -` back/forward.
 
-**glide-alpha (Main keyboard):** meta+shift+capslock toggles. `ctrl+h/j/k/l` moves, `shift+h/j/k/l` scrolls, `ctrl+u/i` back/forward, `ctrl+Space/;/'` clicks.
+**glide-alpha (Main keyboard):** meta+shift+capslock toggles. `ctrl+h/j/k/l` moves, `ctrl+w/a/s/d` scrolls, `ctrl+u/i/o` left/middle/right, `ctrl+n/m` back/forward.
 
-**grid (meta+capslock):** 27×27 grid in three layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` clicks, Enter warps, 0-9 repeats, Backspace/Esc reset; multi-monitor via `a-z`/Tab.
+**grid (meta+capslock):** 27×27 grid in three layers (L1: 9×3, L2: 3×9, L3: 5×3). `j/k/l` clicks, `;` warps, 0-9 repeats, `p` resets; multi-monitor via `a-z`/Tab.
 
 #### Windows
 
@@ -130,7 +130,10 @@ src/
 
 ## License
 
-AGPL-3.0-or-later
+AGPL-3.0-or-later (see `LICENSE`; full text in `COPYING`).
+
+Bundled third-party components — see `THIRD_PARTY_LICENSES`:
+- **Hack font** (MIT / Bitstream Vera License), subset embedded as `assets/font/font.ttf`; full text in `assets/LICENSE-Hack`.
 
 ## See also
 
@@ -138,5 +141,4 @@ AGPL-3.0-or-later
 - [keynav](https://github.com/jordansissel/keynav) — X11 keyboard-driven pointer
 - [warpd](https://github.com/rvaiya/warpd) — modal keyboard-driven mouse
 - [mouseless](https://github.com/jbensmann/mouseless) — keyboard-driven mouse control
-- [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation
 - [xdotool](https://github.com/jordansissel/xdotool) / [ydotool](https://github.com/ReimuNotMoe/ydotool) — X11/Wayland automation

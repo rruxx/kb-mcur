@@ -1,5 +1,5 @@
 [Unit]
-Description=kursord — Keyboard-driven mouse service (glide-num + glide-alpha + overlay grid)
+Description=kursord — Keyboard-driven mouse-cursor service (glide-num + glide-alpha + overlay grid)
 Documentation=https://github.com/rruxx/kursor https://gitee.com/rrux/kursor
 After=multi-user.target
 
