@@ -55,6 +55,11 @@ impl OverlayBackend for X11Backend {
         Ok(randr_monitors(&self.conn, screen.root))
     }
 
+    fn refresh_monitors(&mut self) -> Result<Vec<Monitor>> {
+        let screen = &self.conn.setup().roots[self.screen_num];
+        Ok(randr_monitors(&self.conn, screen.root))
+    }
+
     fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
         let screen = &self.conn.setup().roots[self.screen_num];
         let window = self.conn.generate_id()?;

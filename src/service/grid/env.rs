@@ -5,11 +5,11 @@ use anyhow::Result;
 use log::{info, warn};
 
 use super::init::enter_grid;
-use super::selection::show_selection;
+use super::selection::{redraw_select_hint, show_selection};
 use super::state::{GridCtx, GridPhase, GridState, GridStateMut, MonitorList, init_grid_monitor};
 use crate::device::pointer::KeyboardOut;
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
-use crate::overlay::Overlay;
+use crate::overlay::{Monitor, Overlay};
 
 // ── Grid session state ──────────────────────────────────────────────
 
@@ -111,6 +111,75 @@ impl GridEnv {
         }
         kbd.sync()?;
         Ok(true)
+    }
+
+    /// Re-check the active monitor's logical size; re-render the grid or the
+    /// selection hint if the resolution/scale changed.
+    pub fn poll_resize(&mut self) -> Result<()> {
+        if !self.active {
+            return Ok(());
+        }
+        if self.phase == GridPhase::Selecting {
+            self.poll_selection_resize()
+        } else {
+            self.poll_grid_resize()
+        }
+    }
+
+    fn poll_selection_resize(&mut self) -> Result<()> {
+        let cur = self
+            .sel_overlay
+            .as_ref()
+            .and_then(|o| o.named_monitors().ok())
+            .map_or((0, 0, 0, 0), |m| Monitor::bbox(&m));
+        let monitors = {
+            let Some(sel) = self.sel_overlay.as_mut() else {
+                return Ok(());
+            };
+            sel.refresh_monitors()?
+        };
+        if Monitor::bbox(&monitors) == cur {
+            return Ok(());
+        }
+        self.monitors = monitors;
+        let hint = self.select_hint.clone();
+        let mut new_sel = None;
+        if show_selection(&mut new_sel, &self.monitors).is_ok() {
+            self.sel_overlay = new_sel;
+            if !hint.is_empty()
+                && let Some(o) = self.sel_overlay.as_mut()
+            {
+                let _ = redraw_select_hint(o, &self.monitors, &hint);
+            }
+        }
+        Ok(())
+    }
+
+    fn poll_grid_resize(&mut self) -> Result<()> {
+        let cur = self
+            .state
+            .as_ref()
+            .and_then(|s| s.draw_states.first())
+            .map(|ds| (ds.pixmap.width(), ds.pixmap.height()));
+        let monitors = {
+            let Some(s) = self.state.as_mut() else {
+                return Ok(());
+            };
+            s.overlay.refresh_monitors()?
+        };
+        let new = monitors
+            .get(self.monitor_idx)
+            .map(|m| (u32::from(m.w), u32::from(m.h)));
+        if cur == new {
+            return Ok(());
+        }
+        self.monitors = monitors;
+        if let Ok(s) = init_grid_monitor(self.monitor_idx, &self.monitors, None) {
+            self.state = Some(s);
+            self.ctx = Some(GridCtx::new());
+            info!("[grid] resized — re-rendered");
+        }
+        Ok(())
     }
 
     /// Dispatch one grid key event. Returns `true` if it was consumed.

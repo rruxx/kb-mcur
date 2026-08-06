@@ -206,6 +206,8 @@ pub fn action_key(ch: char) -> Option<MouseButton> {
 pub const CLICK_INTERVAL_MS: u64 = 100;
 pub const UINPUT_CREATE_WAIT_MS: u64 = 50;
 pub const MOVE_WAIT_MS: u64 = 20;
+/// Grid re-checks the active monitor's logical size at this interval.
+pub const GRID_RESIZE_CHECK_MS: u64 = 500;
 
 // ── USB HID buttons ───────────────────────────────────────────────────
 

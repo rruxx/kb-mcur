@@ -65,6 +65,11 @@ impl OverlayBackend for WinBackend {
         Ok(self.monitors.clone())
     }
 
+    fn refresh_monitors(&mut self) -> Result<Vec<Monitor>> {
+        self.monitors = monitor::monitors()?;
+        Ok(self.monitors.clone())
+    }
+
     fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize> {
         let hwnd = window::create_window(x, y, w, h)?;
         let dib = match dib::Dib::new(w, h) {

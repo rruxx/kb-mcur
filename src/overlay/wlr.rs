@@ -13,7 +13,7 @@ use log::info;
 use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
 use tiny_skia::Pixmap as SkiaPixmap;
 use wayland_client::{
-    Connection, Dispatch, Proxy, QueueHandle,
+    Connection, Dispatch, EventQueue, Proxy, QueueHandle,
     globals::{GlobalListContents, registry_queue_init},
     protocol::{
         wl_compositor::WlCompositor,
@@ -64,8 +64,13 @@ pub struct WlrBackend {
     /// w/h are overwritten by the `xdg-output` logical size when available,
     /// otherwise they keep the physical `Mode` size.
     outputs: HashMap<WlOutput, (i32, i32, i32, i32)>,
+    /// Output bind order, kept so monitor names stay stable across refreshes.
+    output_list: Vec<WlOutput>,
     /// Maps each `xdg_output` proxy back to its `wl_output`.
     xdg_map: HashMap<ZxdgOutputV1, WlOutput>,
+    /// The connection's event queue — held so `refresh_monitors` can re-dispatch
+    /// `wl_output` / xdg-output events on the proxies bound at connect time.
+    queue: Option<EventQueue<WlrBackend>>,
 }
 
 macro_rules! dispatch_stub {
@@ -221,18 +226,25 @@ impl WlrBackend {
             shm_fd: None,
             shm_pool: None,
             outputs: HashMap::new(),
+            output_list: outputs.clone(),
             xdg_map,
+            queue: None,
         };
         // Collect `wl_output` geometry + xdg-output logical sizes.
         eq.roundtrip(&mut backend)?;
+        backend.queue = Some(eq);
+        backend.monitors = backend.assemble_monitors();
+        info!("[overlay] monitors: {:?}", backend.monitors);
+        Ok(backend)
+    }
 
-        // Origin comes from `wl_output` geometry (logical); size is the
-        // xdg-output logical size when present, else the physical `Mode` size.
-        backend.monitors = outputs
+    /// Build the monitor list from the collected output geometry/sizes.
+    fn assemble_monitors(&self) -> Vec<Monitor> {
+        self.output_list
             .iter()
             .enumerate()
             .filter_map(|(i, out)| {
-                let (x, y, w, h) = *backend.outputs.get(out)?;
+                let (x, y, w, h) = *self.outputs.get(out)?;
                 Some(Monitor {
                     name: format!("WL-{}", i + 1),
                     x,
@@ -241,9 +253,7 @@ impl WlrBackend {
                     h: h as u16,
                 })
             })
-            .collect();
-        info!("[overlay] monitors: {:?}", backend.monitors);
-        Ok(backend)
+            .collect()
     }
 }
 
@@ -264,6 +274,18 @@ pub fn screen_size() -> Option<(u16, u16)> {
 impl OverlayBackend for WlrBackend {
     #[allow(clippy::unnecessary_wraps)]
     fn named_monitors(&self) -> Result<Vec<Monitor>> {
+        Ok(self.monitors.clone())
+    }
+
+    fn refresh_monitors(&mut self) -> Result<Vec<Monitor>> {
+        // Re-dispatch pending `wl_output` / xdg-output events on the queue the
+        // proxies were bound to, so geometry/logical sizes reflect any
+        // resolution/scale change.
+        if let Some(mut q) = self.queue.take() {
+            q.roundtrip(self)?;
+            self.queue = Some(q);
+        }
+        self.monitors = self.assemble_monitors();
         Ok(self.monitors.clone())
     }
 

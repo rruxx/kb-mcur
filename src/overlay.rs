@@ -68,6 +68,9 @@ impl Monitor {
 /// Platform-specific overlay backend.
 pub trait OverlayBackend {
     fn named_monitors(&self) -> Result<Vec<Monitor>>;
+    /// Re-query the current monitor set (resolution/scale may have changed
+    /// since connect).
+    fn refresh_monitors(&mut self) -> Result<Vec<Monitor>>;
     fn add_window(&mut self, x: i32, y: i32, w: u16, h: u16) -> Result<usize>;
     fn upload(&self, idx: usize, skia: &SkiaPixmap) -> Result<()>;
     fn show_all(&self) -> Result<()>;

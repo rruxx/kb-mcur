@@ -136,6 +136,11 @@ impl Service {
         self.glide_num.reset_input();
         self.glide_alpha.reset_input();
     }
+
+    /// Periodic grid resize check (see `GRID_RESIZE_CHECK_MS`).
+    pub fn poll_grid_resize(&mut self) -> Result<()> {
+        self.grid.poll_resize()
+    }
 }
 
 impl Default for Service {

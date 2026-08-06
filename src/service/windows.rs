@@ -473,6 +473,7 @@ pub fn run() -> Result<()> {
     let mut msg = std::mem::MaybeUninit::<MSG>::uninit();
     let tick = Duration::from_millis(TICK_MS);
     let mut probe = Probe::new();
+    let mut last_resize = Instant::now();
     let mut result = Ok(());
 
     loop {
@@ -505,6 +506,17 @@ pub fn run() -> Result<()> {
         if let Some(Err(e)) = with_service(|svc, m| svc.direction_tick(m)) {
             result = Err(e);
             break;
+        }
+
+        if now.duration_since(last_resize)
+            >= Duration::from_millis(crate::config::GRID_RESIZE_CHECK_MS)
+        {
+            let _ = with_service(|svc, _| {
+                if let Err(e) = svc.poll_grid_resize() {
+                    warn!("grid resize check: {e}");
+                }
+            });
+            last_resize = now;
         }
 
         std::thread::sleep(tick);

@@ -124,6 +124,7 @@ pub fn run() -> Result<()> {
 
     let mut warn_is_done = false;
     let mut last_wd = Instant::now();
+    let mut last_resize = Instant::now();
 
     loop {
         if SHUTDOWN.load(Ordering::Relaxed) {
@@ -135,6 +136,14 @@ pub fn run() -> Result<()> {
         if now.duration_since(last_wd) >= std::time::Duration::from_secs(1) {
             crate::service::grid::fix_device_permissions();
             last_wd = now;
+        }
+        if now.duration_since(last_resize)
+            >= std::time::Duration::from_millis(crate::config::GRID_RESIZE_CHECK_MS)
+        {
+            if let Err(e) = svc.poll_grid_resize() {
+                warn!("grid resize check: {e}");
+            }
+            last_resize = now;
         }
 
         if kbd.is_empty() {
