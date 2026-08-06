@@ -175,45 +175,31 @@ impl Default for GridCtx {
 
 /// Bundles every piece of mutable grid state for the active monitor so
 /// that event handlers can operate on it as a unit.
+///
+/// `sel_overlay` holds the multi-monitor selection hint (used only during the
+/// `Selecting` phase); the grid session itself is held whole in `state`.
 pub struct GridStateMut<'a> {
-    overlay: &'a mut Option<Overlay>,
-    cfg: &'a mut Option<GridConfig>,
-    cache: &'a mut Option<TextCache>,
-    font_size: &'a mut f32,
-    states: &'a mut Option<Vec<DrawState>>,
+    sel_overlay: &'a mut Option<Overlay>,
+    state: &'a mut Option<GridState>,
     ctx: &'a mut Option<GridCtx>,
-    mouse: &'a mut Option<Mouse>,
 }
 
 impl<'a> GridStateMut<'a> {
     #[must_use]
     pub fn new(
-        overlay: &'a mut Option<Overlay>,
-        cfg: &'a mut Option<GridConfig>,
-        cache: &'a mut Option<TextCache>,
-        font_size: &'a mut f32,
-        states: &'a mut Option<Vec<DrawState>>,
+        sel_overlay: &'a mut Option<Overlay>,
+        state: &'a mut Option<GridState>,
         ctx: &'a mut Option<GridCtx>,
-        mouse: &'a mut Option<Mouse>,
     ) -> Self {
         Self {
-            overlay,
-            cfg,
-            cache,
-            font_size,
-            states,
+            sel_overlay,
+            state,
             ctx,
-            mouse,
         }
     }
 
     fn load(&mut self, s: GridState) {
-        *self.overlay = Some(s.overlay);
-        *self.mouse = s.mouse;
-        *self.cfg = Some(s.cfg);
-        *self.cache = Some(s.cache);
-        *self.font_size = s.font_size;
-        *self.states = Some(s.draw_states);
+        *self.state = Some(s);
     }
 
     fn reset_ctx(&mut self) {
@@ -238,7 +224,7 @@ impl<'a> GridStateMut<'a> {
             let idx = (b - b'a') as usize;
             if idx < monitors.len() {
                 *grid_monitor_idx = idx;
-                *self.overlay = None;
+                *self.sel_overlay = None;
                 if let Ok(s) = init_grid_monitor(*grid_monitor_idx, monitors, None) {
                     self.load(s);
                     self.reset_ctx();
@@ -247,13 +233,13 @@ impl<'a> GridStateMut<'a> {
                 }
             } else {
                 *select_hint = format!("{}", b as char);
-                if let Some(o) = self.overlay.as_mut() {
+                if let Some(o) = self.sel_overlay.as_mut() {
                     let _ = redraw_select_hint(o, monitors, select_hint);
                 }
             }
         }
         if byte == Some(b'\x1b')
-            && let Some(o) = self.overlay.as_mut()
+            && let Some(o) = self.sel_overlay.as_mut()
         {
             select_hint.clear();
             let _ = redraw_select_hint(o, monitors, "");
@@ -272,14 +258,10 @@ impl<'a> GridStateMut<'a> {
     ) {
         // L4: alt + hjkl = micro-adjust within L3 cell.
         if mods.alt && (code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L) {
-            if let (Some(o), Some(gcfg), Some(gcache), Some(gstats), Some(gctx)) = (
-                self.overlay.as_ref(),
-                self.cfg.as_ref(),
-                self.cache.as_ref(),
-                self.states.as_mut(),
-                self.ctx.as_mut(),
-            ) && gctx.filter.len() >= 3
-            {
+            let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
+                return;
+            };
+            if gctx.filter.len() >= 3 {
                 match code {
                     KEY_H => gctx.l4_dx = (gctx.l4_dx - 1).max(-3),
                     KEY_L => gctx.l4_dx = (gctx.l4_dx + 1).min(3),
@@ -287,7 +269,14 @@ impl<'a> GridStateMut<'a> {
                     KEY_J => gctx.l4_dy = (gctx.l4_dy + 1).min(3),
                     _ => {}
                 }
-                if let Err(e) = Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx) {
+                if let Err(e) = Self::redraw(
+                    &s.overlay,
+                    &s.cfg,
+                    &s.cache,
+                    &mut s.draw_states,
+                    s.font_size,
+                    gctx,
+                ) {
                     warn!("[grid] l4 display error: {e}");
                 }
             }
@@ -296,7 +285,7 @@ impl<'a> GridStateMut<'a> {
 
         if code == KEY_TAB && monitors.len() > 1 {
             *grid_monitor_idx = (*grid_monitor_idx + 1) % monitors.len();
-            *self.overlay = None;
+            *self.state = None;
             if let Ok(s) = init_grid_monitor(*grid_monitor_idx, monitors, None) {
                 self.load(s);
                 self.reset_ctx();
@@ -342,31 +331,39 @@ impl<'a> GridStateMut<'a> {
     }
 
     fn process_byte(&mut self, byte: u8) -> Result<()> {
-        let (Some(o), Some(gcfg), Some(gcache), Some(gstats), Some(gctx)) = (
-            self.overlay.as_mut(),
-            self.cfg.as_mut(),
-            self.cache.as_mut(),
-            self.states.as_mut(),
-            self.ctx.as_mut(),
-        ) else {
+        let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
             return Ok(());
         };
 
         match byte {
             b'\r' | b'\n' => {
-                cursor_warp(self.mouse, &gctx.filter, gstats, gctx)?;
-                if let Some((cx, cy)) = region_center(&gctx.filter, gstats, gctx) {
-                    o.pointer_warp(cx as i32, cy as i32)?;
+                cursor_warp(&mut s.mouse, &gctx.filter, &s.draw_states, gctx)?;
+                if let Some((cx, cy)) = region_center(&gctx.filter, &s.draw_states, gctx) {
+                    s.overlay.pointer_warp(cx as i32, cy as i32)?;
                 }
                 gctx.filter.clear();
                 gctx.repeat = 0;
-                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
+                Self::redraw(
+                    &s.overlay,
+                    &s.cfg,
+                    &s.cache,
+                    &mut s.draw_states,
+                    s.font_size,
+                    gctx,
+                )?;
             }
 
             0x1b => {
                 gctx.filter.clear();
                 gctx.repeat = 0;
-                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
+                Self::redraw(
+                    &s.overlay,
+                    &s.cfg,
+                    &s.cache,
+                    &mut s.draw_states,
+                    s.font_size,
+                    gctx,
+                )?;
             }
 
             0x7f | b'\x08' => {
@@ -375,7 +372,14 @@ impl<'a> GridStateMut<'a> {
                     gctx.filter.pop();
                 }
                 gctx.repeat = 0;
-                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
+                Self::redraw(
+                    &s.overlay,
+                    &s.cfg,
+                    &s.cache,
+                    &mut s.draw_states,
+                    s.font_size,
+                    gctx,
+                )?;
             }
 
             ch => {
@@ -392,13 +396,27 @@ impl<'a> GridStateMut<'a> {
                 if gctx.filter.len() >= 2
                     && let Some(btn) = action_key(c)
                 {
-                    cursor_action(self.mouse, &gctx.filter, gstats, btn, gctx.repeat, gctx)?;
-                    if let Some((cx, cy)) = region_center(&gctx.filter, gstats, gctx) {
-                        o.pointer_warp(cx as i32, cy as i32)?;
+                    cursor_action(
+                        &mut s.mouse,
+                        &gctx.filter,
+                        &s.draw_states,
+                        btn,
+                        gctx.repeat,
+                        gctx,
+                    )?;
+                    if let Some((cx, cy)) = region_center(&gctx.filter, &s.draw_states, gctx) {
+                        s.overlay.pointer_warp(cx as i32, cy as i32)?;
                     }
                     gctx.filter.clear();
                     gctx.repeat = 0;
-                    Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
+                    Self::redraw(
+                        &s.overlay,
+                        &s.cfg,
+                        &s.cache,
+                        &mut s.draw_states,
+                        s.font_size,
+                        gctx,
+                    )?;
                     return Ok(());
                 }
 
@@ -417,7 +435,14 @@ impl<'a> GridStateMut<'a> {
                 }
                 gctx.filter.push(c);
                 gctx.repeat = 0;
-                Self::redraw(o, gcfg, gcache, gstats, *self.font_size, gctx)?;
+                Self::redraw(
+                    &s.overlay,
+                    &s.cfg,
+                    &s.cache,
+                    &mut s.draw_states,
+                    s.font_size,
+                    gctx,
+                )?;
             }
         }
         Ok(())

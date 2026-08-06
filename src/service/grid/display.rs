@@ -6,7 +6,7 @@ use anyhow::Result;
 use super::base::render_labels;
 use super::state::DrawState;
 use super::{GridConfig, GridFilter};
-use crate::config::{L3_KEYS, l1_key_pos, l3_key_pos};
+use crate::config::{L1_KEYS, L2_KEYS, L3_KEYS, l1_key_pos, l3_key_pos};
 use crate::font;
 use crate::overlay::Overlay;
 use crate::render::{TextCache, draw_text};
@@ -33,8 +33,8 @@ pub fn display_update(
             .map(|(r, c)| {
                 let w = states[0].pixmap.width() as f32;
                 let h = states[0].pixmap.height() as f32;
-                let cw = w / 9.0;
-                let ch = h / 3.0;
+                let cw = w / L1_KEYS[0].len() as f32;
+                let ch = h / L1_KEYS.len() as f32;
                 (c as f32 * cw, r as f32 * ch, cw, ch)
             })
     };
@@ -91,8 +91,8 @@ pub fn display_update(
                 && let Some((r, c)) = l3_sel
                 && (dx != 0 || dy != 0)
             {
-                let sub_w = w / 5.0;
-                let sub_h = h / 3.0;
+                let sub_w = w / L3_KEYS[0].len() as f32;
+                let sub_h = h / L3_KEYS.len() as f32;
                 let cx = x + (c as f32 + 0.5) * sub_w + dx as f32 * sub_w / 7.0;
                 let cy = y + (r as f32 + 0.5) * sub_h + dy as f32 * sub_h / 7.0;
                 let r = font_size * 0.15;
@@ -146,8 +146,8 @@ fn render_l2_grid(
         anti_alias: true,
         ..Default::default()
     };
-    for col in 1..3 {
-        let lx = x + col as f32 * w / 3.0;
+    for col in 1..L2_KEYS[0].len() {
+        let lx = x + col as f32 * w / L2_KEYS[0].len() as f32;
         let mut pb = PathBuilder::new();
         pb.move_to(lx, y);
         pb.line_to(lx, y + h);
@@ -159,8 +159,8 @@ fn render_l2_grid(
             None,
         );
     }
-    for row in 1..9 {
-        let ly = y + row as f32 * h / 9.0;
+    for row in 1..L2_KEYS.len() {
+        let ly = y + row as f32 * h / L2_KEYS.len() as f32;
         let mut pb = PathBuilder::new();
         pb.move_to(x, ly);
         pb.line_to(x + w, ly);
@@ -240,8 +240,8 @@ fn render_l3_overlay(
         ..Default::default()
     };
 
-    for col in 1..5 {
-        let lx = x + col as f32 * w / 5.0;
+    for col in 1..L3_KEYS[0].len() {
+        let lx = x + col as f32 * w / L3_KEYS[0].len() as f32;
         let mut pb = PathBuilder::new();
         pb.move_to(lx, y);
         pb.line_to(lx, y + h);
@@ -253,8 +253,8 @@ fn render_l3_overlay(
             None,
         );
     }
-    for row in 1..3 {
-        let ly = y + row as f32 * h / 3.0;
+    for row in 1..L3_KEYS.len() {
+        let ly = y + row as f32 * h / L3_KEYS.len() as f32;
         let mut pb = PathBuilder::new();
         pb.move_to(x, ly);
         pb.line_to(x + w, ly);
@@ -272,8 +272,8 @@ fn render_l3_overlay(
             if sel == Some((row, col)) {
                 continue;
             }
-            let cx = x + (col as f32 + 0.5) * w / 5.0;
-            let cy = y + (row as f32 + 0.5) * h / 3.0;
+            let cx = x + (col as f32 + 0.5) * w / L3_KEYS[0].len() as f32;
+            let cy = y + (row as f32 + 0.5) * h / L3_KEYS.len() as f32;
             draw_text(
                 pixmap,
                 &ch.to_string(),
@@ -287,10 +287,10 @@ fn render_l3_overlay(
     }
 
     if let Some((sr, sc)) = sel {
-        let sx = x + sc as f32 * w / 5.0;
-        let sy = y + sr as f32 * h / 3.0;
-        let sw = w / 5.0;
-        let sh = h / 3.0;
+        let sx = x + sc as f32 * w / L3_KEYS[0].len() as f32;
+        let sy = y + sr as f32 * h / L3_KEYS.len() as f32;
+        let sw = w / L3_KEYS[0].len() as f32;
+        let sh = h / L3_KEYS.len() as f32;
         let hl_color = Color::from_rgba8(192, 255, 192, 128);
         let hl_stroke = Stroke {
             width: 2.0,

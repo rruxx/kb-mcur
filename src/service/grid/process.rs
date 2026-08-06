@@ -6,7 +6,7 @@ use log::info;
 
 use super::GridFilter;
 use super::state::{DrawState, GridCtx};
-use crate::config::{MouseButton, l3_key_pos};
+use crate::config::{L3_KEYS, MouseButton, l3_key_pos};
 use crate::device::Mouse;
 use crate::device::pointer::Pointer;
 
@@ -83,10 +83,10 @@ pub fn region_rect(
     );
     if let Some(ch) = input.chars().nth(2) {
         let (r, c) = l3_key_pos(ch)?;
-        let sx = px + c as f32 * pw / 5.0;
-        let sy = py + r as f32 * ph / 3.0;
-        let sw = pw / 5.0;
-        let sh = ph / 3.0;
+        let sx = px + c as f32 * pw / L3_KEYS[0].len() as f32;
+        let sy = py + r as f32 * ph / L3_KEYS.len() as f32;
+        let sw = pw / L3_KEYS[0].len() as f32;
+        let sh = ph / L3_KEYS.len() as f32;
         let dx = ctx.l4_dx as f32 * sw / 7.0;
         let dy = ctx.l4_dy as f32 * sh / 7.0;
         Some((sx + dx, sy + dy, sw, sh))

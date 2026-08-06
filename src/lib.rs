@@ -25,9 +25,7 @@ pub mod render;
 pub mod service;
 
 pub use device::Mouse;
-#[cfg(target_os = "linux")]
-pub use overlay::{Monitor, Overlay};
-pub use overlay::{cursor_pos, query_screen_size};
+pub use overlay::{Monitor, Overlay, cursor_pos, query_screen_size};
 #[cfg(target_os = "linux")]
 pub use service::grid::state::{DrawState, GridCtx, GridPhase, GridStateMut, MonitorList};
 #[cfg(target_os = "linux")]

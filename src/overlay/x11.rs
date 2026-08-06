@@ -183,21 +183,14 @@ fn randr_monitors(conn: &impl Connection, root: u32) -> Vec<Monitor> {
     out
 }
 
-#[must_use]
-pub fn query_screen_size() -> (u16, u16) {
-    let fallback = (
-        crate::config::FALLBACK_WIDTH,
-        crate::config::FALLBACK_HEIGHT,
-    );
-    let Ok((conn, screen_num)) = x11rb::connect(None) else {
-        return fallback;
-    };
+pub fn query_screen_size() -> Result<(u16, u16)> {
+    let (conn, screen_num) = x11rb::connect(None).context("cannot connect to X11 display")?;
     let monitors = randr_monitors(&conn, conn.setup().roots[screen_num].root);
     if monitors.is_empty() {
-        return fallback;
+        anyhow::bail!("no active RandR outputs");
     }
     let (_, _, w, h) = Monitor::bbox(&monitors);
-    (w, h)
+    Ok((w, h))
 }
 
 /// Current cursor position in root (screen) coordinates.

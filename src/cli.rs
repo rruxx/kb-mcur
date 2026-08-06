@@ -60,6 +60,6 @@ pub fn dispatch(cmd: Cmd) -> Result<()> {
 /// Open a virtual pointer sized to the current screen. Shared by the
 /// `move` / `moveto` / `click` commands.
 pub(crate) fn mouse() -> Result<Mouse> {
-    let (sw, sh) = query_screen_size();
+    let (sw, sh) = query_screen_size()?;
     Mouse::new(sw, sh)
 }

@@ -90,19 +90,23 @@ pub fn connect() -> Result<Overlay> {
 }
 
 /// Screen dimensions (for CLI use).
-#[must_use]
-pub fn query_screen_size() -> (u16, u16) {
+pub fn query_screen_size() -> Result<(u16, u16)> {
     #[cfg(target_os = "windows")]
     {
-        windows::query_screen_size()
+        Ok(windows::query_screen_size())
     }
     #[cfg(target_os = "linux")]
     {
-        x11::query_screen_size()
+        if std::env::var("WAYLAND_DISPLAY").is_ok() {
+            wlr::screen_size()
+                .ok_or_else(|| anyhow::anyhow!("no Wayland display or active outputs"))
+        } else {
+            x11::query_screen_size()
+        }
     }
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
-        (0, 0)
+        anyhow::bail!("unsupported platform")
     }
 }
 

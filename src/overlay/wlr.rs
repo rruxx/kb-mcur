@@ -206,6 +206,22 @@ impl WlrBackend {
     }
 }
 
+/// Screen size (bounding box over all outputs) for CLI use.
+///
+/// Uses the `wl_output` geometry/mode collected during connect, so it works on
+/// any Wayland compositor with layer-shell (KDE, wlroots, niri). Returns `None`
+/// when no display is reachable so the caller can fall back.
+#[must_use]
+pub fn screen_size() -> Option<(u16, u16)> {
+    let backend = WlrBackend::connect().ok()?;
+    let m = backend.named_monitors().ok()?;
+    if m.is_empty() {
+        return None;
+    }
+    let (_, _, w, h) = Monitor::bbox(&m);
+    Some((w, h))
+}
+
 impl OverlayBackend for WlrBackend {
     #[allow(clippy::unnecessary_wraps)]
     fn named_monitors(&self) -> Result<Vec<Monitor>> {

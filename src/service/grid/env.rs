@@ -4,28 +4,22 @@
 use anyhow::Result;
 use log::{info, warn};
 
-use super::GridConfig;
 use super::init::enter_grid;
 use super::selection::show_selection;
-use super::state::DrawState;
-use super::state::{GridCtx, GridPhase, GridStateMut, MonitorList, init_grid_monitor};
-use crate::device::Mouse;
+use super::state::{GridCtx, GridPhase, GridState, GridStateMut, MonitorList, init_grid_monitor};
 use crate::device::pointer::KeyboardOut;
 use crate::keymap::{KEY_CAPSLOCK, KEY_LEFTMETA, KEY_RIGHTMETA, ModState};
 use crate::overlay::Overlay;
-use crate::render::TextCache;
 
 // ── Grid session state ──────────────────────────────────────────────
 
 pub struct GridEnv {
     active: bool,
     phase: GridPhase,
-    overlay: Option<Overlay>,
-    mouse: Option<Mouse>,
-    cfg: Option<GridConfig>,
-    cache: Option<TextCache>,
-    font_size: f32,
-    states: Option<Vec<DrawState>>,
+    /// Multi-monitor selection hint (only during the `Selecting` phase).
+    sel_overlay: Option<Overlay>,
+    /// The active grid session, held whole.
+    state: Option<GridState>,
     ctx: Option<GridCtx>,
     monitors: MonitorList,
     monitor_idx: usize,
@@ -44,12 +38,8 @@ impl GridEnv {
         Self {
             active: false,
             phase: GridPhase::Navigating,
-            overlay: None,
-            mouse: None,
-            cfg: None,
-            cache: None,
-            font_size: 0.0,
-            states: None,
+            sel_overlay: None,
+            state: None,
             ctx: None,
             monitors: Vec::new(),
             monitor_idx: 0,
@@ -77,11 +67,8 @@ impl GridEnv {
         }
         if self.active() {
             self.active = false;
-            self.overlay = None;
-            self.mouse = None;
-            self.cfg = None;
-            self.cache = None;
-            self.states = None;
+            self.sel_overlay = None;
+            self.state = None;
             self.ctx = None;
             warn!("[grid OFF]");
         } else {
@@ -92,9 +79,9 @@ impl GridEnv {
                     self.active = true;
 
                     if self.monitors.len() > 1 {
-                        self.overlay = None;
+                        self.sel_overlay = None;
                         self.select_hint.clear();
-                        if let Err(e) = show_selection(&mut self.overlay, &self.monitors) {
+                        if let Err(e) = show_selection(&mut self.sel_overlay, &self.monitors) {
                             warn!("[grid] selection: {e}");
                             self.active = false;
                         } else {
@@ -107,12 +94,7 @@ impl GridEnv {
                     } else if let Ok(state) =
                         init_grid_monitor(0, &self.monitors, Some(init_overlay_conn))
                     {
-                        self.overlay = Some(state.overlay);
-                        self.mouse = state.mouse;
-                        self.cfg = Some(state.cfg);
-                        self.cache = Some(state.cache);
-                        self.font_size = state.font_size;
-                        self.states = Some(state.draw_states);
+                        self.state = Some(state);
                         self.ctx = Some(GridCtx::new());
                         self.phase = GridPhase::Navigating;
                         warn!("[grid ON]");
@@ -136,15 +118,7 @@ impl GridEnv {
         if !self.active || value == 0 {
             return false;
         }
-        let mut state = GridStateMut::new(
-            &mut self.overlay,
-            &mut self.cfg,
-            &mut self.cache,
-            &mut self.font_size,
-            &mut self.states,
-            &mut self.ctx,
-            &mut self.mouse,
-        );
+        let mut state = GridStateMut::new(&mut self.sel_overlay, &mut self.state, &mut self.ctx);
         if self.phase == GridPhase::Selecting {
             state.handle_selecting(
                 code,
