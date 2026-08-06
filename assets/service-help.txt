@@ -32,3 +32,7 @@ grid (Main keyboard):
   j/k/l              Click L/M/R & reset
   0-9 prefix         Repeat (e.g. 3j)
   Esc                Reset filter
+
+Exit:
+  Windows            tray icon (right-click -> Exit) or Task Manager
+  Console session    Ctrl+C

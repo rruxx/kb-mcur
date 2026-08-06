@@ -15,14 +15,23 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 use log::{error, info, warn};
+use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, WPARAM};
 use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
+use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, SendInput,
 };
+use windows_sys::Win32::UI::Shell::{
+    NIF_ICON, NIF_MESSAGE, NIF_TIP, NIM_ADD, NIM_DELETE, NOTIFYICONDATAW, Shell_NotifyIconW,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, DispatchMessageW, GetSystemMetrics, HC_ACTION, HHOOK, KBDLLHOOKSTRUCT, MSG,
-    PM_REMOVE, PeekMessageW, SM_CXSCREEN, SM_CYSCREEN, SetWindowsHookExW, TranslateMessage,
-    UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    AppendMenuW, CallNextHookEx, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu,
+    DestroyWindow, DispatchMessageW, GetCursorPos, GetSystemMetrics, HC_ACTION, HHOOK,
+    IDI_APPLICATION, KBDLLHOOKSTRUCT, MF_STRING, MSG, PM_REMOVE, PeekMessageW, RegisterClassExW,
+    SM_CXSCREEN, SM_CYSCREEN, SetForegroundWindow, SetWindowsHookExW, TPM_LEFTALIGN, TPM_RETURNCMD,
+    TPM_RIGHTBUTTON, TrackPopupMenu, TranslateMessage, UnhookWindowsHookEx, WH_KEYBOARD_LL, WM_APP,
+    WM_CONTEXTMENU, WM_KEYDOWN, WM_KEYUP, WM_QUIT, WM_RBUTTONUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+    WNDCLASSEXW,
 };
 
 use crate::device::pointer::KeyboardOut;
@@ -282,6 +291,145 @@ unsafe extern "system" fn hook_proc(n_code: i32, wparam: usize, lparam: isize) -
     }
 }
 
+// ── System tray ─────────────────────────────────────────────────────
+
+/// Hidden message window hosting the tray icon (background-run exit path).
+const TRAY_CLASS: &str = "kursor-tray";
+const TRAY_ID: u32 = 1;
+const WM_TRAY: u32 = WM_APP + 1;
+const MENU_EXIT: usize = 1;
+
+fn encode_wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+fn module_handle() -> windows_sys::Win32::Foundation::HMODULE {
+    unsafe { GetModuleHandleW(std::ptr::null()) }
+}
+
+unsafe extern "system" fn tray_wnd_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
+    if msg == WM_TRAY {
+        match lparam as u32 {
+            WM_RBUTTONUP | WM_CONTEXTMENU => unsafe { show_tray_menu(hwnd) },
+            _ => {}
+        }
+        return 0;
+    }
+    unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+}
+
+unsafe fn show_tray_menu(hwnd: HWND) {
+    let menu = unsafe { CreatePopupMenu() };
+    if menu.is_null() {
+        return;
+    }
+    let exit_label = encode_wide("Exit");
+    unsafe {
+        AppendMenuW(menu, MF_STRING, MENU_EXIT, exit_label.as_ptr());
+        let mut pt = POINT { x: 0, y: 0 };
+        GetCursorPos(&raw mut pt);
+        SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenu(
+            menu,
+            TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD,
+            pt.x,
+            pt.y,
+            0,
+            hwnd,
+            std::ptr::null(),
+        );
+        DestroyMenu(menu);
+        if cmd as usize == MENU_EXIT {
+            SHUTDOWN.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+fn register_tray_class() {
+    let class = encode_wide(TRAY_CLASS);
+    let wc = WNDCLASSEXW {
+        cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+        style: 0,
+        lpfnWndProc: Some(tray_wnd_proc),
+        cbClsExtra: 0,
+        cbWndExtra: 0,
+        hInstance: module_handle(),
+        hIcon: std::ptr::null_mut(),
+        hCursor: std::ptr::null_mut(),
+        hbrBackground: std::ptr::null_mut(),
+        lpszMenuName: std::ptr::null(),
+        lpszClassName: class.as_ptr(),
+        hIconSm: std::ptr::null_mut(),
+    };
+    unsafe { RegisterClassExW(&raw const wc) };
+}
+
+fn create_tray_window() -> Result<HWND> {
+    let class = encode_wide(TRAY_CLASS);
+    let hwnd = unsafe {
+        CreateWindowExW(
+            0,
+            class.as_ptr(),
+            class.as_ptr(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            module_handle(),
+            std::ptr::null_mut(),
+        )
+    };
+    if hwnd.is_null() {
+        bail!("CreateWindowExW failed (tray)");
+    }
+    Ok(hwnd)
+}
+
+/// Show the tray icon; the right-click menu exits the service.
+fn add_tray_icon(hwnd: HWND) -> Result<()> {
+    unsafe {
+        let mut nid = std::mem::MaybeUninit::<NOTIFYICONDATAW>::zeroed();
+        let nid = nid.as_mut_ptr();
+        (*nid).cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+        (*nid).hWnd = hwnd;
+        (*nid).uID = TRAY_ID;
+        (*nid).uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+        (*nid).uCallbackMessage = WM_TRAY;
+        (*nid).hIcon = windows_sys::Win32::UI::WindowsAndMessaging::LoadIconW(
+            std::ptr::null_mut(),
+            IDI_APPLICATION,
+        );
+        let tip = encode_wide("kursor");
+        let len = tip.len().min(128);
+        let mut sz_tip = [0u16; 128];
+        sz_tip[..len].copy_from_slice(&tip[..len]);
+        (*nid).szTip = sz_tip;
+        if Shell_NotifyIconW(NIM_ADD, nid) == 0 {
+            bail!("Shell_NotifyIconW failed");
+        }
+        Ok(())
+    }
+}
+
+fn remove_tray_icon(hwnd: HWND) {
+    unsafe {
+        let mut nid = std::mem::MaybeUninit::<NOTIFYICONDATAW>::zeroed();
+        let nid = nid.as_mut_ptr();
+        (*nid).cbSize = std::mem::size_of::<NOTIFYICONDATAW>() as u32;
+        (*nid).hWnd = hwnd;
+        (*nid).uID = TRAY_ID;
+        Shell_NotifyIconW(NIM_DELETE, nid);
+    }
+}
+
 // ── Shutdown ─────────────────────────────────────────────────────────
 
 extern "system" fn ctrl_handler(_ctrl_type: u32) -> i32 {
@@ -296,6 +444,13 @@ pub fn run() -> Result<()> {
 
     unsafe {
         let _ = SetConsoleCtrlHandler(Some(ctrl_handler), 1);
+    }
+
+    // System tray: exit path for a background (double-click) run.
+    register_tray_class();
+    let tray = create_tray_window()?;
+    if let Err(e) = add_tray_icon(tray) {
+        warn!("tray icon unavailable: {e}");
     }
 
     let screen = unsafe {
@@ -357,6 +512,8 @@ pub fn run() -> Result<()> {
     }
 
     unsafe { UnhookWindowsHookEx(hook) };
+    remove_tray_icon(tray);
+    unsafe { DestroyWindow(tray) };
     info!("service stopped");
     result
 }

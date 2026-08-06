@@ -67,6 +67,11 @@ All three modes run on Linux and Windows; `--help` prints full key maps.
 
 #### Windows
 
+Double-clicking `kursor.exe` starts the service in the background — no console
+window, exit via the tray icon's right-click **Exit** menu (or Task Manager). Running
+`kursor service` in a terminal keeps it in the console (Ctrl+C to quit); other
+commands print to the console.
+
 `service` uses `WH_KEYBOARD_LL`, which the OS may silently freeze (auto-reinstalled) and cannot see elevated (UIPI) or secure-desktop input — platform limitations. The grid overlay draws into transparent click-through layered windows.
 
 #### Linux (systemd)

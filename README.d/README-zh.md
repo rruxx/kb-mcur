@@ -67,6 +67,8 @@ Linux 与 Windows 均支持全部三模式；各命令加 `--help` 查看完整�
 
 #### Windows
 
+双击 `kursor.exe` 即后台运行 service——无控制台窗口，托盘图标右键菜单 `Exit` 退出（或任务管理器结束）。在终端运行 `kursor service` 则为控制台会话（Ctrl+C 退出）；其余命令在终端输出。
+
 `service` 使用 `WH_KEYBOARD_LL`，系统可能静默冻结它（自动重装），且无法捕获提权（UIPI）与安全桌面输入——属平台限制。grid 叠加层绘制到透明点击穿透分层窗口。
 
 #### Linux（systemd）
