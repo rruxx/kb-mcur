@@ -1,6 +1,8 @@
 // Copyright (C) 2026 明雅流风
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[cfg(target_os = "linux")]
+pub mod kde;
 #[cfg(target_os = "windows")]
 pub mod windows;
 #[cfg(target_os = "linux")]
@@ -112,7 +114,21 @@ pub fn cursor_pos() -> Result<(i32, i32)> {
     }
     #[cfg(target_os = "linux")]
     {
-        x11::cursor_pos()
+        if std::env::var("WAYLAND_DISPLAY").is_ok() {
+            // KDE exposes the cursor position via KWin scripting; other
+            // compositors have no global pointer API and XWayland's pointer is
+            // not synchronized, so report it instead of returning a stale value.
+            if std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.contains("KDE")) {
+                kde::cursor_pos()
+            } else {
+                anyhow::bail!(
+                    "no global cursor position on Wayland (unsupported compositor); \
+                     use KDE or an X11 session"
+                )
+            }
+        } else {
+            x11::cursor_pos()
+        }
     }
     #[cfg(not(any(target_os = "windows", target_os = "linux")))]
     {
