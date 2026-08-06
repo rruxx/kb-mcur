@@ -317,6 +317,13 @@ impl<'a> GridStateMut<'a> {
         )
     }
 
+    /// Clear the L4 micro-adjust offset whenever the selection changes, so a
+    /// previous shift+hjkl nudge never carries over to a new region.
+    fn reset_l4(gctx: &mut GridCtx) {
+        gctx.l4_dx = 0;
+        gctx.l4_dy = 0;
+    }
+
     fn process_byte(&mut self, byte: u8) -> Result<()> {
         let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
             return Ok(());
@@ -331,6 +338,7 @@ impl<'a> GridStateMut<'a> {
                 }
                 gctx.filter.clear();
                 gctx.repeat = 0;
+                Self::reset_l4(gctx);
                 Self::redraw(
                     &s.overlay,
                     &s.cfg,
@@ -348,6 +356,7 @@ impl<'a> GridStateMut<'a> {
                     gctx.filter.pop();
                 }
                 gctx.repeat = 0;
+                Self::reset_l4(gctx);
                 Self::redraw(
                     &s.overlay,
                     &s.cfg,
@@ -385,6 +394,7 @@ impl<'a> GridStateMut<'a> {
                     }
                     gctx.filter.clear();
                     gctx.repeat = 0;
+                    Self::reset_l4(gctx);
                     Self::redraw(
                         &s.overlay,
                         &s.cfg,
@@ -411,6 +421,7 @@ impl<'a> GridStateMut<'a> {
                 }
                 gctx.filter.push(c);
                 gctx.repeat = 0;
+                Self::reset_l4(gctx);
                 Self::redraw(
                     &s.overlay,
                     &s.cfg,
