@@ -24,14 +24,14 @@ fn is_own_device(fd: &OwnedFd) -> bool {
 
 // ── Keyboard detection ─────────────────────────────────────────────
 
-/// Whether a device is worth grabbing: a main keyboard (≥45 keys, still
+/// Whether a device is worth grabbing: a main keyboard (≥44 keys, still
 /// requiring all 26 letters) or a numpad (≥17 keys with all KP keys present).
 fn is_suitable(fd: &OwnedFd) -> bool {
     let Some(bits) = read_key_bits(fd) else {
         return false;
     };
     let n = count_keys(&bits);
-    let grid_ok = n >= 45
+    let grid_ok = n >= 44
         && (KEY_Q..=KEY_P).all(|c| has_key(&bits, c))
         && (KEY_A..=KEY_L).all(|c| has_key(&bits, c))
         && (KEY_Z..=KEY_M).all(|c| has_key(&bits, c));

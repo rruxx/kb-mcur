@@ -14,8 +14,8 @@ kursor —— 键驱光标
 - `#[repr(C)]` 结构用 `bytemuck` 转换；禁用 `std::mem::zeroed()`。
 - 用 `log`，不用 `eprintln!`。常量放 `src/config.rs` —— 仅限 主要 / 常改 / 多次出现 / 用户可调 的值；一次性小字面量就地写。
 - `src/device/linux/abi.rs` —— 内核 input 结构体 / ioctl / 设备创建的唯一定义处。
-- `src/keymap.rs` —— 键码真值表：未用的键保持注释（注释 = 不用），代码需要时才启用。主键盘接管需 ≥45 键（26 字母 + `,` `.` `/` `;` + 0-9 + Tab/Caps/Shift/Ctrl/Meta）—— 见 `src/device/linux/input.rs`。
-- 滚动方向：滚轮 `+1`=上、`-1`=下（glide-alpha `ctrl+w`=上=+1，glide-num NumLock+`/`=上=+1）。方向符号易误读 —— 改键位/方向时对照 `assets/help/help-service.txt`。
+- `src/keymap.rs` —— 键码真值表：未用的键保持注释（注释 = 不用），代码需要时才启用。主键盘接管需 ≥44 键（26 字母 + `,` `.` `/` `;` + 0-9 + Tab/Caps/Shift/Meta）—— 见 `src/device/linux/input.rs`。
+- 滚动方向：滚轮 `+1`=上、`-1`=下（glide-alpha `capslock+w`=上=+1，glide-num NumLock+`/`=上=+1）。方向符号易误读 —— 改键位/方向时对照 `assets/help/help-service.txt`。
 - 平台拆分在 `src/device/{linux,windows}/` 与 `src/overlay/`；核心（grid/glide/render）平台无关。
 - 现代模块布局（`linux.rs` + `linux/`），不用 `mod.rs`。
 - Windows 用 `windows-sys`。GUI 入口在 `src/main.rs`（双击 → 后台 `service`，托盘 `Exit` 退出；终端 → `AttachConsole`；后台日志 `%LOCALAPPDATA%\kursor\kursor.log`）。托盘与 UI 字符串用英文。

@@ -9,8 +9,8 @@ use log::info;
 use crate::config::MouseButton;
 use crate::device::pointer::{KeyboardOut, Pointer, ScrollAxis, SideButton};
 use crate::keymap::{
-    KEY_A, KEY_CAPSLOCK, KEY_D, KEY_I, KEY_LEFTCTRL, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_M, KEY_N,
-    KEY_O, KEY_RIGHTCTRL, KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_S, KEY_U, KEY_W, ModState,
+    KEY_A, KEY_CAPSLOCK, KEY_D, KEY_I, KEY_LEFTMETA, KEY_LEFTSHIFT, KEY_M, KEY_N, KEY_O,
+    KEY_RIGHTMETA, KEY_RIGHTSHIFT, KEY_S, KEY_U, KEY_W, ModState,
 };
 use crate::service::dir::{Dir, DirState};
 
@@ -18,7 +18,7 @@ use crate::service::dir::{Dir, DirState};
 
 pub struct GlideAlpha {
     active: bool,
-    ctrl_held: bool,
+    caps_held: bool,
     shift_held: bool,
     btn_held: Option<MouseButton>,
     dir: DirState,
@@ -29,7 +29,7 @@ impl GlideAlpha {
     pub fn new() -> Self {
         Self {
             active: false,
-            ctrl_held: false,
+            caps_held: false,
             shift_held: false,
             btn_held: None,
             dir: DirState::new(),
@@ -86,7 +86,7 @@ impl GlideAlpha {
     pub(crate) fn reset_input(&mut self) {
         self.dir = DirState::new();
         self.btn_held = None;
-        self.ctrl_held = false;
+        self.caps_held = false;
         self.shift_held = false;
     }
 
@@ -100,29 +100,32 @@ impl GlideAlpha {
         value: i32,
         is_press: bool,
     ) -> Result<bool> {
-        // Modifier tracking — state only, forward the event to the desktop.
-        if ctrl_code(code) {
-            self.ctrl_held = is_press;
-            return Ok(false);
+        // CapsLock is the glide-alpha modifier. While active it is swallowed so
+        // holding it for chords never flips the desktop's caps-lock state.
+        if code == KEY_CAPSLOCK {
+            self.caps_held = is_press;
+            return Ok(true);
         }
         if shift_code(code) {
             self.shift_held = is_press;
             return Ok(false);
         }
 
-        let c = self.ctrl_held;
+        let caps = self.caps_held;
         let s = self.shift_held;
 
-        // ctrl + h/j/k/l = move.
-        if c && !s
+        // capslock + h/j/k/l = move.
+        if caps
+            && !s
             && let Some(flag) = Dir::from_alpha(code)
         {
             self.dir.update(flag, value);
             return Ok(true);
         }
 
-        // ctrl + w/a/s/d = scroll up/left/down/right.
-        if c && !s
+        // capslock + w/a/s/d = scroll up/left/down/right.
+        if caps
+            && !s
             && let Some((axis, dir)) = scroll_code(code)
         {
             if is_press {
@@ -131,9 +134,9 @@ impl GlideAlpha {
             return Ok(true);
         }
 
-        // ctrl + u/i/o = left/middle/right buttons (press→down, release→up);
-        // ctrl + n/m = back/forward.
-        if c && !s {
+        // capslock + u/i/o = left/middle/right buttons (press→down, release→up);
+        // capslock + n/m = back/forward.
+        if caps && !s {
             if let Some(btn) = match code {
                 KEY_U => Some(MouseButton::Left),
                 KEY_I => Some(MouseButton::Middle),
@@ -169,10 +172,6 @@ impl GlideAlpha {
 }
 
 // ── Helpers ═════════════════════════════════════════════════════════
-
-fn ctrl_code(code: u16) -> bool {
-    matches!(code, KEY_LEFTCTRL | KEY_RIGHTCTRL)
-}
 
 fn shift_code(code: u16) -> bool {
     matches!(code, KEY_LEFTSHIFT | KEY_RIGHTSHIFT)

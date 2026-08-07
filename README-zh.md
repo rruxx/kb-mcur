@@ -61,7 +61,7 @@ Linux 与 Windows 均支持全部三模式；各命令加 `--help` 查看完整�
 
 **glide-num（小键盘）：** NumLock+KPEnter 切换。方向键移动（加速）；`/ * -` 切换按钮，NumLock+`/ 8 7 9` 滚动，NumLock+`* -` 后退/前进。
 
-**glide-alpha（主键盘）：** meta+shift+capslock 切换。`ctrl+h/j/k/l` 移动，`ctrl+w/a/s/d` 滚动，`ctrl+u/i/o` 左/中/右键，`ctrl+n/m` 后退/前进。
+**glide-alpha（主键盘）：** meta+shift+capslock 切换。`capslock+h/j/k/l` 移动，`capslock+w/a/s/d` 滚动，`capslock+u/i/o` 左/中/右键，`capslock+n/m` 后退/前进。
 
 **grid（meta+capslock）：** 27×27 三层网格（L1: 9×3，L2: 3×9，L3: 5×3）。`u/i/o` 点击，`;` 定位，0-9 连击，`p` 复位；多屏用 `a-z`/Tab。
 

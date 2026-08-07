@@ -61,7 +61,7 @@ All three modes run on Linux and Windows; `--help` prints full key maps.
 
 **glide-num (NumPad):** NumLock+KPEnter toggles. Direction keys move (accelerated); `/ * -` switch the button, NumLock+`/ 8 7 9` scrolls, NumLock+`* -` back/forward.
 
-**glide-alpha (Main keyboard):** meta+shift+capslock toggles. `ctrl+h/j/k/l` moves, `ctrl+w/a/s/d` scrolls, `ctrl+u/i/o` left/middle/right, `ctrl+n/m` back/forward.
+**glide-alpha (Main keyboard):** meta+shift+capslock toggles. `capslock+h/j/k/l` moves, `capslock+w/a/s/d` scrolls, `capslock+u/i/o` left/middle/right, `capslock+n/m` back/forward.
 
 **grid (meta+capslock):** 27×27 grid in three layers (L1: 9×3, L2: 3×9, L3: 5×3). `u/i/o` clicks, `;` warps, 0-9 repeats, `p` resets; multi-monitor via `a-z`/Tab.
 

@@ -12,10 +12,10 @@ glide-num (NumPad):
 
 glide-alpha (Main keyboard):
   meta+shift+capslock  Toggle glide-alpha
-  ctrl+h/j/k/l         Move left/down/up/right
-  ctrl+w/a/s/d         Scroll up/left/down/right
-  ctrl+u/i/o           Left/middle/right button (press=down, release=up)
-  ctrl+n/m             Back/forward
+  capslock+h/j/k/l     Move left/down/up/right
+  capslock+w/a/s/d     Scroll up/left/down/right
+  capslock+u/i/o       Left/middle/right button (press=down, release=up)
+  capslock+n/m         Back/forward
 
 grid (Main keyboard):
   meta+capslock      Toggle grid overlay
