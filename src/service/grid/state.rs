@@ -243,29 +243,28 @@ impl<'a> GridStateMut<'a> {
         mods: &ModState,
         grid_phase: GridPhase,
     ) {
-        // L4: hjkl = micro-adjust within L3 cell.
-        if code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L {
-            let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut()) else {
-                return;
-            };
-            if gctx.filter.len() >= 3 {
-                match code {
-                    KEY_H => gctx.l4_dx = (gctx.l4_dx - 1).max(-3),
-                    KEY_L => gctx.l4_dx = (gctx.l4_dx + 1).min(3),
-                    KEY_K => gctx.l4_dy = (gctx.l4_dy - 1).max(-3),
-                    KEY_J => gctx.l4_dy = (gctx.l4_dy + 1).min(3),
-                    _ => {}
-                }
-                if let Err(e) = Self::redraw(
-                    &s.overlay,
-                    &s.cfg,
-                    &s.cache,
-                    &mut s.draw_states,
-                    s.font_size,
-                    gctx,
-                ) {
-                    warn!("[grid] l4 display error: {e}");
-                }
+        // L4: hjkl = micro-adjust within L3 cell, but only while at L3;
+        // before that h/j/k/l are ordinary L1/L2 region keys.
+        if (code == KEY_H || code == KEY_J || code == KEY_K || code == KEY_L)
+            && let (Some(s), Some(gctx)) = (self.state.as_mut(), self.ctx.as_mut())
+            && gctx.filter.len() >= 3
+        {
+            match code {
+                KEY_H => gctx.l4_dx = (gctx.l4_dx - 1).max(-3),
+                KEY_L => gctx.l4_dx = (gctx.l4_dx + 1).min(3),
+                KEY_K => gctx.l4_dy = (gctx.l4_dy - 1).max(-3),
+                KEY_J => gctx.l4_dy = (gctx.l4_dy + 1).min(3),
+                _ => {}
+            }
+            if let Err(e) = Self::redraw(
+                &s.overlay,
+                &s.cfg,
+                &s.cache,
+                &mut s.draw_states,
+                s.font_size,
+                gctx,
+            ) {
+                warn!("[grid] l4 display error: {e}");
             }
             return;
         }
