@@ -28,10 +28,6 @@ pub struct Service {
     glide_alpha: GlideAlpha,
     grid: GridEnv,
     mods: ModState,
-    /// Whether the current `CapsLock` press was part of a `meta` chord. Such a
-    /// `CapsLock` belongs to a mode toggle (grid/glide-alpha) and must never be
-    /// replayed by glide-alpha on release.
-    caps_toggle: bool,
     /// A held modifier (Meta/NumLock) whose key-down has not yet been forwarded.
     /// Linux-only: the evdev grab can replay it later. Windows forwards modifiers
     /// immediately so `Win+key` chords reach the desktop.
@@ -47,7 +43,6 @@ impl Service {
             glide_alpha: GlideAlpha::new(),
             grid: GridEnv::new(),
             mods: ModState::default(),
-            caps_toggle: false,
             #[cfg(target_os = "linux")]
             pending: None,
         }
@@ -66,8 +61,11 @@ impl Service {
         if code == KEY_NUMLOCK {
             self.glide_num.set_numlock(value != 0);
         }
+        // `caps_meta_release` catches a CapsLock release while meta is still
+        // held (its press may already have been consumed by a mode toggle).
+        let mut caps_meta_release = false;
         if code == KEY_CAPSLOCK {
-            self.caps_toggle = is_press && self.mods.meta;
+            caps_meta_release = self.mods.meta && !is_press;
         }
 
         // Windows: swallow NumLock so the OS never toggles the lock state
@@ -124,9 +122,10 @@ impl Service {
         if glide_num_input(code, value, is_press, &mut self.glide_num, ptr)? {
             return Ok(true);
         }
-        // A CapsLock pressed as part of a meta chord belongs to a mode toggle;
-        // skip glide-alpha's CapsLock handling so its release is never replayed.
-        if !(code == KEY_CAPSLOCK && self.caps_toggle)
+        // A CapsLock pressed (or released while meta is held) as part of a
+        // meta chord belongs to a mode toggle; skip glide-alpha's CapsLock
+        // handling so its release is never replayed.
+        if !(code == KEY_CAPSLOCK && ((self.mods.meta && self.mods.caps) || caps_meta_release))
             && glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr, kbd)?
         {
             return Ok(true);

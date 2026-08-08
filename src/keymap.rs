@@ -143,13 +143,14 @@ pub const KEY_LEFTMETA: u16 = 125;
 pub const KEY_RIGHTMETA: u16 = 126;
 // pub const KEY_COMPOSE: u16 = 127;
 
-/// Modifier-key state (shift/ctrl/meta), one bool per key.
+/// Modifier-key state (shift/ctrl/meta/caps), one bool per key.
 #[derive(Default)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct ModState {
     pub shift: bool,
     pub ctrl: bool,
     pub meta: bool,
+    pub caps: bool,
 }
 
 impl ModState {
@@ -158,6 +159,7 @@ impl ModState {
             KEY_LEFTSHIFT | KEY_RIGHTSHIFT => self.shift = pressed,
             KEY_LEFTCTRL | KEY_RIGHTCTRL => self.ctrl = pressed,
             KEY_LEFTMETA | KEY_RIGHTMETA => self.meta = pressed,
+            KEY_CAPSLOCK => self.caps = pressed,
             _ => {}
         }
     }
