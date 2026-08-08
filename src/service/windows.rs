@@ -200,11 +200,28 @@ impl HookState {
 }
 
 /// `KeyboardOut` for the hook: swallowing is implicit (return 1 from the hook),
-/// and modifiers pass through immediately, so replaying is a no-op.
+/// and modifiers pass through immediately. `CapsLock`, however, is swallowed
+/// while glide-alpha is active, so it is replayed here when no action fired
+/// (the hook passes injected input straight through, no feedback loop).
 struct HookKbd;
 
+const VK_CAPITAL: u16 = 0x14; // CapsLock virtual key
+
+/// Inject a single virtual-key press/release via `SendInput`.
+fn send_key(vk: u16, down: bool) -> Result<()> {
+    const KEYEVENTF_KEYUP: u32 = 0x0002;
+    let input = key_input(vk, if down { 0 } else { KEYEVENTF_KEYUP });
+    if unsafe { SendInput(1, &raw const input, std::mem::size_of::<INPUT>() as i32) } != 1 {
+        bail!("SendInput failed (key replay)");
+    }
+    Ok(())
+}
+
 impl KeyboardOut for HookKbd {
-    fn key(&mut self, _code: u16, _value: i32) -> Result<()> {
+    fn key(&mut self, code: u16, value: i32) -> Result<()> {
+        if code == crate::keymap::KEY_CAPSLOCK {
+            send_key(VK_CAPITAL, value != 0)?;
+        }
         Ok(())
     }
     fn sync(&mut self) -> Result<()> {

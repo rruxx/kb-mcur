@@ -116,7 +116,7 @@ impl Service {
         if glide_num_input(code, value, is_press, &mut self.glide_num, ptr)? {
             return Ok(true);
         }
-        if glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr)? {
+        if glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr, kbd)? {
             return Ok(true);
         }
         if grid_input(code, value, &mut self.grid, &self.mods) {
@@ -170,11 +170,12 @@ fn glide_alpha_input(
     is_press: bool,
     glide_alpha: &mut GlideAlpha,
     ptr: &mut dyn Pointer,
+    kbd: &mut dyn KeyboardOut,
 ) -> Result<bool> {
     if !glide_alpha.active() {
         return Ok(false);
     }
-    glide_alpha.handle_event(ptr, code, value, is_press)
+    glide_alpha.handle_event(ptr, kbd, code, value, is_press)
 }
 
 fn grid_input(code: u16, value: i32, grid: &mut GridEnv, mods: &ModState) -> bool {

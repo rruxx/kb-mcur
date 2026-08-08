@@ -16,9 +16,12 @@ use crate::service::dir::{Dir, DirState};
 
 // ── glide-alpha state ═══════════════════════════════════════════════
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct GlideAlpha {
     active: bool,
     caps_held: bool,
+    /// Whether any glide-alpha action fired while `CapsLock` is held.
+    caps_used: bool,
     shift_held: bool,
     btn_held: Option<MouseButton>,
     dir: DirState,
@@ -30,6 +33,7 @@ impl GlideAlpha {
         Self {
             active: false,
             caps_held: false,
+            caps_used: false,
             shift_held: false,
             btn_held: None,
             dir: DirState::new(),
@@ -87,6 +91,7 @@ impl GlideAlpha {
         self.dir = DirState::new();
         self.btn_held = None;
         self.caps_held = false;
+        self.caps_used = false;
         self.shift_held = false;
     }
 
@@ -96,14 +101,27 @@ impl GlideAlpha {
     pub fn handle_event(
         &mut self,
         ptr: &mut dyn Pointer,
+        kbd: &mut dyn KeyboardOut,
         code: u16,
         value: i32,
         is_press: bool,
     ) -> Result<bool> {
-        // CapsLock is the glide-alpha modifier. While active it is swallowed so
-        // holding it for chords never flips the desktop's caps-lock state.
+        // CapsLock is the glide-alpha modifier. Presses are swallowed so
+        // holding it for chords never flips the desktop's caps-lock state;
+        // if no glide-alpha action fired while it was held, replay it on
+        // release (a bare CapsLock tap still reaches the desktop).
         if code == KEY_CAPSLOCK {
-            self.caps_held = is_press;
+            if is_press {
+                self.caps_held = true;
+                self.caps_used = false;
+            } else {
+                self.caps_held = false;
+                if !self.caps_used {
+                    kbd.key(KEY_CAPSLOCK, 1)?;
+                    kbd.key(KEY_CAPSLOCK, 0)?;
+                    kbd.sync()?;
+                }
+            }
             return Ok(true);
         }
         if shift_code(code) {
@@ -119,6 +137,7 @@ impl GlideAlpha {
             && !s
             && let Some(flag) = Dir::from_alpha(code)
         {
+            self.caps_used = true;
             self.dir.update(flag, value);
             return Ok(true);
         }
@@ -128,6 +147,7 @@ impl GlideAlpha {
             && !s
             && let Some((axis, dir)) = scroll_code(code)
         {
+            self.caps_used = true;
             if is_press {
                 ptr.scroll(axis, dir)?;
             }
@@ -143,6 +163,7 @@ impl GlideAlpha {
                 KEY_O => Some(MouseButton::Right),
                 _ => None,
             } {
+                self.caps_used = true;
                 if value > 0 {
                     if self.btn_held.is_none() {
                         ptr.button(btn, true)?;
@@ -159,6 +180,7 @@ impl GlideAlpha {
                 KEY_M => Some(SideButton::Forward),
                 _ => None,
             } {
+                self.caps_used = true;
                 if is_press {
                     ptr.side(side)?;
                 }
