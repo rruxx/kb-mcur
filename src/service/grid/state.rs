@@ -24,6 +24,7 @@ pub type MonitorList = Vec<Monitor>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GridPhase {
+    /// L0: multi-monitor selection (pick a screen before navigating).
     Selecting,
     Navigating,
 }
@@ -169,8 +170,8 @@ impl Default for GridCtx {
 /// Bundles every piece of mutable grid state for the active monitor so
 /// that event handlers can operate on it as a unit.
 ///
-/// `sel_overlay` holds the multi-monitor selection hint (used only during the
-/// `Selecting` phase); the grid session itself is held whole in `state`.
+/// `sel_overlay` holds the L0 multi-monitor selection hint (used only during
+/// the `Selecting` phase); the grid session itself is held whole in `state`.
 pub struct GridStateMut<'a> {
     sel_overlay: &'a mut Option<Overlay>,
     state: &'a mut Option<GridState>,

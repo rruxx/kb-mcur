@@ -16,7 +16,7 @@ use crate::overlay::{Monitor, Overlay};
 pub struct GridEnv {
     active: bool,
     phase: GridPhase,
-    /// Multi-monitor selection hint (only during the `Selecting` phase).
+    /// L0 multi-monitor selection hint (only during the `Selecting` phase).
     sel_overlay: Option<Overlay>,
     /// The active grid session, held whole.
     state: Option<GridState>,

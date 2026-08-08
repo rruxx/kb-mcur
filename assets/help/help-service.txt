@@ -19,7 +19,7 @@ glide-alpha (Main keyboard):
 
 grid (Main keyboard):
   meta+capslock      Toggle grid overlay
-  a-z letter         Select monitor (multi-monitor)
+  a-z letter         L0: select monitor (multi-monitor)
   tab                Switch monitor
   layer1 key         L1: 9×3 region (main keyboard layout)
   layer2 key         L2: 3×9 sub-region (clockwise‑90°)

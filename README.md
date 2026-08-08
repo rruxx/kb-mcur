@@ -63,7 +63,7 @@ All three modes run on Linux and Windows; `--help` prints full key maps.
 
 **glide-alpha (Main keyboard):** meta+shift+capslock toggles. `capslock+h/j/k/l` moves, `capslock+w/a/s/d` scrolls, `capslock+u/i/o` left/middle/right, `capslock+n/m` back/forward.
 
-**grid (meta+capslock):** 27×27 grid in three layers (L1: 9×3, L2: 3×9, L3: 5×3). `u/i/o` clicks, `;` warps, 0-9 repeats, `p` resets; multi-monitor via `a-z`/Tab.
+**grid (meta+capslock):** 27×27 grid in four levels — L0: monitor select (`a-z`), L1 (9×3), L2 (3×9), L3 (5×3), plus L4 nudge (`h/j/k/l`). `u/i/o` clicks, `;` warps, 0-9 repeats, `p` resets; Tab switches monitor.
 
 #### Windows
 
