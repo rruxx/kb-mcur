@@ -13,9 +13,9 @@ pub mod windows;
 use anyhow::Result;
 
 use crate::device::pointer::{KeyboardOut, Pointer};
+use crate::keymap::{KEY_CAPSLOCK, KEY_NUMLOCK, KEY_TAB, ModState, key_map};
 #[cfg(target_os = "linux")]
-use crate::keymap::{KEY_CAPSLOCK, KEY_KPENTER, KEY_LEFTMETA, KEY_RIGHTMETA};
-use crate::keymap::{KEY_NUMLOCK, KEY_TAB, ModState, key_map};
+use crate::keymap::{KEY_KPENTER, KEY_LEFTMETA, KEY_RIGHTMETA};
 use crate::service::glide_alpha::GlideAlpha;
 use crate::service::glide_num::GlideNum;
 use crate::service::grid::GridEnv;
@@ -28,6 +28,10 @@ pub struct Service {
     glide_alpha: GlideAlpha,
     grid: GridEnv,
     mods: ModState,
+    /// Whether the current `CapsLock` press was part of a `meta` chord. Such a
+    /// `CapsLock` belongs to a mode toggle (grid/glide-alpha) and must never be
+    /// replayed by glide-alpha on release.
+    caps_toggle: bool,
     /// A held modifier (Meta/NumLock) whose key-down has not yet been forwarded.
     /// Linux-only: the evdev grab can replay it later. Windows forwards modifiers
     /// immediately so `Win+key` chords reach the desktop.
@@ -43,6 +47,7 @@ impl Service {
             glide_alpha: GlideAlpha::new(),
             grid: GridEnv::new(),
             mods: ModState::default(),
+            caps_toggle: false,
             #[cfg(target_os = "linux")]
             pending: None,
         }
@@ -60,6 +65,9 @@ impl Service {
         self.mods.update(code, is_press);
         if code == KEY_NUMLOCK {
             self.glide_num.set_numlock(value != 0);
+        }
+        if code == KEY_CAPSLOCK {
+            self.caps_toggle = is_press && self.mods.meta;
         }
 
         // Windows: swallow NumLock so the OS never toggles the lock state
@@ -116,7 +124,11 @@ impl Service {
         if glide_num_input(code, value, is_press, &mut self.glide_num, ptr)? {
             return Ok(true);
         }
-        if glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr, kbd)? {
+        // A CapsLock pressed as part of a meta chord belongs to a mode toggle;
+        // skip glide-alpha's CapsLock handling so its release is never replayed.
+        if !(code == KEY_CAPSLOCK && self.caps_toggle)
+            && glide_alpha_input(code, value, is_press, &mut self.glide_alpha, ptr, kbd)?
+        {
             return Ok(true);
         }
         if grid_input(code, value, &mut self.grid, &self.mods) {
